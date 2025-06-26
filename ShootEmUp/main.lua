@@ -1,17 +1,24 @@
 bullets = {}
 enemies = {}
 
+function checkCollision(a, b)
+    return a.x < b.x + b.width and
+           b.x < a.x + a.width and
+           a.y < b.y + b.height and
+           b.y < a.y + a.height
+end
+
 function love.load()
-    player = {x = 400, y = 300, speed = 200}
+    player = {x = 400, y = 300, width = 32, height = 32, speed = 200}
     
 end
 
 function love.keypressed(key)
     if key == "space" then
-        table.insert(bullets, {x = player.x + 16, y = player.y})
+        table.insert(bullets, {x = player.x + 16, y = player.y, width = 4, height = 10})
     end
     if key == "e" then
-        table.insert(enemies, {x = love.math.random(16 , 784), y = 0, speed = 120})
+        table.insert(enemies, {x = love.math.random(16 , 784), y = 0, width = 32, height = 32, speed = 120})
     end
     if key == "escape" then
         love.event.quit()
@@ -48,18 +55,30 @@ function love.update(dt)
             table.remove(enemies, i)
         end
     end
+    --Check collision
+    for i = #bullets, 1, -1 do
+    local bullet = bullets[i]
+    for j = #enemies, 1, -1 do
+        local enemy = enemies[j]
+        if checkCollision(bullet, enemy) then
+            table.remove(bullets, i)
+            table.remove(enemies, j)
+            break
+        end
+    end
+end
 
 end
 
 function love.draw()
     --Playerr
-    love.graphics.rectangle("fill", player.x, player.y, 32, 32)
+    love.graphics.rectangle("fill", player.x, player.y, player.width, player.height)
     --Bullets
     for _, b in ipairs(bullets) do
-        love.graphics.rectangle("fill", b.x, b.y, 4, 10)
+        love.graphics.rectangle("fill", b.x, b.y, b.width, b.height)
     end
     --Enemies
     for _, e in ipairs(enemies) do
-        love.graphics.rectangle("fill", e.x, e.y, 32, 32)
+        love.graphics.rectangle("fill", e.x, e.y, e.width, e.height)
     end
 end
