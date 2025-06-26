@@ -55,20 +55,28 @@ function love.update(dt)
             table.remove(enemies, i)
         end
     end
-    --Check collision
+    --Check enemy bullet collision
     for i = #bullets, 1, -1 do
     local bullet = bullets[i]
-    for j = #enemies, 1, -1 do
-        local enemy = enemies[j]
-        if checkCollision(bullet, enemy) then
-            table.remove(bullets, i)
-            table.remove(enemies, j)
-            break
+        for j = #enemies, 1, -1 do
+            local enemy = enemies[j]
+            if checkCollision(bullet, enemy) then
+                table.remove(bullets, i)
+                table.remove(enemies, j)
+                break
+            end
+        end
+    end
+    --Check enemy player collision
+    for i = #enemies, 1, -1 do
+    local enemy = enemies[i]
+        if checkCollision(player, enemy) then
+            -- You can replace this with game over logic later
+            love.event.quit( )
         end
     end
 end
 
-end
 
 function love.draw()
     --Playerr
