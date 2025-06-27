@@ -8,6 +8,7 @@ Enemy = Class{}
         self.size = Vector(radius, 0)
         self.shape = "circle"
         self.speed = speed
+        self.score = 10
         
     end
 
