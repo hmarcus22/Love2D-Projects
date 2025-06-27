@@ -1,5 +1,9 @@
-bullets = {}
-enemies = {}
+local Class = require "hump.class"
+local Player = require "player"
+local bullets = {}
+local enemies = {}
+
+player = Player(400, 300, 32, 32)
 
 function checkCollision(a, b)
     return a.x < b.x + b.width and
@@ -9,7 +13,7 @@ function checkCollision(a, b)
 end
 
 function love.load()
-    player = {x = 400, y = 300, width = 32, height = 32, speed = 200}
+    
     
 end
 
