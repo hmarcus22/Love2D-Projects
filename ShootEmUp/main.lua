@@ -7,10 +7,10 @@ local enemies = {}
 
 
 function checkCollision(a, b)
-    return a.x < b.x + b.width and
-           b.x < a.x + a.width and
-           a.y < b.y + b.height and
-           b.y < a.y + a.height
+    return a.pos.x < b.pos.x + b.width and
+           b.pos.x < a.pos.x + a.width and
+           a.pos.y < b.pos.y + b.height and
+           b.pos.y < a.pos.y + a.height
 end
 
 function love.load()
@@ -19,7 +19,7 @@ end
 
 function love.keypressed(key)
     if key == "space" then
-        local bullet = Projectile(player.x + 16, player.y)
+        local bullet = Projectile(player.pos.x + 16, player.pos.y)
         table.insert(bullets, bullet)
     end
     if key == "e" then
@@ -33,31 +33,20 @@ end
 
 function love.update(dt)
     --Check player input
-    if love.keyboard.isDown("up") then
-        player.y = player.y - player.speed * dt
-    end
-    if love.keyboard.isDown("down") then
-        player.y = player.y + player.speed * dt
-    end
-    if love.keyboard.isDown("left") then
-        player.x = player.x - player.speed * dt
-    end
-    if love.keyboard.isDown("right") then
-        player.x = player.x + player.speed * dt
-    end
+   player:update(dt)
     -- Update bullets
     for i = #bullets, 1, -1 do
         local b = bullets[i]
-        b.y = b.y -300 * dt
-        if b.y < 0 then
+        b:update(dt)
+        if b.pos.y < 0 then
             table.remove(bullets, i)
         end
     end
     --Update enemies
     for i = #enemies, 1, -1 do
         local e = enemies[i]
-        e.y = e.y + e.speed * dt
-        if e.y > 600 then
+        e:update(dt)
+        if e.pos.y > 600 then
             table.remove(enemies, i)
         end
     end
@@ -85,14 +74,14 @@ end
 
 
 function love.draw()
-    --Playerr
-    love.graphics.rectangle("fill", player.x, player.y, player.width, player.height)
+    --Player
+    love.graphics.rectangle("fill", player.pos.x, player.pos.y, player.width, player.height)
     --Bullets
     for _, b in ipairs(bullets) do
-        love.graphics.rectangle("fill", b.x, b.y, b.width, b.height)
+        love.graphics.rectangle("fill", b.pos.x, b.pos.y, b.width, b.height)
     end
     --Enemies
     for _, e in ipairs(enemies) do
-        love.graphics.rectangle("fill", e.x, e.y, e.width, e.height)
+        love.graphics.rectangle("fill", e.pos.x, e.pos.y, e.width, e.height)
     end
 end
