@@ -7,10 +7,10 @@ local enemies = {}
 
 
 function checkCollision(a, b)
-    return a.pos.x < b.pos.x + b.width and
-           b.pos.x < a.pos.x + a.width and
-           a.pos.y < b.pos.y + b.height and
-           b.pos.y < a.pos.y + a.height
+    return a.pos.x < b.pos.x + b.size.x and
+           b.pos.x < a.pos.x + a.size.x and
+           a.pos.y < b.pos.y + b.size.y and
+           b.pos.y < a.pos.y + a.size.y
 end
 
 function love.load()
@@ -75,13 +75,13 @@ end
 
 function love.draw()
     --Player
-    love.graphics.rectangle("fill", player.pos.x, player.pos.y, player.width, player.height)
+    player:draw()
     --Bullets
     for _, b in ipairs(bullets) do
-        love.graphics.rectangle("fill", b.pos.x, b.pos.y, b.width, b.height)
+        b:draw()
     end
     --Enemies
     for _, e in ipairs(enemies) do
-        love.graphics.rectangle("fill", e.pos.x, e.pos.y, e.width, e.height)
+        e:draw()
     end
 end

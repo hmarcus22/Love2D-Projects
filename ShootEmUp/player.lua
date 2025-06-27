@@ -5,8 +5,7 @@ Player = Class{}
 
     function Player:init(x, y, width, height)
         self.pos = Vector(x, y)
-        self.width = width
-        self.height = height
+        self.size = Vector(width, height)
         self.speed = 200
     end
 
@@ -28,6 +27,12 @@ function Player:update(dt)
     end
     
     self.pos = self.pos + velocity
+end
+
+function Player:draw()
+
+    love.graphics.rectangle("fill", self.pos.x, self.pos.y, self.size.x, self.size.y)
+
 end
 
 return Player
