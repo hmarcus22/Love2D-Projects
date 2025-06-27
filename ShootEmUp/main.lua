@@ -1,5 +1,6 @@
 local Enemy = require "enemy"
 local Player = require "player"
+local Projectile = require "projectile"
 local bullets = {}
 local enemies = {}
 
@@ -18,7 +19,8 @@ end
 
 function love.keypressed(key)
     if key == "space" then
-        table.insert(bullets, {x = player.x + 16, y = player.y, width = 4, height = 10})
+        local bullet = Projectile(player.x + 16, player.y)
+        table.insert(bullets, bullet)
     end
     if key == "e" then
         local enemy = Enemy(love.math.random(16 , 784), 0, 32, 32, 120)
