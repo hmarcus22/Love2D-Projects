@@ -1,9 +1,9 @@
-local Class = require "hump.class"
+local Enemy = require "enemy"
 local Player = require "player"
 local bullets = {}
 local enemies = {}
 
-player = Player(400, 300, 32, 32)
+
 
 function checkCollision(a, b)
     return a.x < b.x + b.width and
@@ -13,8 +13,7 @@ function checkCollision(a, b)
 end
 
 function love.load()
-    
-    
+    player = Player(400, 300, 32, 32)
 end
 
 function love.keypressed(key)
@@ -22,7 +21,8 @@ function love.keypressed(key)
         table.insert(bullets, {x = player.x + 16, y = player.y, width = 4, height = 10})
     end
     if key == "e" then
-        table.insert(enemies, {x = love.math.random(16 , 784), y = 0, width = 32, height = 32, speed = 120})
+        local enemy = Enemy(love.math.random(16 , 784), 0, 32, 32, 120)
+        table.insert(enemies, enemy)
     end
     if key == "escape" then
         love.event.quit()
