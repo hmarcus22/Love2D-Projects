@@ -37,7 +37,7 @@ function love.update(dt)
    player:update(dt)
     -- Update bullets
     for i = #bullets, 1, -1 do
-        local b = bullets[i]
+        local b = bullets[i] 
         b:update(dt)
         if b.pos.y < 0 then
             table.remove(bullets, i)
@@ -66,7 +66,7 @@ function love.update(dt)
     --Check enemy player collision
     for i = #enemies, 1, -1 do
     local enemy = enemies[i]
-        if checkCollision(player, enemy) then
+        if Collision:check(player, enemy) then
             love.event.quit( )
         end
     end
