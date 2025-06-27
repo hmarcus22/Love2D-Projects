@@ -66,7 +66,12 @@ function love.update(dt)
     for i = #enemies, 1, -1 do
     local enemy = enemies[i]
         if Collision:check(player, enemy) then
-            love.event.quit( )
+            table.remove(enemies, i)
+            player.lives = player.lives - 1
+            if player.lives == 0 then
+                love.event.quit( )
+            end
+            
         end
     end
 end

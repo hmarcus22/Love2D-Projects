@@ -8,6 +8,7 @@ Player = Class{}
         self.size = Vector(width, height)
         self.shape = "rectangle"
         self.speed = 200
+        self.lives = 3
     end
 
     function Player:update(dt)
@@ -34,6 +35,7 @@ Player = Class{}
 
         love.graphics.setColor(.2, 1, .2, 1)
         love.graphics.rectangle("fill", self.pos.x, self.pos.y, self.size.x, self.size.y)
+        love.graphics.print(self.lives, 16, 16)
 
     end
 return Player
