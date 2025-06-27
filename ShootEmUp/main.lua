@@ -58,6 +58,7 @@ function love.update(dt)
             if Collision:check(bullet, enemy) then
                 table.remove(bullets, i)
                 table.remove(enemies, j)
+                player.score = player.score + 10
                 break
             end
         end
