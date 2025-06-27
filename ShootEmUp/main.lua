@@ -1,6 +1,7 @@
 local Enemy = require "enemy"
 local Player = require "player"
 local Projectile = require "projectile"
+local Collision = require "collision"
 local bullets = {}
 local enemies = {}
 
@@ -23,7 +24,7 @@ function love.keypressed(key)
         table.insert(bullets, bullet)
     end
     if key == "e" then
-        local enemy = Enemy(love.math.random(16 , 784), 0, 32, 32, 120)
+        local enemy = Enemy(love.math.random(16 , 784), 0, 16, 120)
         table.insert(enemies, enemy)
     end
     if key == "escape" then
@@ -55,7 +56,7 @@ function love.update(dt)
     local bullet = bullets[i]
         for j = #enemies, 1, -1 do
             local enemy = enemies[j]
-            if checkCollision(bullet, enemy) then
+            if Collision:check(bullet, enemy) then
                 table.remove(bullets, i)
                 table.remove(enemies, j)
                 break
@@ -66,7 +67,6 @@ function love.update(dt)
     for i = #enemies, 1, -1 do
     local enemy = enemies[i]
         if checkCollision(player, enemy) then
-            -- You can replace this with game over logic later
             love.event.quit( )
         end
     end
