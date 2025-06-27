@@ -5,17 +5,25 @@ local Collision = require "collision"
 local bullets = {}
 local enemies = {}
 
+local player
+local screenW, screenH
+
 function love.load()
+    
+    love.window.setMode(1024, 1500)
     player = Player(400, 300, 32, 32)
+    screenW, screenH = love.window.getMode() 
+
 end
 
 function love.keypressed(key)
+
     if key == "space" then
         local bullet = Projectile(player.pos.x + 16, player.pos.y)
         table.insert(bullets, bullet)
     end
     if key == "e" then
-        local enemy = Enemy(love.math.random(16 , 784), 0, 16, 120)
+        local enemy = Enemy(love.math.random(16 , screenW - 16), 0, 16, 120)
         table.insert(enemies, enemy)
     end
     if key == "escape" then
@@ -38,7 +46,7 @@ function love.update(dt)
     for i = #enemies, 1, -1 do
         local e = enemies[i]
         e:update(dt)
-        if e.pos.y > 600 then
+        if e.pos.y > screenH + e.size.x then
             table.remove(enemies, i)
         end
     end
