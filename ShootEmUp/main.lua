@@ -5,15 +5,6 @@ local Collision = require "collision"
 local bullets = {}
 local enemies = {}
 
-
-
-function checkCollision(a, b)
-    return a.pos.x < b.pos.x + b.size.x and
-           b.pos.x < a.pos.x + a.size.x and
-           a.pos.y < b.pos.y + b.size.y and
-           b.pos.y < a.pos.y + a.size.y
-end
-
 function love.load()
     player = Player(400, 300, 32, 32)
 end
@@ -66,7 +57,7 @@ function love.update(dt)
     --Check enemy player collision
     for i = #enemies, 1, -1 do
     local enemy = enemies[i]
-        if checkCollision(player, enemy) then
+        if Collision:check(player, enemy) then
             love.event.quit( )
         end
     end
