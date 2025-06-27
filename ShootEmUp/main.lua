@@ -28,7 +28,7 @@ function love.update(dt)
    player:update(dt)
     -- Update bullets
     for i = #bullets, 1, -1 do
-        local b = bullets[i]
+        local b = bullets[i] 
         b:update(dt)
         if b.pos.y < 0 then
             table.remove(bullets, i)
