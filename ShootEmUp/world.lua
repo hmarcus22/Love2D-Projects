@@ -1,6 +1,6 @@
 local Collision = require "collision"
 
-local screenW, screenH = love.window.getMode() 
+local screenW, screenH
 
 local World = {}
 
@@ -30,6 +30,10 @@ end
 
 function World:addEnemy(enemy)
     table.insert(self.enemies, enemy)
+end
+
+function World:load()
+    screenW, screenH = love.window.getMode() 
 end
 
 function World:update(dt)
@@ -66,33 +70,13 @@ function World:update(dt)
             table.remove(self.enemies, i)
         end
     end
-    --Check enemy bullet collision
-    for i = #self.bullets, 1, -1 do
-    local bullet = self.bullets[i]
-        for j = #self.enemies, 1, -1 do
-            local enemy = self.enemies[j]
-            if Collision:check(bullet, enemy) then
-                enemy.isDestroyed = true
-                table.remove(self.bullets, i)
-                table.remove(self.enemies, j)
-                self.player.score = self.player.score + enemy.score
-                break
-            end
-        end
-    end
-    
-    --Check enemy player collision
-    for i = #self.enemies, 1, -1 do
-    local enemy = self.enemies[i]
-        if Collision:check(self.player, enemy) then
-            table.remove(self.enemies, i)
-            self.player.lives = self.player.lives - 1
-            if self.player.lives == 0 then
-                love.event.quit( )
-            end
-            
-        end
-    end
+
+    Collision:checkAll(self.bullets, self.enemies, function(bullet, enemy, i, j)
+        enemy.isDestroyed = true
+        table.remove(self.bullets, i)
+        table.remove(self.enemies, j)
+        self.player.score = self.player.score + enemy.score
+    end)
     
 end
 
@@ -111,6 +95,10 @@ function World:draw()
     --Enemies
     for _, e in ipairs(self.enemies) do
         e:draw()
+    end
+
+    for _, e in ipairs(self.enemies) do
+        Collision:debugDraw(e)
     end
     
 end

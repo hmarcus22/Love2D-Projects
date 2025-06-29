@@ -16,7 +16,9 @@ function love.load()
     Input:load()
     love.window.setMode(1024, 1500)
     player = Player(400, 300, 32, 32)
+    World:load()
     World:initPlayer(player)
+    
     
 
 end
@@ -47,7 +49,7 @@ end
 
 
 function love.draw()
-    
+
     World:draw()
    
 end
