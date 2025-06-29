@@ -2,10 +2,13 @@ local Enemy = require "enemy"
 local Player = require "player"
 local Projectile = require "projectile"
 local Collision = require "collision"
+local Timer = require "hump.timer"
+
 local bullets = {}
 local enemyBullets = {}
 local enemies = {}
 
+local timer = Timer.new()
 local player
 local screenW, screenH
 
@@ -32,6 +35,19 @@ function love.keypressed(key)
             
         end
         table.insert(enemies, enemy)
+        local function scheduleEnemyShot(enemy)
+        local interval = love.math.random(1, 3)
+        enemy.cooldownDuration = interval
+        enemy.cooldownTimer = interval
+        timer:after(interval, function()
+                        if not enemy.isDestroyed then
+                            enemy:shoot()
+                            scheduleEnemyShot(enemy) -- Reschedule for next shot
+                        end
+                    end
+                    )
+        end
+        scheduleEnemyShot(enemy)
     end
     if key == "escape" then
         love.event.quit()
@@ -39,6 +55,8 @@ function love.keypressed(key)
 end
 
 function love.update(dt)
+
+    timer:update(dt)
     --Check player input
    player:update(dt)
     -- Update bullets
@@ -78,6 +96,7 @@ function love.update(dt)
         for j = #enemies, 1, -1 do
             local enemy = enemies[j]
             if Collision:check(bullet, enemy) then
+                enemy.isDestroyed = true
                 table.remove(bullets, i)
                 table.remove(enemies, j)
                 player.score = player.score + enemy.score
