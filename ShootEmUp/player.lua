@@ -12,6 +12,14 @@ Player = Class{}
         self.score = 0
     end
 
+    function Player:move(x, y, dt)
+
+        local velocity = Vector(x, y):normalized() * self.speed * dt
+        if x == 0 and y == 0 then return end
+        self.pos = self.pos + velocity
+        
+    end
+
     function Player:update(dt)
 
         local velocity = Vector(0, 0)
