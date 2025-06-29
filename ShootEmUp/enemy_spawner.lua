@@ -38,7 +38,7 @@ function EnemySpawner:scheduleNextWave(player, enemyBullets, enemyList)
 end
 
 
-function EnemySpawner:spawn(timer)
+function EnemySpawner:spawn()
     local enemy = Enemy(love.math.random(16 , 1024 - 16), 0, 16, 120)
     enemy.canTargetPlayer = love.math.random() < 0.5
 
@@ -55,18 +55,18 @@ function EnemySpawner:spawn(timer)
     end
 
     table.insert(World.enemies, enemy)
-    self:scheduleShot(enemy, timer)
+    self:scheduleShot(enemy)
 end
 
-function EnemySpawner:scheduleShot(enemy, timer)
+function EnemySpawner:scheduleShot(enemy)
     local interval = love.math.random(1, 3)
     enemy.cooldownDuration = interval
     enemy.cooldownTimer = interval
 
-    timer:after(interval, function()
+    self.timer:after(interval, function()
         if not enemy.isDestroyed then
             enemy:shoot()
-            self:scheduleShot(enemy, timer)
+            self:scheduleShot(enemy)
         end
     end)
 end
