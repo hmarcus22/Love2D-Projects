@@ -1,11 +1,12 @@
 local Enemy = require "enemy"
 local Projectile = require "projectile"
 local Vector = require "HUMP.vector"
--- local Timer = require "hump.timer"
+local World = require "world"
+
 
 local EnemySpawner = {}
 
-function EnemySpawner:spawn(player, projectileList, enemyList, timer)
+function EnemySpawner:spawn(timer)
     local enemy = Enemy(love.math.random(16 , 1024 - 16), 0, 16, 120)
     enemy.canTargetPlayer = love.math.random() < 0.5
 
@@ -13,15 +14,15 @@ function EnemySpawner:spawn(player, projectileList, enemyList, timer)
         print("Enemy fired!")
         local bullet
         if enemy.canTargetPlayer then
-            bullet = Projectile:fromTarget(Vector(x, y), player.pos)
+            bullet = Projectile:fromTarget(Vector(x, y), World.player.pos)
         else
             bullet = Projectile(x, y, 4, 10)
             bullet.velocity = Vector(0, bullet.speed)
         end
-        table.insert(projectileList, bullet)
+        table.insert(World.enemyBullets, bullet)
     end
 
-    table.insert(enemyList, enemy)
+    table.insert(World.enemies, enemy)
     self:scheduleShot(enemy, timer)
 end
 
