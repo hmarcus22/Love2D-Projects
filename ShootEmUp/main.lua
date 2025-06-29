@@ -21,7 +21,7 @@ function love.load()
     World:load()
     World:initPlayer(player)
     EnemySpawner:init(timer)
-    EnemySpawner:startWaves(World.player, World.enemyBullets, World.enemies)
+    EnemySpawner:startWaves()
 
 end
 

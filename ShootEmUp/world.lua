@@ -72,10 +72,14 @@ function World:update(dt)
     end
 
     Collision:checkAll(self.bullets, self.enemies, function(bullet, enemy, i, j)
-        enemy.isDestroyed = true
         table.remove(self.bullets, i)
-        table.remove(self.enemies, j)
-        self.player.score = self.player.score + enemy.score
+        enemy.health = (enemy.health or 1) - 1
+         if enemy.health <= 0 then
+            table.remove(self.enemies, j)
+            self.player.score = self.player.score + enemy.score
+            enemy.isDestroyed = true
+        end
+        
     end)
     
 end

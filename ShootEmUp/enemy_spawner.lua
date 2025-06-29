@@ -9,38 +9,72 @@ local EnemySpawner = {}
 EnemySpawner.waveNumber = 0
 EnemySpawner.enemiesPerWave = 5
 EnemySpawner.spawnInterval = 0.5 -- seconds between each enemy
-EnemySpawner.timeBetweenWaves = 5
+EnemySpawner.timeBetweenWaves = 8
 EnemySpawner.timer = nil
 EnemySpawner.active = false
+
+EnemySpawner.enemyTypes = {
+    basic = {
+        radius = 16,
+        speed = 100,
+        score = 10,
+        color = {1, 0.2, 0.2, 1},
+        canTargetPlayer = false
+    },
+    sniper = {
+        radius = 12,
+        speed = 80,
+        score = 20,
+        color = {0.2, 0.2, 1, 1},
+        canTargetPlayer = true
+    },
+    tank = {
+        radius = 24,
+        speed = 50,
+        score = 30,
+        color = {0.5, 0.5, 0.5, 1},
+        canTargetPlayer = false,
+        health = 3
+    }
+}
 
 function EnemySpawner:init(timer)
     self.timer = timer
 end
 
-function EnemySpawner:startWaves(player, enemyBullets, enemyList)
+function EnemySpawner:startWaves()
     self.active = true
     self.waveNumber = 0
-    self:scheduleNextWave(player, enemyBullets, enemyList)
+    self:scheduleNextWave()
 end
 
-function EnemySpawner:scheduleNextWave(player, enemyBullets, enemyList)
+function EnemySpawner:scheduleNextWave()
     self.waveNumber = self.waveNumber + 1
     local totalEnemies = self.enemiesPerWave + (self.waveNumber - 1) * 2
+    local typeOptions = {"basic", "sniper", "tank"}
 
     for i = 1, totalEnemies do
         self.timer:after((i - 1) * self.spawnInterval, function()
-            self:spawn(player, enemyBullets, enemyList, self.timer)
+            local typeName = typeOptions[love.math.random(1, #typeOptions)]
+            self:spawn(typeName)
         end)
     end
         self.timer:after(totalEnemies * self.spawnInterval + self.timeBetweenWaves, function()
-        self:scheduleNextWave(player, enemyBullets, enemyList)
+        self:scheduleNextWave()
     end)
 end
 
 
-function EnemySpawner:spawn()
-    local enemy = Enemy(love.math.random(16 , 1024 - 16), 0, 16, 120)
-    enemy.canTargetPlayer = love.math.random() < 0.5
+function EnemySpawner:spawn(typeName)
+    
+    local t = self.enemyTypes[typeName or "basic"]
+    
+    local enemy = Enemy(love.math.random(16 , 1024 - 16), 0, t.radius, t.speed)
+    enemy.score = t.score
+    enemy.color = t.color
+    enemy.canTargetPlayer = t.canTargetPlayer
+    enemy.health = t.health or 1
+    enemy.maxHealth = enemy.health
 
     enemy.onShoot = function(x, y)
         print("Enemy fired!")
