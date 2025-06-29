@@ -1,7 +1,6 @@
 local World = require "world"
 local Player = require "player"
 local Projectile = require "projectile"
-local Collision = require "collision"
 local Timer = require "hump.timer"
 
 local Input = require "input"
@@ -18,8 +17,6 @@ function love.load()
     player = Player(400, 300, 32, 32)
     World:load()
     World:initPlayer(player)
-    
-    
 
 end
 
