@@ -42,7 +42,7 @@ function Collision:checkRectCircle(rect, circle)
         math.max(rect.pos.x - rect.size.x / 2, math.min(circle.pos.x, rect.pos.x + rect.size.x / 2)),
         math.max(rect.pos.y - rect.size.y / 2, math.min(circle.pos.y, rect.pos.y + rect.size.y / 2))
     )
-    return (closestPoint - circle.pos):len() < circle.size.x / 2
+    return (closestPoint - circle.pos):len() < circle.size.x
 end
 
 function Collision:checkCircleCircle(a, b)

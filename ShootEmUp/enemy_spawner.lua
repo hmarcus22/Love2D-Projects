@@ -6,6 +6,38 @@ local World = require "world"
 
 local EnemySpawner = {}
 
+EnemySpawner.waveNumber = 0
+EnemySpawner.enemiesPerWave = 5
+EnemySpawner.spawnInterval = 0.5 -- seconds between each enemy
+EnemySpawner.timeBetweenWaves = 5
+EnemySpawner.timer = nil
+EnemySpawner.active = false
+
+function EnemySpawner:init(timer)
+    self.timer = timer
+end
+
+function EnemySpawner:startWaves(player, enemyBullets, enemyList)
+    self.active = true
+    self.waveNumber = 0
+    self:scheduleNextWave(player, enemyBullets, enemyList)
+end
+
+function EnemySpawner:scheduleNextWave(player, enemyBullets, enemyList)
+    self.waveNumber = self.waveNumber + 1
+    local totalEnemies = self.enemiesPerWave + (self.waveNumber - 1) * 2
+
+    for i = 1, totalEnemies do
+        self.timer:after((i - 1) * self.spawnInterval, function()
+            self:spawn(player, enemyBullets, enemyList, self.timer)
+        end)
+    end
+        self.timer:after(totalEnemies * self.spawnInterval + self.timeBetweenWaves, function()
+        self:scheduleNextWave(player, enemyBullets, enemyList)
+    end)
+end
+
+
 function EnemySpawner:spawn(timer)
     local enemy = Enemy(love.math.random(16 , 1024 - 16), 0, 16, 120)
     enemy.canTargetPlayer = love.math.random() < 0.5
