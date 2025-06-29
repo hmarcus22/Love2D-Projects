@@ -5,6 +5,7 @@ local Collision = require "collision"
 local Timer = require "hump.timer"
 local Vector = require "HUMP.vector"
 local Input = require "input"
+local EnemySpawner = require "enemy_spawner"
 
 local bullets = {}
 local enemyBullets = {}
@@ -23,19 +24,6 @@ function love.load()
 
 end
 
-local function scheduleEnemyShot(enemy)
-    local interval = love.math.random(1, 3)
-        enemy.cooldownDuration = interval
-        enemy.cooldownTimer = interval
-
-        timer:after(interval, function()
-            if not enemy.isDestroyed then
-                enemy:shoot()
-                scheduleEnemyShot(enemy)
-            end
-        end)
-end
-
 function love.keypressed(key)
 
    Input:keypressed(key)
@@ -44,30 +32,19 @@ end
 
 function love.update(dt)
 
+    timer:update(dt)
+
     Input:update(dt, player,
         function() -- fireCallback
             local bullet = Projectile(player.pos.x + 16, player.pos.y)
             table.insert(bullets, bullet)
         end,
         function() -- spawnEnemyCallback
-            local enemy = Enemy(love.math.random(16 , screenW - 16), 0, 16, 120)
-            enemy.canTargetPlayer = love.math.random() < 0.5
-            enemy.onShoot = function(x, y)
-                local bullet
-                if enemy.canTargetPlayer then
-                    bullet = Projectile:fromTarget(Vector(x, y), player.pos)
-                else
-                    bullet = Projectile(x, y, 4, 10)
-                    bullet.velocity = Vector(0, bullet.speed)
-                end
-                table.insert(enemyBullets, bullet)
-            end
-            table.insert(enemies, enemy)
-            scheduleEnemyShot(enemy)
+            EnemySpawner:spawn(player, enemyBullets, enemies, timer)
         end
     )
 
-    timer:update(dt)
+    
     --Check player input
    player:update(dt)
     -- Update bullets
