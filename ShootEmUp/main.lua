@@ -2,6 +2,7 @@ local World = require "world"
 local Player = require "player"
 local Projectile = require "projectile"
 local Timer = require "hump.timer"
+local Background = require "background"
 
 local Input = require "input"
 local EnemySpawner = require "enemy_spawner"
@@ -14,6 +15,8 @@ function love.load()
 
     Input:load()
     love.window.setMode(1024, 1500)
+    screenW, screenH = love.graphics.getDimensions()
+    Background:init(screenW, screenH, 100) -- 100 stars per layer
     player = Player(400, 300, 32, 32)
     World:load()
     World:initPlayer(player)
@@ -43,12 +46,14 @@ function love.update(dt)
     )
 
    World:update(dt)
+
+   Background:update(dt)
     
 end
 
 
 function love.draw()
-
+    Background:draw()
     World:draw()
    
 end
