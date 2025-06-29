@@ -14,6 +14,7 @@ Enemy = Class{}
         self.shootTimer = 0
         self.cooldownDuration = love.math.random(1, 3)
         self.cooldownTimer = self.cooldownDuration
+        self.canTargetPlayer = false
         self.isDestroyed = false
         
     end
@@ -34,7 +35,11 @@ Enemy = Class{}
     end
 
     function Enemy:draw()
-        love.graphics.setColor(1, .2, .2, 1)
+        if self.canTargetPlayer then
+            love.graphics.setColor(1, .2, .2, 1)
+        else
+            love.graphics.setColor(.2, .2, 1, 1)
+        end
         love.graphics.circle("fill", self.pos.x, self.pos.y, self.size.x)
 
         local barWidth = 30

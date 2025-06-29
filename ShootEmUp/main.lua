@@ -3,6 +3,7 @@ local Player = require "player"
 local Projectile = require "projectile"
 local Collision = require "collision"
 local Timer = require "hump.timer"
+local Vector = require "HUMP.vector"
 
 local bullets = {}
 local enemyBullets = {}
@@ -28,25 +29,32 @@ function love.keypressed(key)
     end
     if key == "e" then
         local enemy = Enemy(love.math.random(16 , screenW - 16), 0, 16, 120)
+
+        enemy.canTargetPlayer = love.math.random() < 0.5
+        
         enemy.onShoot = function (x, y)
-            local bullet = Projectile(x,y)
-            bullet.speed = -300
+            if enemy.canTargetPlayer then
+                bullet = Projectile:fromTarget(Vector(x, y), player.pos)
+            else
+                bullet = Projectile(x, y, 4, 10)
+                bullet.velocity = Vector(0, bullet.speed)
+            end
             table.insert(enemyBullets, bullet)
             
         end
         table.insert(enemies, enemy)
         local function scheduleEnemyShot(enemy)
-        local interval = love.math.random(1, 3)
-        enemy.cooldownDuration = interval
-        enemy.cooldownTimer = interval
-        timer:after(interval, function()
-                        if not enemy.isDestroyed then
-                            enemy:shoot()
-                            scheduleEnemyShot(enemy) -- Reschedule for next shot
+            local interval = love.math.random(1, 3)
+            enemy.cooldownDuration = interval
+            enemy.cooldownTimer = interval
+            timer:after(interval, function()
+                            if not enemy.isDestroyed then
+                                enemy:shoot()
+                                scheduleEnemyShot(enemy) -- Reschedule for next shot
+                            end
                         end
-                    end
-                    )
-        end
+                        )
+            end
         scheduleEnemyShot(enemy)
     end
     if key == "escape" then

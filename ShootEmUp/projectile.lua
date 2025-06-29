@@ -8,11 +8,19 @@ local Projectile = Class{}
         self.size = Vector(4 or width, 10 or height)
         self.shape = "rectangle"
         self.speed = 300
+        self.velocity = Vector(0, -self.speed)
+    end
+
+    function Projectile:fromTarget(origin, target)
+        local proj = Projectile(origin.x, origin.y, 4, 10)
+        local direction = (target - origin):normalized()
+        proj.velocity = direction * proj.speed
+        return proj
     end
 
     function Projectile:update(dt)
 
-        self.pos.y = self.pos.y - self.speed * dt
+        self.pos = self.pos + self.velocity * dt
         
     end
 
