@@ -3,6 +3,7 @@ local Player = require "player"
 local Projectile = require "projectile"
 local Collision = require "collision"
 local bullets = {}
+local enemyBullets = {}
 local enemies = {}
 
 local player
@@ -24,6 +25,12 @@ function love.keypressed(key)
     end
     if key == "e" then
         local enemy = Enemy(love.math.random(16 , screenW - 16), 0, 16, 120)
+        enemy.onShoot = function (x, y)
+            local bullet = Projectile(x,y)
+            bullet.speed = -300
+            table.insert(enemyBullets, bullet)
+            
+        end
         table.insert(enemies, enemy)
     end
     if key == "escape" then
@@ -40,6 +47,21 @@ function love.update(dt)
         b:update(dt)
         if b.pos.y < 0 then
             table.remove(bullets, i)
+        end
+    end
+    -- Update enamy bullets
+    for i = #enemyBullets, 1, -1 do
+        local b = enemyBullets[i]
+        b:update(dt)
+        if b.pos.y > screenH then
+            table.remove(enemyBullets, i)
+        end
+        if Collision:check(player, b) then
+            table.remove(enemyBullets, i)
+            player.lives = player.lives -1
+            if player.lives == 0 then
+                love.event.quit()
+            end
         end
     end
     --Update enemies
@@ -63,6 +85,7 @@ function love.update(dt)
             end
         end
     end
+    
     --Check enemy player collision
     for i = #enemies, 1, -1 do
     local enemy = enemies[i]
@@ -84,6 +107,10 @@ function love.draw()
     --Bullets
     for _, b in ipairs(bullets) do
         b:draw()
+    end
+    --Enemy bullets
+    for _, b in ipairs(enemyBullets) do
+    b:draw()
     end
     --Enemies
     for _, e in ipairs(enemies) do
