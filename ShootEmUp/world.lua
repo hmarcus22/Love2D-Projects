@@ -47,7 +47,7 @@ function World:update(dt)
             table.remove(self.bullets, i)
         end
     end
-    -- Update enamy bullets
+    -- Update enemy bullets
     for i = #self.enemyBullets, 1, -1 do
         local b = self.enemyBullets[i]
         b:update(dt)
