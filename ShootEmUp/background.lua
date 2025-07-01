@@ -8,9 +8,9 @@ function Background:init(screenW, screenH, starCount)
             color = {0.3, 0.3, 0.3, 0.3}
         },
         {
-            speed = 20,
+            speed = 30,
             stars = {},
-            color = {0.6, 0.6, 0.6, 0.5}
+            color = {0.6, 0.6, 0.6, 0.6}
         },
         {
             speed = 60,
@@ -49,20 +49,20 @@ function Background:update(dt)
         end
     end
 
-    self.shootingStarTimer = self.shootingStarTimer + dt
-    if self.shootingStarTimer >= self.shootingStarCooldown then
-        self.shootingStarTimer = 0
-        self.shootingStarCooldown = love.math.random(3, 6)
+    -- self.shootingStarTimer = self.shootingStarTimer + dt
+    -- if self.shootingStarTimer >= self.shootingStarCooldown then
+    --     self.shootingStarTimer = 0
+    --     self.shootingStarCooldown = love.math.random(3, 6)
 
-        table.insert(self.shootingStars, {
-            x = love.math.random(0, self.screenW),
-            y = love.math.random(0, self.screenH / 2),
-            speed = 400 + love.math.random() * 200,
-            angle = math.rad(45), -- diagonal down-right
-            length = 60,
-            life = 1
-        })
-    end
+    --     table.insert(self.shootingStars, {
+    --         x = love.math.random(0, self.screenW),
+    --         y = love.math.random(0, self.screenH / 2),
+    --         speed = 400 + love.math.random() * 200,
+    --         angle = math.rad(45), -- diagonal down-right
+    --         length = 60,
+    --         life = 1
+    --      })
+    -- end
 
     -- Update shooting stars
     -- for i = #self.shootingStars, 1, -1 do
