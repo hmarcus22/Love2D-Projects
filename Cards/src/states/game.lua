@@ -5,19 +5,24 @@ local pause = require "src.states.pause"
 
 local game = {}
 
-function game:enter(from, newGame)
-    if newGame or not self.gs then
-        self.gs = GameState:new()
+function game:enter(from, draftedPlayers)
+    if type(draftedPlayers) == "table" then
+        local Player = require "src.player"
+        local newPlayers = {}
+        for i, p in ipairs(draftedPlayers) do
+            local player = Player(p.id, (i == 1) and 400 or 50, 5)
+            -- copy drafted deck into player's deck
+            player.deck = p.deck
+            newPlayers[i] = player
+        end
+        self.gs = GameState:newFromDraft(newPlayers)
+    else
+        error("Game state requires drafted players! Did you skip draft?")
     end
 end
 
-function game:update(dt)
-    self.gs:update(dt) 
-end
-
-function game:draw()      
-    self.gs:draw() 
-end
+function game:update(dt)  self.gs:update(dt) end
+function game:draw()      self.gs:draw() end
 
 function game:mousepressed(x, y, button)
     Input:mousepressed(self.gs, x, y, button)

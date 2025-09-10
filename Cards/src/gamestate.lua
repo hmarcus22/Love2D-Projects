@@ -49,43 +49,66 @@ function GameState:new()
     return gs
 end
 
+function GameState:newFromDraft(draftedPlayers)
+    local gs = setmetatable({}, self)
+
+    gs.players = draftedPlayers
+    gs.currentPlayer = 1
+    gs.allCards = {}
+    gs.draggingCard = nil
+    gs.deckStack = nil -- no shared deck in this mode (each has their own)
+    gs.discardStack = Card(-2, "Discard", 600, 225)
+    gs.discardStack.faceUp = false
+    gs.discardPile = {}
+
+    -- deal starting hands from each player’s deck
+    for _, p in ipairs(gs.players) do
+        p.hand = {}
+        for i = 1, 5 do
+            local c = table.remove(p.deck)
+            if c then
+                p:addCard(c)
+                table.insert(gs.allCards, c)
+            end
+        end
+    end
+
+    gs:updateCardVisibility()
+    return gs
+end
+
+
 function GameState:draw()
     love.graphics.setColor(1,1,1)
     love.graphics.print("Player " .. self.currentPlayer .. "'s turn (SPACE to switch)", 20, 20)
 
-    -- draw deck stack
-    self.deckStack:draw()
-    love.graphics.print("Cards left: " .. self.deck:count(), self.deckStack.x, self.deckStack.y + self.deckStack.h + 5)
+    -- per-player deck counts (no central deckStack in draft mode)
+    for i, p in ipairs(self.players) do
+        love.graphics.setColor(1,1,1)
+        local deckX = (i == 1) and 20 or 880
+        local deckY = p.y
 
-    -- draw discard pile (top card or placeholder)
+        love.graphics.rectangle("fill", deckX, deckY, 100, 150, 8, 8)
+        love.graphics.setColor(0,0,0)
+        love.graphics.rectangle("line", deckX, deckY, 100, 150, 8, 8)
+        love.graphics.printf("Deck\n" .. #p.deck, deckX, deckY + 50, 100, "center")
+    end
+
+    -- discard pile
     if #self.discardPile > 0 then
         self.discardPile[#self.discardPile]:draw()
     else
         self.discardStack:draw()
     end
 
-    -- draw player slots
+    -- draw slots + cards for each player
     for _, p in ipairs(self.players) do
         p:drawSlots()
     end
 
-     -- highlight discard pile if needed
-    if self.highlightDiscard then
-        local x, y = self.discardStack.x, self.discardStack.y
-        local w, h = self.discardStack.w, self.discardStack.h
-
-        -- slightly bigger than the card
-        local pad = 6
-        love.graphics.setColor(1, 0, 0, 0.9)
-        love.graphics.setLineWidth(6)
-        love.graphics.rectangle("line", x - pad, y - pad, w + pad*2, h + pad*2, 10, 10)
-        love.graphics.setLineWidth(1)
-        love.graphics.setColor(1,1,1,1)
-    end
-
-    -- draw all cards
-    for _, c in ipairs(self.allCards) do
-        c:draw()
+    -- draw the card being dragged on top
+    if self.draggingCard then
+        self.draggingCard:draw()
     end
 end
 
@@ -112,15 +135,10 @@ function GameState:updateCardVisibility()
 end
 
 function GameState:drawCardToPlayer(playerIndex)
-    local c = self.deck:drawCard()
-    if not c then return end
     local p = self.players[playerIndex]
-    local success = p:addCard(c)
-    if success then
-        table.insert(self.allCards, c)
-    else
-        -- hand full: put card back (or discard automatically)
-        table.insert(self.deck.cards, 1, c) -- put back on top
+    local c = p:drawCard()
+    if c then
+        table.insert(self.allCards, c) -- needed so card is drawn
     end
 end
 
