@@ -197,6 +197,7 @@ function GameState:discardCard(card)
     -- put into discard pile
     card.x = self.discardStack.x
     card.y = self.discardStack.y
+    card.faceUp = true -- ensure discard is always visible
     table.insert(self.discardPile, card)
 end
 
