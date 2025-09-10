@@ -102,61 +102,6 @@ function GameState:update(dt)
     end
 end
 
-function GameState:mousepressed(x, y, button)
-    if button ~= 1 then return end
-
-    -- deck clicked? (only for current player)
-    if self.deckStack:isHovered(x, y) then
-        self:drawCardToPlayer(self.currentPlayer)
-        return
-    end
-
-    -- only check current player's cards
-    local current = self.players[self.currentPlayer]
-    for i = #current.hand, 1, -1 do
-        local c = current.hand[i]
-        if c:isHovered(x, y) then
-            self.draggingCard = c
-            c.dragging = true
-            c.offsetX = x - c.x
-            c.offsetY = y - c.y
-
-            -- bring to front in allCards
-            for j = #self.allCards, 1, -1 do
-                if self.allCards[j] == c then
-                    table.remove(self.allCards, j)
-                    table.insert(self.allCards, c)
-                    break
-                end
-            end
-            break
-        end
-    end
-end
-
-function GameState:mousereleased(x, y, button)
-    if button == 1 and self.draggingCard then
-        if self.discardStack:isHovered(x, y) then
-            self:discardCard(self.draggingCard)
-        else
-            if self.draggingCard.owner then
-                self.draggingCard.owner:snapCard(self.draggingCard)
-            end
-        end
-
-        self.draggingCard.dragging = false
-        self.draggingCard = nil
-        self.highlightDiscard = false
-    end
-end
-
-function GameState:keypressed(key)
-    if key == "space" then
-        self.currentPlayer = self.currentPlayer % #self.players + 1
-        self:updateCardVisibility()
-    end
-end
-
 function GameState:updateCardVisibility()
     for i, p in ipairs(self.players) do
         local isCurrent = (i == self.currentPlayer)

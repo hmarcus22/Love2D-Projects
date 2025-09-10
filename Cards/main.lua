@@ -1,4 +1,5 @@
 local GameState = require "src.gamestate"
+local Input = require "src.input"
 
 local game
 
@@ -17,13 +18,13 @@ function love.draw()
 end
 
 function love.mousepressed(x, y, button)
-    game:mousepressed(x, y, button)
+    Input:mousepressed(game, x, y, button)
 end
 
 function love.mousereleased(x, y, button)
-    game:mousereleased(x, y, button)
+    Input:mousereleased(game, x, y, button)
 end
 
 function love.keypressed(key)
-    game:keypressed(key)
+    Input:keypressed(game, key)
 end
