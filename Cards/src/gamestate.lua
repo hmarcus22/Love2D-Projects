@@ -69,12 +69,7 @@ function GameState:draw()
         p:drawSlots()
     end
 
-    -- draw all cards
-    for _, c in ipairs(self.allCards) do
-        c:draw()
-    end
-
-    -- highlight discard pile if needed
+     -- highlight discard pile if needed
     if self.highlightDiscard then
         local x, y = self.discardStack.x, self.discardStack.y
         local w, h = self.discardStack.w, self.discardStack.h
@@ -86,6 +81,11 @@ function GameState:draw()
         love.graphics.rectangle("line", x - pad, y - pad, w + pad*2, h + pad*2, 10, 10)
         love.graphics.setLineWidth(1)
         love.graphics.setColor(1,1,1,1)
+    end
+
+    -- draw all cards
+    for _, c in ipairs(self.allCards) do
+        c:draw()
     end
 end
 
