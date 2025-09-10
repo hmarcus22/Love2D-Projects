@@ -1,3 +1,4 @@
+-- require("lovedebug")
 local Gamestate = require "libs.hump.gamestate"
 
 local menu  = require "src.states.menu"
