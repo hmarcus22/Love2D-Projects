@@ -19,8 +19,10 @@ function Player:addCard(card)
     end
 
     local slotIndex = #self.hand + 1
+    card.slotIndex = slotIndex -- remember its slot
     card.x = self:getSlotX(slotIndex)
     card.y = self.y
+    card.owner = self -- track which player owns it
     table.insert(self.hand, card)
     return true
 end
@@ -37,13 +39,21 @@ end
 
 function Player:repositionHand()
     for i, c in ipairs(self.hand) do
+        c.slotIndex = i
         c.x = self:getSlotX(i)
         c.y = self.y
     end
 end
 
+function Player:snapCard(card)
+    -- move card back to its slot
+    if card.slotIndex then
+        card.x = self:getSlotX(card.slotIndex)
+        card.y = self.y
+    end
+end
+
 function Player:drawSlots()
-    -- Draw empty slots as placeholders
     love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
     for i = 1, self.maxHandSize do
         local x = self:getSlotX(i)
