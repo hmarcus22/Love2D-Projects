@@ -61,31 +61,30 @@ function Player:removeCard(card)
     if oldSlot and self.slots[oldSlot] and self.slots[oldSlot].card == card then
         self.slots[oldSlot].card = nil
     end
-
     print("Removing card", card.name, "from slot", oldSlot, "Player", self.id)
-
     card.owner = nil
     card.slotIndex = nil
 
-    -- 🔴 compact hand: shift cards left into empty slots
+    -- compact after a successful removal (e.g., discard)
     self:compactHand()
 end
 
+
 function Player:compactHand()
-    local targetIndex = 1
+    local target = 1
     for i = 1, self.maxHandSize do
         local slot = self.slots[i]
         if slot.card then
             local c = slot.card
-            if i ~= targetIndex then
-                -- move card down to lowest free slot
+            if i ~= target then
+                -- move card into the lowest empty slot
                 self.slots[i].card = nil
-                self.slots[targetIndex].card = c
-                c.slotIndex = targetIndex
-                c.x = self.slots[targetIndex].x
-                c.y = self.slots[targetIndex].y
+                local tslot = self.slots[target]
+                tslot.card = c
+                c.slotIndex = target
+                c.x, c.y = tslot.x, tslot.y
             end
-            targetIndex = targetIndex + 1
+            target = target + 1
         end
     end
 end
@@ -119,27 +118,46 @@ function Player:drawCard()
     return c
 end
 
-function Player:playCardToBoard(card)
+function Player:playCardToBoard(card, slotIndex)
     -- remove from hand slot
     if card.slotIndex and self.slots[card.slotIndex] and self.slots[card.slotIndex].card == card then
         self.slots[card.slotIndex].card = nil
     end
     card.slotIndex = nil
 
-    -- put into first free board slot
-    for i, bslot in ipairs(self.boardSlots) do
-        if not bslot.card then
-            bslot.card = card
-            card.zone = "board"
-            card.owner = self
-            card.x, card.y = bslot.x, bslot.y
-            -- (optional) face-up on board
-            card.faceUp = true
-            return true
-        end
+    -- choose destination slot
+    local function placeAt(idx)
+        local bslot = self.boardSlots[idx]
+        if not bslot or bslot.card then return false end
+        bslot.card = card
+        card.zone = "board"
+        card.owner = self
+        card.x, card.y = bslot.x, bslot.y
+        card.faceUp = true
+        return true
     end
-    return false -- no free board slot
+
+    if slotIndex then
+        if not placeAt(slotIndex) then
+            return false
+        end
+    else
+        -- fallback: first free
+        local placed = false
+        for i, bslot in ipairs(self.boardSlots) do
+            if not bslot.card then
+                placed = placeAt(i)
+                break
+            end
+        end
+        if not placed then return false end
+    end
+
+    -- compact hand after leaving it
+    self:compactHand()
+    return true
 end
+
 
 -- draw slots + cards
 function Player:drawSlots()
@@ -159,6 +177,7 @@ function Player:drawBoard()
     for i, slot in ipairs(self.boardSlots) do
         love.graphics.setColor(0.8, 0.8, 0.2, 0.35)
         love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
+        love.graphics.printf(tostring(i), slot.x, slot.y - 18, 100, "center")
         if slot.card then
             slot.card:draw()
         end

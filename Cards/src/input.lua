@@ -50,12 +50,10 @@ function Input:mousereleased(gs, x, y, button)
     else
         if gs.phase == "play" and card.owner == current then
             local idx = hoveredBoardSlot(current, x, y)
-            if idx and not current.boardSlots[idx].card then
-                -- let GameState enforce turn/limits & place
-                gs:playCardFromHand(card)
+            if idx and (not current.boardSlots[idx].card) then
+                gs:playCardFromHand(card, idx)  -- 🔴 pass chosen slot
             else
-                -- not over an empty board slot -> snap back
-                current:snapCard(card)
+                if card.owner then card.owner:snapCard(card) end
             end
         else
             if card.owner then card.owner:snapCard(card) end

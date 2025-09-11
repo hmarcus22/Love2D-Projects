@@ -203,7 +203,7 @@ function GameState:maybeFinishPlayPhase()
     end
 end
 
-function GameState:playCardFromHand(card)
+function GameState:playCardFromHand(card, slotIndex)
     if self.phase ~= "play" then return end
     local i = self.currentPlayer
     local current = self.players[i]
@@ -212,8 +212,7 @@ function GameState:playCardFromHand(card)
         current:snapCard(card); return
     end
 
-    -- Move hand → board (via Board)
-    local ok = current:playCardToBoard(card)
+    local ok = current:playCardToBoard(card, slotIndex)
     if ok then
         card.zone = "board"
         card.faceUp = true
