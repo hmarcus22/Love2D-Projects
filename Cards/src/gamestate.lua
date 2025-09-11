@@ -94,14 +94,9 @@ function GameState:draw()
         love.graphics.printf("Deck\n" .. #p.deck, deckX, deckY + 50, 100, "center")
     end
 
-    -- pass 1: outlines
+    -- draw slots + cards
     for _, p in ipairs(self.players) do
-        p:drawSlotOutlines()
-    end
-
-    -- pass 2: cards
-    for _, p in ipairs(self.players) do
-        p:drawCards()
+        p:drawSlots()
     end
     
     -- discard pile
@@ -133,9 +128,11 @@ end
 function GameState:updateCardVisibility()
     for i, p in ipairs(self.players) do
         local isCurrent = (i == self.currentPlayer)
-        for _, c in ipairs(p.hand) do
-            c.faceUp = isCurrent
+        for _, slot in ipairs(p.slots) do
+        if slot.card then
+            slot.card.faceUp = isCurrent
         end
+end
     end
 end
 
@@ -168,5 +165,15 @@ function GameState:discardCard(card)
     card.faceUp = true
     table.insert(self.discardPile, card)
 end
+
+function GameState:getCurrentPlayer()
+    return self.players[self.currentPlayer]
+end
+
+function GameState:nextPlayer()
+    self.currentPlayer = self.currentPlayer % #self.players + 1
+    self:updateCardVisibility()
+end
+
 
 return GameState

@@ -3,7 +3,7 @@ local Input = {}
 function Input:mousepressed(gs, x, y, button)
     if button ~= 1 then return end
 
-    local current = gs.players[gs.currentPlayer]
+    local current = gs:getCurrentPlayer()
 
     -- detect click on current player's deck
     local deckX = (gs.currentPlayer == 1) and 20 or 880
@@ -13,18 +13,16 @@ function Input:mousepressed(gs, x, y, button)
         return
     end
 
-    -- check cards
-    for i = #current.hand, 1, -1 do
-        local c = current.hand[i]
-        if c:isHovered(x, y) then
+    -- check cards (from top down)
+    for i = #current.slots, 1, -1 do
+        local c = current.slots[i].card
+        if c and c:isHovered(x, y) then
             gs.draggingCard = c
             c.dragging = true
             c.offsetX = x - c.x
             c.offsetY = y - c.y
             -- free its slot temporarily
-            if c.slotIndex and current.slots[c.slotIndex] then
-                current.slots[c.slotIndex].card = nil
-            end
+            current.slots[i].card = nil
             break
         end
     end
@@ -48,8 +46,7 @@ end
 
 function Input:keypressed(gs, key)
     if key == "space" then
-        gs.currentPlayer = gs.currentPlayer % #gs.players + 1
-        gs:updateCardVisibility()
+        gs:nextPlayer()
     end
 end
 
