@@ -13,7 +13,6 @@ function Input:mousepressed(gs, x, y, button)
         return
     end
 
-
     -- check cards
     for i = #current.hand, 1, -1 do
         local c = current.hand[i]
@@ -30,7 +29,6 @@ function Input:mousepressed(gs, x, y, button)
         end
     end
 end
-
 
 function Input:mousereleased(gs, x, y, button)
     if button == 1 and gs.draggingCard then
