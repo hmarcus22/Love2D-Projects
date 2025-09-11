@@ -4,8 +4,8 @@ local function pointInRect(x, y, rx, ry, rw, rh)
     return x >= rx and x <= rx+rw and y >= ry and y <= ry+rh
 end
 
-local function hoveredBoardSlot(p, x, y)
-    for i, bslot in ipairs(p.boardSlots) do
+local function hoveredBoardSlot(player, x, y)
+    for i, bslot in ipairs(player.boardSlots) do
         if pointInRect(x, y, bslot.x, bslot.y, 100, 150) then
             return i
         end
@@ -15,10 +15,9 @@ end
 
 function Input:mousepressed(gs, x, y, button)
     if button ~= 1 then return end
-
     local current = gs:getCurrentPlayer()
 
-    -- detect click on current player's deck
+    -- Click-to-draw from current player's deck
     local deckX = (gs.currentPlayer == 1) and 20 or 880
     local deckY = current.y
     if x >= deckX and x <= deckX + 100 and y >= deckY and y <= deckY + 150 then
@@ -26,7 +25,7 @@ function Input:mousepressed(gs, x, y, button)
         return
     end
 
-    -- check cards (from top down)
+    -- Pick up a hand card (top-down)
     for i = #current.slots, 1, -1 do
         local c = current.slots[i].card
         if c and c:isHovered(x, y) then
@@ -34,7 +33,7 @@ function Input:mousepressed(gs, x, y, button)
             c.dragging = true
             c.offsetX = x - c.x
             c.offsetY = y - c.y
-            -- free its slot temporarily
+            -- free its hand slot temporarily so the outline shows
             current.slots[i].card = nil
             break
         end
@@ -43,35 +42,30 @@ end
 
 function Input:mousereleased(gs, x, y, button)
     if button ~= 1 or not gs.draggingCard then return end
-
     local card = gs.draggingCard
     local current = gs:getCurrentPlayer()
 
     if gs.discardStack and gs.discardStack:isHovered(x, y) then
         gs:discardCard(card)
     else
-        -- if we're in play phase and released over current player's board area -> play it
         if gs.phase == "play" and card.owner == current then
             local idx = hoveredBoardSlot(current, x, y)
-            if idx then
-                -- Let GameState handle rules & turn advance
+            if idx and not current.boardSlots[idx].card then
+                -- let GameState enforce turn/limits & place
                 gs:playCardFromHand(card)
-                gs.draggingCard = nil
-                gs.highlightDiscard = false
-                return
+            else
+                -- not over an empty board slot -> snap back
+                current:snapCard(card)
             end
-        end
-        -- otherwise snap back to hand
-        if card.owner then
-            card.owner:snapCard(card)
+        else
+            if card.owner then card.owner:snapCard(card) end
         end
     end
 
-    gs.draggingCard.dragging = false
+    card.dragging = false
     gs.draggingCard = nil
     gs.highlightDiscard = false
 end
-
 
 function Input:keypressed(gs, key)
     if key == "space" then

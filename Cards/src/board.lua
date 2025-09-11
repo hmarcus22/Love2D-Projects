@@ -54,4 +54,19 @@ function Board:getCards(playerIndex)
     return self.slots[playerIndex]
 end
 
+function Board:slotIndexAt(playerIndex, x, y)
+    local slots = self.slots[playerIndex]
+    for i, slot in ipairs(slots) do
+        if x >= slot.x and x <= slot.x + 100 and y >= slot.y and y <= slot.y + 150 then
+            return i
+        end
+    end
+    return nil
+end
+
+function Board:isSlotEmpty(playerIndex, slotIndex)
+    local s = self.slots[playerIndex][slotIndex]
+    return s and (s.card == nil)
+end
+
 return Board
