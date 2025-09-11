@@ -1,5 +1,18 @@
 local Input = {}
 
+local function pointInRect(x, y, rx, ry, rw, rh)
+    return x >= rx and x <= rx+rw and y >= ry and y <= ry+rh
+end
+
+local function hoveredBoardSlot(p, x, y)
+    for i, bslot in ipairs(p.boardSlots) do
+        if pointInRect(x, y, bslot.x, bslot.y, 100, 150) then
+            return i
+        end
+    end
+    return nil
+end
+
 function Input:mousepressed(gs, x, y, button)
     if button ~= 1 then return end
 
@@ -29,20 +42,36 @@ function Input:mousepressed(gs, x, y, button)
 end
 
 function Input:mousereleased(gs, x, y, button)
-    if button == 1 and gs.draggingCard then
-        if gs.discardStack:isHovered(x, y) then
-            gs:discardCard(gs.draggingCard)
-        else
-            -- snap back into slot
-            if gs.draggingCard.owner then
-                gs.draggingCard.owner:snapCard(gs.draggingCard)
+    if button ~= 1 or not gs.draggingCard then return end
+
+    local card = gs.draggingCard
+    local current = gs:getCurrentPlayer()
+
+    if gs.discardStack and gs.discardStack:isHovered(x, y) then
+        gs:discardCard(card)
+    else
+        -- if we're in play phase and released over current player's board area -> play it
+        if gs.phase == "play" and card.owner == current then
+            local idx = hoveredBoardSlot(current, x, y)
+            if idx then
+                -- Let GameState handle rules & turn advance
+                gs:playCardFromHand(card)
+                gs.draggingCard = nil
+                gs.highlightDiscard = false
+                return
             end
         end
-        gs.draggingCard.dragging = false
-        gs.draggingCard = nil
-        gs.highlightDiscard = false
+        -- otherwise snap back to hand
+        if card.owner then
+            card.owner:snapCard(card)
+        end
     end
+
+    gs.draggingCard.dragging = false
+    gs.draggingCard = nil
+    gs.highlightDiscard = false
 end
+
 
 function Input:keypressed(gs, key)
     if key == "space" then

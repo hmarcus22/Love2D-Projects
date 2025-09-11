@@ -17,6 +17,15 @@ function Player:init(id, y, maxHandSize)
             card = nil
         })
     end
+
+    -- 🔹 board (play area) slots: 3 fixed positions
+    -- place them between the players: above bottom hand / below top hand
+    local boardY = (self.y > 200) and (self.y - 180) or (self.y + 180)
+    self.boardSlots = {
+        { x = 320, y = boardY, card = nil },
+        { x = 430, y = boardY, card = nil },
+        { x = 540, y = boardY, card = nil },
+    }
 end
 
 -- helper: get all cards currently in hand
@@ -110,6 +119,28 @@ function Player:drawCard()
     return c
 end
 
+function Player:playCardToBoard(card)
+    -- remove from hand slot
+    if card.slotIndex and self.slots[card.slotIndex] and self.slots[card.slotIndex].card == card then
+        self.slots[card.slotIndex].card = nil
+    end
+    card.slotIndex = nil
+
+    -- put into first free board slot
+    for i, bslot in ipairs(self.boardSlots) do
+        if not bslot.card then
+            bslot.card = card
+            card.zone = "board"
+            card.owner = self
+            card.x, card.y = bslot.x, bslot.y
+            -- (optional) face-up on board
+            card.faceUp = true
+            return true
+        end
+    end
+    return false -- no free board slot
+end
+
 -- draw slots + cards
 function Player:drawSlots()
     for i, slot in ipairs(self.slots) do
@@ -118,6 +149,16 @@ function Player:drawSlots()
         love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
 
         -- draw card if present
+        if slot.card then
+            slot.card:draw()
+        end
+    end
+end
+
+function Player:drawBoard()
+    for i, slot in ipairs(self.boardSlots) do
+        love.graphics.setColor(0.8, 0.8, 0.2, 0.35)
+        love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
         if slot.card then
             slot.card:draw()
         end

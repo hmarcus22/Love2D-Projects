@@ -36,6 +36,11 @@ function GameState:new()
     gs.discardStack.faceUp = false
     gs.discardPile = {} -- holds actual discarded cards
     gs.highlightDiscard = false
+    gs.phase = "play"         -- "play" | "resolve" (later)
+    gs.maxBoardCards = 3      -- each player must place 3
+    gs.playedCount = {}       -- per-player placed count
+    for i = 1, #gs.players do gs.playedCount[i] = 0 end
+
 
     -- initial deal
     for p = 1, #gs.players do
@@ -60,7 +65,11 @@ function GameState:newFromDraft(draftedPlayers)
     gs.discardStack = Card(-2, "Discard", 600, 225)
     gs.discardStack.faceUp = false
     gs.discardPile = {}
-
+    gs.phase = "play"         -- "play" | "resolve" (later)
+    gs.maxBoardCards = 3      -- each player must place 3
+    gs.playedCount = {}       -- per-player placed count
+    for i = 1, #gs.players do gs.playedCount[i] = 0 end
+    
     -- deal starting hands from each player’s deck
     for _, p in ipairs(gs.players) do
         p.hand = {}
@@ -97,6 +106,11 @@ function GameState:draw()
     -- draw slots + cards
     for _, p in ipairs(self.players) do
         p:drawSlots()
+    end
+
+    -- board slots + cards
+    for _, p in ipairs(self.players) do
+        p:drawBoard()
     end
     
     -- discard pile
@@ -175,5 +189,39 @@ function GameState:nextPlayer()
     self:updateCardVisibility()
 end
 
+-- check if both have placed 3, if so go to resolve
+function GameState:maybeFinishPlayPhase()
+    local allDone = true
+    for i = 1, #self.players do
+        if self.playedCount[i] < self.maxBoardCards then
+            allDone = false; break
+        end
+    end
+    if allDone then
+        self.phase = "resolve"
+        -- TODO: trigger resolve phase UI/logic here later
+    end
+end
+
+function GameState:playCardFromHand(card)
+    if self.phase ~= "play" then return end
+    -- must be current player's card
+    local currentIndex = self.currentPlayer
+    local current = self.players[currentIndex]
+    if card.owner ~= current then return end
+    if self.playedCount[currentIndex] >= self.maxBoardCards then return end
+
+    -- move to board
+    local ok = current:playCardToBoard(card)
+    if ok then
+        self.playedCount[currentIndex] = self.playedCount[currentIndex] + 1
+        -- after a successful play, immediately switch to other player
+        self:nextPlayer()
+        self:maybeFinishPlayPhase()
+    else
+        -- no space on board; snap back
+        current:snapCard(card)
+    end
+end
 
 return GameState

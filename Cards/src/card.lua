@@ -12,6 +12,7 @@ function Card:init(id, name, x, y)
     self.offsetX, self.offsetY = 0, 0
     self.slotIndex = nil
     self.owner = nil
+    self.zone = "deck"   -- "hand" | "board" | "discard" | "deck"
 end
 
 function Card:draw()
