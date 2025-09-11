@@ -94,16 +94,21 @@ function GameState:draw()
         love.graphics.printf("Deck\n" .. #p.deck, deckX, deckY + 50, 100, "center")
     end
 
+    -- pass 1: outlines
+    for _, p in ipairs(self.players) do
+        p:drawSlotOutlines()
+    end
+
+    -- pass 2: cards
+    for _, p in ipairs(self.players) do
+        p:drawCards()
+    end
+    
     -- discard pile
     if #self.discardPile > 0 then
         self.discardPile[#self.discardPile]:draw()
     else
         self.discardStack:draw()
-    end
-
-    -- draw slots + cards for each player
-    for _, p in ipairs(self.players) do
-        p:drawSlots()
     end
 
     -- draw the card being dragged on top
@@ -144,9 +149,9 @@ end
 
 
 function GameState:discardCard(card)
-    -- remove from player's hand
-    for _, p in ipairs(self.players) do
-        p:removeCard(card)
+    -- remove from the actual owner's hand
+    if card.owner then
+        card.owner:removeCard(card)
     end
 
     -- remove from allCards
@@ -160,7 +165,7 @@ function GameState:discardCard(card)
     -- put into discard pile
     card.x = self.discardStack.x
     card.y = self.discardStack.y
-    card.faceUp = true -- ensure discard is always visible
+    card.faceUp = true
     table.insert(self.discardPile, card)
 end
 

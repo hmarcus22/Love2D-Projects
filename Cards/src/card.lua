@@ -10,6 +10,8 @@ function Card:init(id, name, x, y)
     self.faceUp = true
     self.dragging = false
     self.offsetX, self.offsetY = 0, 0
+    self.slotIndex = nil
+    self.owner = nil
 end
 
 function Card:draw()

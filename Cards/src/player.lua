@@ -23,27 +23,36 @@ function Player:getSlotX(slotIndex)
 end
 
 function Player:addCard(card)
-    if #self.hand >= self.maxHandSize then
-        return false -- hand full
-    end
+    -- find first empty slot
+    for i, slot in ipairs(self.slots) do
+        if not slot.card then
+            card.slotIndex = i
+            card.owner = self
+            card.x = slot.x
+            card.y = slot.y
+            slot.card = card   -- 🔴 attach card to slot
+            table.insert(self.hand, card)
+            print("Adding card", card.name, "to slot", i, "Player", self.id)
 
-    local slotIndex = #self.hand + 1
-    card.slotIndex = slotIndex
-    card.owner = self
-    card.x = self:getSlotX(slotIndex)
-    card.y = self.y
-    table.insert(self.hand, card)
-    return true
+            return true
+        end
+    end
+    return false -- no free slot
 end
 
 function Player:removeCard(card)
+    if card.slotIndex and self.slots[card.slotIndex] then
+        self.slots[card.slotIndex].card = nil
+    end
     for i, c in ipairs(self.hand) do
         if c == card then
             table.remove(self.hand, i)
-            self:repositionHand()
-            return
+            break
         end
     end
+    print("Removing card", card.name, "from slot", card.slotIndex, "Player", self.id)
+    card.owner = nil   -- 🔴 no longer belongs to a player
+    card.slotIndex = nil
 end
 
 function Player:repositionHand()
@@ -94,6 +103,24 @@ function Player:drawCard()
     end
     return c
 end
+
+-- draw slot outlines only
+function Player:drawSlotOutlines()
+    for i, slot in ipairs(self.slots) do
+        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
+        love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
+    end
+end
+
+-- draw only the cards in slots
+function Player:drawCards()
+    for i, slot in ipairs(self.slots) do
+        if slot.card then
+            slot.card:draw()
+        end
+    end
+end
+
 
 
 return Player
