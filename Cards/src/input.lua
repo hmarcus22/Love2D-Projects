@@ -14,7 +14,6 @@ local function hoveredBoardSlot(gs, playerIndex, x, y)
     return nil
 end
 
-
 function Input:mousepressed(gs, x, y, button)
     if button ~= 1 then return end
     local current = gs:getCurrentPlayer()

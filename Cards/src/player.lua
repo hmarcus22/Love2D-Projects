@@ -21,7 +21,6 @@ function Player:init(args)
     end
 end
 
-
 -- helper: get all cards currently in hand
 function Player:getHand()
     local cards = {}
@@ -61,7 +60,6 @@ function Player:removeCard(card)
     self:compactHand()
 end
 
-
 function Player:compactHand()
     local target = 1
     for i = 1, self.maxHandSize do
@@ -80,7 +78,6 @@ function Player:compactHand()
         end
     end
 end
-
 
 -- snap card back to its assigned slot
 function Player:snapCard(card, gs)

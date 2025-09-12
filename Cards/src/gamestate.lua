@@ -99,8 +99,6 @@ function GameState:newFromDraft(draftedPlayers)
     return gs
 end
 
-
-
 function GameState:draw()
     love.graphics.setColor(1,1,1)
     love.graphics.print("Player " .. self.currentPlayer .. "'s turn", 20, 20)
@@ -125,7 +123,6 @@ function GameState:draw()
             end
         end
     end
-
 
     -- discard pile
     if #self.discardPile > 0 then
@@ -203,7 +200,6 @@ function GameState:drawCardToPlayer(playerIndex)
     end
 end
 
-
 function GameState:discardCard(card)
     -- remove from the actual owner's hand
     if card.owner then
@@ -251,7 +247,6 @@ function GameState:maybeFinishPlayPhase()
     end
 end
 
-
 function GameState:playCardFromHand(card, slotIndex)
     if self.phase ~= "play" then return end
     local current = self:getCurrentPlayer()
@@ -281,6 +276,5 @@ function GameState:playCardFromHand(card, slotIndex)
         current:snapCard(card, self)
     end
 end
-
 
 return GameState

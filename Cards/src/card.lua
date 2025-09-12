@@ -96,9 +96,6 @@ function Card:draw()
     end
 end
 
-
-
-
 function Card:isHovered(mx, my)
     return mx > self.x and mx < self.x + self.w and my > self.y and my < self.y + self.h
 end
