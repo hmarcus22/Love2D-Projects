@@ -268,6 +268,13 @@ function GameState:playCardFromHand(card, slotIndex)
         card.zone = "board"
         card.faceUp = true
         self.playedCount[pid] = self.playedCount[pid] + 1
+
+        -- 🟢 Debug info
+        print(string.format(
+            "Player %d placed a card in slot %d. Played %d/%d cards.",
+            pid, slotIndex, self.playedCount[pid], self.maxBoardCards
+        ))
+
         self:nextPlayer()
         self:maybeFinishPlayPhase()
     else
