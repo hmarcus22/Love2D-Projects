@@ -2,6 +2,7 @@ local Gamestate = require "libs.hump.gamestate"
 local Card = require "src.card"
 local game = require "src.states.game"
 local Player = require "src.player"
+local factory = require "src.card_factory"
 
 local MAX_HAND_SIZE = 5
 local MAX_BOARD_CARDS = 3
@@ -18,10 +19,23 @@ function draft:enter()
     self.players[2].deck = {}
     self.currentPlayer = 1
 
-    -- build draft pool of 32 unique cards
+    -- build draft pool from card pool
     self.draftPool = {}
-    for i = 1, 32 do
-        table.insert(self.draftPool, Card(i, "Card " .. i))
+    -- add 10 Strikes
+    for _, c in ipairs(factory.createCopies("strike", 10)) do
+        table.insert(self.draftPool, c)
+    end
+    -- add 5 Heals
+    for _, c in ipairs(factory.createCopies("heal", 5)) do
+        table.insert(self.draftPool, c)
+    end
+    -- add 10 Blocks
+    for _, c in ipairs(factory.createCopies("block", 10)) do
+        table.insert(self.draftPool, c)
+    end
+    -- add 4 Fireballs
+    for _, c in ipairs(factory.createCopies("fireball", 4)) do
+        table.insert(self.draftPool, c)
     end
 
     -- shuffle draft pool
