@@ -18,14 +18,20 @@ function Player:init(id, y, maxHandSize)
         })
     end
 
-    -- 🔹 board (play area) slots: 3 fixed positions
-    -- place them between the players: above bottom hand / below top hand
-    local boardY = (self.y > 200) and (self.y - 180) or (self.y + 180)
+    if self.id == 1 then
+        -- bottom player board (just above hand)
+        self.boardY = 200
+    else
+        -- top player board
+        self.boardY = 100
+    end
+
     self.boardSlots = {
-        { x = 320, y = boardY, card = nil },
-        { x = 430, y = boardY, card = nil },
-        { x = 540, y = boardY, card = nil },
+        { x = 320, y = self.boardY, card = nil },
+        { x = 430, y = self.boardY, card = nil },
+        { x = 540, y = self.boardY, card = nil },
     }
+
 end
 
 -- helper: get all cards currently in hand
@@ -179,6 +185,25 @@ function Player:drawBoard()
         love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
         love.graphics.printf(tostring(i), slot.x, slot.y - 18, 100, "center")
         if slot.card then
+            slot.card:draw()
+        end
+    end
+end
+
+function Player:drawHand(isCurrent)
+    if not isCurrent then return end
+
+    local handY = love.graphics.getHeight() - 170 -- fixed bottom row
+    for i, slot in ipairs(self.slots) do
+        local x = 150 + (i - 1) * 110
+        -- draw empty slot
+        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
+        love.graphics.rectangle("line", x, handY, 100, 150, 8, 8)
+
+        -- draw card if present
+        if slot.card then
+            slot.card.x = x
+            slot.card.y = handY
             slot.card:draw()
         end
     end

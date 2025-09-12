@@ -18,8 +18,7 @@ function Input:mousepressed(gs, x, y, button)
     local current = gs:getCurrentPlayer()
 
     -- Click-to-draw from current player's deck
-    local deckX = (gs.currentPlayer == 1) and 20 or 880
-    local deckY = current.y
+    local deckX, deckY = 20, love.graphics.getHeight() - 170
     if x >= deckX and x <= deckX + 100 and y >= deckY and y <= deckY + 150 then
         gs:drawCardToPlayer(gs.currentPlayer)
         return

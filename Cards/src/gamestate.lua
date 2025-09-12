@@ -62,7 +62,7 @@ function GameState:newFromDraft(draftedPlayers)
     gs.allCards = {}
     gs.draggingCard = nil
     gs.deckStack = nil -- no shared deck in this mode (each has their own)
-    gs.discardStack = Card(-2, "Discard", 600, 225)
+    gs.discardStack = Card(-2, "Discard", 450, 250) -- centered horizontally, below player 2’s board
     gs.discardStack.faceUp = false
     gs.discardPile = {}
     gs.phase = "play"         -- "play" | "resolve" (later)
@@ -91,36 +91,31 @@ function GameState:draw()
     love.graphics.setColor(1,1,1)
     love.graphics.print("Player " .. self.currentPlayer .. "'s turn (SPACE to switch)", 20, 20)
 
-    -- per-player deck counts (no central deckStack in draft mode)
-    for i, p in ipairs(self.players) do
-        love.graphics.setColor(1,1,1)
-        local deckX = (i == 1) and 20 or 880
-        local deckY = p.y
-
-        love.graphics.rectangle("fill", deckX, deckY, 100, 150, 8, 8)
-        love.graphics.setColor(0,0,0)
-        love.graphics.rectangle("line", deckX, deckY, 100, 150, 8, 8)
-        love.graphics.printf("Deck\n" .. #p.deck, deckX, deckY + 50, 100, "center")
-    end
-
-    -- draw slots + cards
-    for _, p in ipairs(self.players) do
-        p:drawSlots()
-    end
-
-    -- board slots + cards
+    -- draw boards for both players
     for _, p in ipairs(self.players) do
         p:drawBoard()
     end
-    
-    -- discard pile
+
+    -- draw discard pile (centered)
     if #self.discardPile > 0 then
         self.discardPile[#self.discardPile]:draw()
     else
         self.discardStack:draw()
     end
 
-    -- draw the card being dragged on top
+    -- draw only current player's hand + deck
+    local current = self:getCurrentPlayer()
+    current:drawHand(true)
+
+    -- draw deck next to hand
+    local deckX, deckY = 20, love.graphics.getHeight() - 170
+    love.graphics.setColor(1,1,1)
+    love.graphics.rectangle("fill", deckX, deckY, 100, 150, 8, 8)
+    love.graphics.setColor(0,0,0)
+    love.graphics.rectangle("line", deckX, deckY, 100, 150, 8, 8)
+    love.graphics.printf("Deck\n" .. #current.deck, deckX, deckY + 50, 100, "center")
+
+    -- dragged card always on top
     if self.draggingCard then
         self.draggingCard:draw()
     end
