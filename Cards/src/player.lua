@@ -2,36 +2,30 @@ local Class = require "libs.hump.class"
 
 local Player = Class{}
 
-function Player:init(id, y, maxHandSize)
-    self.id = id
-    self.y = y
-    self.maxHandSize = maxHandSize or 5
+function Player:init(args)
+    -- args = { id = 1, maxHandSize = 5 }
+    self.id = args.id
+    self.maxHandSize = args.maxHandSize or 5
+    self.maxBoardCards = args.maxBoardCards or 3
     self.slots = {}
     self.deck = {}
 
-    -- precompute slot positions
+    -- create empty hand slots
     for i = 1, self.maxHandSize do
-        table.insert(self.slots, {
-            x = 150 + (i - 1) * 110,
-            y = self.y,
-            card = nil
-        })
+        table.insert(self.slots, { x = 0, y = 0, card = nil })
     end
 
+    -- board slots: fixed rows
+    local boardY
     if self.id == 1 then
-        -- bottom player board (just above hand)
-        self.boardY = 200
+        boardY = love.graphics.getHeight() - 350
     else
-        -- top player board
-        self.boardY = 100
+        boardY = 80
     end
-
-    self.boardSlots = {
-        { x = 320, y = self.boardY, card = nil },
-        { x = 430, y = self.boardY, card = nil },
-        { x = 540, y = self.boardY, card = nil },
-    }
-
+    self.boardSlots = {}
+    for i = 1, self.maxBoardCards do
+        table.insert(self.boardSlots, { x = 320 + (i-1)*110, y = boardY, card = nil })
+    end
 end
 
 -- helper: get all cards currently in hand
@@ -51,14 +45,12 @@ function Player:addCard(card)
         if not slot.card then
             card.slotIndex = i
             card.owner = self
-            card.x = slot.x
-            card.y = slot.y
             slot.card = card
-            print("Adding card", card.name, "to slot", i, "Player", self.id)
             return true
         end
     end
-    return false -- no free slot
+    print("Hand full for Player " .. self.id)
+    return false
 end
 
 -- remove a card from its slot
@@ -166,47 +158,51 @@ end
 
 
 -- draw slots + cards
-function Player:drawSlots()
-    for i, slot in ipairs(self.slots) do
-        -- draw empty slot outline
-        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
-        love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
+-- function Player:drawSlots()
+--     for i, slot in ipairs(self.slots) do
+--         -- draw empty slot outline
+--         love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
+--         love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
 
-        -- draw card if present
-        if slot.card then
-            slot.card:draw()
-        end
-    end
-end
+--         -- draw card if present
+--         if slot.card then
+--             slot.card:draw()
+--         end
+--     end
+-- end
 
 function Player:drawBoard()
     for i, slot in ipairs(self.boardSlots) do
         love.graphics.setColor(0.8, 0.8, 0.2, 0.35)
         love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
-        love.graphics.printf(tostring(i), slot.x, slot.y - 18, 100, "center")
-        if slot.card then
-            slot.card:draw()
-        end
+        if slot.card then slot.card:draw() end
     end
 end
 
 function Player:drawHand(isCurrent)
     if not isCurrent then return end
+    local handY = love.graphics.getHeight() - 170
 
-    local handY = love.graphics.getHeight() - 170 -- fixed bottom row
     for i, slot in ipairs(self.slots) do
         local x = 150 + (i - 1) * 110
-        -- draw empty slot
-        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
-        love.graphics.rectangle("line", x, handY, 100, 150, 8, 8)
 
-        -- draw card if present
+        -- update card position
         if slot.card then
             slot.card.x = x
             slot.card.y = handY
+        end
+
+        -- slot outline
+        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
+        love.graphics.rectangle("line", x, handY, 100, 150, 8, 8)
+
+        -- card
+        if slot.card then
             slot.card:draw()
         end
     end
 end
+
+
 
 return Player

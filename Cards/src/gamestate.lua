@@ -18,8 +18,8 @@ function GameState:new()
 
     -- create players
     gs.players = {
-        Player(1, 400),
-        Player(2, 50)
+    Player{ id = 1, maxHandSize = 5 },
+    Player{ id = 2, maxHandSize = 5 }
     }
     gs.currentPlayer = 1
 
@@ -32,14 +32,15 @@ function GameState:new()
     gs.deckStack.faceUp = false
 
     -- discard pile (UI element)
-    gs.discardStack = Card(-2, "Discard", 600, 225)
+    gs.discardStack = Card(-2, "Discard", 460, 250) -- adjust for your resolution
     gs.discardStack.faceUp = false
     gs.discardPile = {} -- holds actual discarded cards
     gs.highlightDiscard = false
     gs.phase = "play"         -- "play" | "resolve" (later)
-    gs.maxBoardCards = 3      -- each player must place 3
-    gs.playedCount = {}       -- per-player placed count
-    for i = 1, #gs.players do gs.playedCount[i] = 0 end
+    gs.playedCount = {}
+    for i, p in ipairs(gs.players) do
+        gs.playedCount[i] = 0
+    end
 
 
     -- initial deal
@@ -66,14 +67,14 @@ function GameState:newFromDraft(draftedPlayers)
     gs.discardStack.faceUp = false
     gs.discardPile = {}
     gs.phase = "play"         -- "play" | "resolve" (later)
-    gs.maxBoardCards = 3      -- each player must place 3
-    gs.playedCount = {}       -- per-player placed count
-    for i = 1, #gs.players do gs.playedCount[i] = 0 end
+    gs.playedCount = {}
+    for i, p in ipairs(gs.players) do
+        gs.playedCount[i] = 0
+    end
 
     -- deal starting hands from each player’s deck
     for _, p in ipairs(gs.players) do
-        p.hand = {}
-        for i = 1, 5 do
+        for i = 1, p.maxHandSize do
             local c = table.remove(p.deck)
             if c then
                 p:addCard(c)
@@ -91,23 +92,23 @@ function GameState:draw()
     love.graphics.setColor(1,1,1)
     love.graphics.print("Player " .. self.currentPlayer .. "'s turn (SPACE to switch)", 20, 20)
 
-    -- draw boards for both players
+    -- draw both boards
     for _, p in ipairs(self.players) do
         p:drawBoard()
     end
 
-    -- draw discard pile (centered)
+    -- discard pile in the middle
     if #self.discardPile > 0 then
         self.discardPile[#self.discardPile]:draw()
     else
         self.discardStack:draw()
     end
 
-    -- draw only current player's hand + deck
+    -- draw current player's hand
     local current = self:getCurrentPlayer()
     current:drawHand(true)
 
-    -- draw deck next to hand
+    -- draw current player's deck (bottom-left)
     local deckX, deckY = 20, love.graphics.getHeight() - 170
     love.graphics.setColor(1,1,1)
     love.graphics.rectangle("fill", deckX, deckY, 100, 150, 8, 8)
@@ -115,7 +116,7 @@ function GameState:draw()
     love.graphics.rectangle("line", deckX, deckY, 100, 150, 8, 8)
     love.graphics.printf("Deck\n" .. #current.deck, deckX, deckY + 50, 100, "center")
 
-    -- dragged card always on top
+    -- draw the dragged card last
     if self.draggingCard then
         self.draggingCard:draw()
     end
@@ -187,11 +188,13 @@ end
 -- check if both have placed 3, if so go to resolve
 function GameState:maybeFinishPlayPhase()
     local allDone = true
-    for i = 1, #self.players do
-        if self.playedCount[i] < self.maxBoardCards then
-            allDone = false; break
+    for i, p in ipairs(self.players) do
+        if self.playedCount[i] < p.maxBoardCards then
+            allDone = false
+            break
         end
     end
+
     if allDone then
         self.phase = "resolve"
         -- TODO: trigger resolve phase UI/logic here later
@@ -203,9 +206,10 @@ function GameState:playCardFromHand(card, slotIndex)
     local i = self.currentPlayer
     local current = self.players[i]
     if card.owner ~= current then return end
-    if self.playedCount[i] >= self.maxBoardCards then
+    if self.playedCount[i] >= current.maxBoardCards then
         current:snapCard(card); return
     end
+
 
     local ok = current:playCardToBoard(card, slotIndex)
     if ok then

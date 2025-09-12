@@ -1,15 +1,21 @@
 local Gamestate = require "libs.hump.gamestate"
 local Card = require "src.card"
 local game = require "src.states.game"
+local Player = require "src.player"
+
+local MAX_HAND_SIZE = 5
+local MAX_BOARD_CARDS = 3
 
 local draft = {}
 
 function draft:enter()
     -- setup players with empty decks
-    self.players = {
-        { id = 1, deck = {} },
-        { id = 2, deck = {} }
+   self.players = {
+        Player{ id = 1, maxHandSize = MAX_HAND_SIZE, maxBoardCards = MAX_BOARD_CARDS },
+        Player{ id = 2, maxHandSize = MAX_HAND_SIZE, maxBoardCards = MAX_BOARD_CARDS }
     }
+    self.players[1].deck = {}
+    self.players[2].deck = {}
     self.currentPlayer = 1
 
     -- build draft pool of 32 unique cards

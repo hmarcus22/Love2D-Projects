@@ -10,7 +10,12 @@ function game:enter(from, draftedPlayers)
         local Player = require "src.player"
         local newPlayers = {}
         for i, p in ipairs(draftedPlayers) do
-            local player = Player(p.id, (i == 1) and 400 or 50, 5)
+            -- create proper Player object
+            local player = Player{
+                id = p.id,
+                maxHandSize = p.maxHandSize,
+                maxBoardCards = p.maxBoardCards
+            }
             -- copy drafted deck into player's deck
             player.deck = p.deck
             newPlayers[i] = player
