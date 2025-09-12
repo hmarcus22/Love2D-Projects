@@ -32,7 +32,11 @@ function GameState:new()
     gs.deckStack.faceUp = false
 
     -- discard pile (UI element)
-    gs.discardStack = Card(-2, "Discard", 460, 250) -- adjust for your resolution
+    local slotSpacing = 110
+    local handY = love.graphics.getHeight() - 170
+    local lastSlotX = 150 + (self.players[1].maxHandSize - 1) * slotSpacing
+
+    gs.discardStack = Card(-2, "Discard", lastSlotX + 150, handY)
     gs.discardStack.faceUp = false
     gs.discardPile = {} -- holds actual discarded cards
     gs.highlightDiscard = false
@@ -63,7 +67,11 @@ function GameState:newFromDraft(draftedPlayers)
     gs.allCards = {}
     gs.draggingCard = nil
     gs.deckStack = nil -- no shared deck in this mode (each has their own)
-    gs.discardStack = Card(-2, "Discard", 450, 250) -- centered horizontally, below player 2’s board
+    local slotSpacing = 110
+    local handY = love.graphics.getHeight() - 170
+    local lastSlotX = 150 + (gs.players[1].maxHandSize - 1) * slotSpacing
+
+    gs.discardStack = Card(-2, "Discard", lastSlotX + 150, handY)
     gs.discardStack.faceUp = false
     gs.discardPile = {}
     gs.phase = "play"         -- "play" | "resolve" (later)
