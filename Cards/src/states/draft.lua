@@ -73,11 +73,35 @@ function draft:draw()
         c:draw()
     end
 
-    -- show deck counts
+    -- screen height
+    local screenH = love.graphics.getHeight()
+
+    -- show drafted cards at the bottom
     for i, p in ipairs(self.players) do
-        love.graphics.printf("Player " .. i .. " deck: " .. #p.deck .. " / 12", 0, 120 + (i-1)*30, love.graphics.getWidth(), "center")
+        -- stack rows: player 1 above player 2
+        local rowY = screenH - (i * 90)
+
+        love.graphics.setColor(1,1,1)
+        love.graphics.printf("Player " .. i .. " deck (" .. #p.deck .. "/12):",
+            20, rowY - 20, love.graphics.getWidth(), "left")
+
+        local startX = 40
+        for j, c in ipairs(p.deck) do
+            local cx = startX + (j-1) * 60
+            local cy = rowY
+
+            -- mini card box
+            love.graphics.setColor(1,1,1)
+            love.graphics.rectangle("fill", cx, cy, 50, 70, 6, 6)
+            love.graphics.setColor(0,0,0)
+            love.graphics.rectangle("line", cx, cy, 50, 70, 6, 6)
+
+            -- card name (truncated if too long)
+            love.graphics.printf(c.name, cx+2, cy+25, 46, "center")
+        end
     end
 end
+
 
 function draft:mousepressed(x, y, button)
     if button ~= 1 then return end
