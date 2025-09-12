@@ -3,30 +3,24 @@ local Class = require "libs.hump.class"
 local Player = Class{}
 
 function Player:init(args)
-    -- args = { id = 1, maxHandSize = 5 }
     self.id = args.id
     self.maxHandSize = args.maxHandSize or 5
     self.maxBoardCards = args.maxBoardCards or 3
     self.slots = {}
     self.deck = {}
+    self.boardSlots = {}
 
     -- create empty hand slots
     for i = 1, self.maxHandSize do
         table.insert(self.slots, { x = 0, y = 0, card = nil })
     end
 
-    -- board slots: fixed rows
-    local boardY
-    if self.id == 1 then
-        boardY = love.graphics.getHeight() - 350
-    else
-        boardY = 80
-    end
-    self.boardSlots = {}
+    -- create board slots, positions set later
     for i = 1, self.maxBoardCards do
-        table.insert(self.boardSlots, { x = 320 + (i-1)*110, y = boardY, card = nil })
+        table.insert(self.boardSlots, { x = 0, y = 0, card = nil })
     end
 end
+
 
 -- helper: get all cards currently in hand
 function Player:getHand()
@@ -89,12 +83,12 @@ end
 
 
 -- snap card back to its assigned slot
-function Player:snapCard(card)
-    if card.slotIndex and self.slots[card.slotIndex] then
-        local slot = self.slots[card.slotIndex]
-        card.x = slot.x
-        card.y = slot.y
-        slot.card = card
+function Player:snapCard(card, gs)
+    if card.slotIndex then
+        local x, y = gs:getHandSlotPosition(card.slotIndex)
+        card.x = x
+        card.y = y
+        self.slots[card.slotIndex].card = card
     end
 end
 
@@ -116,60 +110,28 @@ function Player:drawCard()
     return c
 end
 
-function Player:playCardToBoard(card, slotIndex)
-    -- remove from hand slot
+function Player:playCardToBoard(card, slotIndex, gs)
+    -- remove from hand
     if card.slotIndex and self.slots[card.slotIndex] and self.slots[card.slotIndex].card == card then
         self.slots[card.slotIndex].card = nil
     end
     card.slotIndex = nil
 
-    -- choose destination slot
-    local function placeAt(idx)
-        local bslot = self.boardSlots[idx]
-        if not bslot or bslot.card then return false end
-        bslot.card = card
-        card.zone = "board"
-        card.owner = self
-        card.x, card.y = bslot.x, bslot.y
-        card.faceUp = true
-        return true
-    end
+    -- choose board slot
+    local bslot = self.boardSlots[slotIndex]
+    if not bslot or bslot.card then return false end
+    bslot.card = card
 
-    if slotIndex then
-        if not placeAt(slotIndex) then
-            return false
-        end
-    else
-        -- fallback: first free
-        local placed = false
-        for i, bslot in ipairs(self.boardSlots) do
-            if not bslot.card then
-                placed = placeAt(i)
-                break
-            end
-        end
-        if not placed then return false end
-    end
+    local x, y = gs:getBoardSlotPosition(self.id, slotIndex)
+    card.x, card.y = x, y
+    card.zone = "board"
+    card.owner = self
+    card.faceUp = true
 
-    -- compact hand after leaving it
+    -- compact hand
     self:compactHand()
     return true
 end
-
-
--- draw slots + cards
--- function Player:drawSlots()
---     for i, slot in ipairs(self.slots) do
---         -- draw empty slot outline
---         love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
---         love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
-
---         -- draw card if present
---         if slot.card then
---             slot.card:draw()
---         end
---     end
--- end
 
 function Player:drawBoard()
     for i, slot in ipairs(self.boardSlots) do

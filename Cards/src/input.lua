@@ -4,14 +4,16 @@ local function pointInRect(x, y, rx, ry, rw, rh)
     return x >= rx and x <= rx+rw and y >= ry and y <= ry+rh
 end
 
-local function hoveredBoardSlot(player, x, y)
-    for i, bslot in ipairs(player.boardSlots) do
-        if pointInRect(x, y, bslot.x, bslot.y, 100, 150) then
+local function hoveredBoardSlot(gs, playerIndex, x, y)
+    for i, _ in ipairs(gs.players[playerIndex].boardSlots) do
+        local sx, sy = gs:getBoardSlotPosition(playerIndex, i)
+        if pointInRect(x, y, sx, sy, 100, 150) then
             return i
         end
     end
     return nil
 end
+
 
 function Input:mousepressed(gs, x, y, button)
     if button ~= 1 then return end
@@ -48,14 +50,14 @@ function Input:mousereleased(gs, x, y, button)
         gs:discardCard(card)
     else
         if gs.phase == "play" and card.owner == current then
-            local idx = hoveredBoardSlot(current, x, y)
+            local idx = hoveredBoardSlot(gs, gs.currentPlayer, x, y)
             if idx and (not current.boardSlots[idx].card) then
-                gs:playCardFromHand(card, idx)  -- 🔴 pass chosen slot
+                gs:playCardFromHand(card, idx)
             else
-                if card.owner then card.owner:snapCard(card) end
+                if card.owner then card.owner:snapCard(card, gs) end
             end
         else
-            if card.owner then card.owner:snapCard(card) end
+            if card.owner then card.owner:snapCard(card, gs) end
         end
     end
 
