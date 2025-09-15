@@ -40,11 +40,26 @@ function GameState:new()
     gs.discardStack.faceUp = false
     gs.discardPile = {} -- holds actual discarded cards
     gs.highlightDiscard = false
-    gs.phase = "play"         -- "play" | "resolve" (later)
+    gs.phase = "play"         -- "play" | "resolve"
     gs.playedCount = {}
     for _, p in ipairs(gs.players) do
         gs.playedCount[p.id] = 0
     end
+
+    -- resolve animation state
+    gs.resolveQueue = {}
+    gs.resolveIndex = 0
+    gs.resolveTimer = 0
+    gs.resolveStepDuration = 0.5
+    gs.resolveCurrentStep = nil
+
+    -- log of resolve events
+    gs.resolveLog = {}
+    gs.maxResolveLogLines = 14
+
+    -- log of resolve events
+    gs.resolveLog = {}
+    gs.maxResolveLogLines = 14
 
 
     -- initial deal
@@ -84,6 +99,17 @@ function GameState:newFromDraft(draftedPlayers)
         gs.playedCount[p.id] = 0
     end
 
+    -- resolve animation state
+    gs.resolveQueue = {}
+    gs.resolveIndex = 0
+    gs.resolveTimer = 0
+    gs.resolveStepDuration = 0.5
+    gs.resolveCurrentStep = nil
+
+    -- log of resolve events
+    gs.resolveLog = {}
+    gs.maxResolveLogLines = 14
+
     -- deal starting hands
     for _, p in ipairs(gs.players) do
         for i = 1, p.maxHandSize do
@@ -102,6 +128,13 @@ end
 function GameState:draw()
     love.graphics.setColor(1,1,1)
     love.graphics.print("Player " .. self.currentPlayer .. "'s turn", 20, 20)
+
+    -- show health/block for both players
+    local p1 = self.players[1]
+    local p2 = self.players[2]
+    love.graphics.setColor(1,1,1)
+    love.graphics.print(string.format("P1 HP: %d  Block: %d", p1.health or 0, p1.block or 0), 20, 40)
+    love.graphics.print(string.format("P2 HP: %d  Block: %d", p2.health or 0, p2.block or 0), 20, 60)
 
     local screenH = love.graphics.getHeight()
     local boardYTop = 80
@@ -146,6 +179,46 @@ function GameState:draw()
     if self.draggingCard then
         self.draggingCard:draw()
     end
+
+    -- resolve highlight overlay
+    if self.phase == "resolve" and self.resolveCurrentStep then
+        local step = self.resolveCurrentStep
+        local colors = {
+            block = {0.2, 0.4, 0.9, 0.35},
+            heal = {0.2, 0.8, 0.2, 0.35},
+            attack = {0.9, 0.2, 0.2, 0.35},
+            cleanup = {0.6, 0.6, 0.6, 0.3}
+        }
+        local c = colors[step.kind] or {1,1,0,0.3}
+        love.graphics.setColor(c[1], c[2], c[3], c[4])
+        for pi = 1, #self.players do
+            local sx, sy = self:getBoardSlotPosition(pi, step.slot)
+            love.graphics.rectangle("fill", sx, sy, 100, 150, 8, 8)
+        end
+        love.graphics.setColor(1,1,1,1)
+        love.graphics.printf(string.format("Resolving %s on slot %d", step.kind, step.slot), 0, 20, love.graphics.getWidth(), "center")
+    end
+
+    -- draw resolve log panel (right side)
+    local panelW = 280
+    local panelX = love.graphics.getWidth() - panelW - 16
+    local panelY = 80
+    local lineH = 16
+    local titleH = 20
+    local visibleLines = math.min(#self.resolveLog, self.maxResolveLogLines or 14)
+    local panelH = titleH + visibleLines * lineH + 10
+    love.graphics.setColor(0, 0, 0, 0.35)
+    love.graphics.rectangle("fill", panelX, panelY, panelW, panelH, 8, 8)
+    love.graphics.setColor(1, 1, 1, 0.85)
+    love.graphics.rectangle("line", panelX, panelY, panelW, panelH, 8, 8)
+    love.graphics.print("Log", panelX + 8, panelY + 4)
+    love.graphics.setColor(1,1,1,1)
+    local startIdx = math.max(1, #self.resolveLog - (self.maxResolveLogLines or 14) + 1)
+    local y = panelY + titleH
+    for i = startIdx, #self.resolveLog do
+        love.graphics.printf(self.resolveLog[i], panelX + 8, y, panelW - 16, "left")
+        y = y + lineH
+    end
 end
 
 -- returns x,y for a given player's slot index, relative to current turn
@@ -179,6 +252,32 @@ function GameState:update(dt)
     else
         self.highlightDiscard = false
     end
+
+    -- resolve animation progression
+    if self.phase == "resolve" then
+        self.resolveTimer = self.resolveTimer - dt
+        if self.resolveTimer <= 0 then
+            self.resolveIndex = self.resolveIndex + 1
+            if self.resolveIndex > #self.resolveQueue then
+                -- finished resolution
+                for _, p in ipairs(self.players) do
+                    self.playedCount[p.id] = 0
+                end
+                self.currentPlayer = 1
+                self.phase = "play"
+                self.resolveQueue = {}
+                self.resolveIndex = 0
+                self.resolveCurrentStep = nil
+                self:addLog("Round resolved. Back to play.")
+                self:updateCardVisibility()
+            else
+                local step = self.resolveQueue[self.resolveIndex]
+                self.resolveCurrentStep = step
+                self:performResolveStep(step)
+                self.resolveTimer = self.resolveStepDuration
+            end
+        end
+    end
 end
 
 function GameState:updateCardVisibility()
@@ -197,6 +296,123 @@ function GameState:drawCardToPlayer(playerIndex)
     local c = p:drawCard()
     if c then
         table.insert(self.allCards, c) -- needed so card is drawn
+    end
+end
+
+-- Apply effects of all cards on board, then clean up and start next round
+function GameState:startResolve()
+    self.phase = "resolve"
+    self.resolveQueue = {}
+    self.resolveIndex = 0
+    self.resolveTimer = 0
+    self.resolveCurrentStep = nil
+    self:addLog("--- Begin Resolution ---")
+
+    local maxSlots = self.maxBoardCards or (#self.players[1].boardSlots)
+
+    -- Pass 1: Block additions per slot
+    for s = 1, maxSlots do
+        table.insert(self.resolveQueue, { kind = "block", slot = s })
+    end
+    -- Pass 2: Heals per slot
+    for s = 1, maxSlots do
+        table.insert(self.resolveQueue, { kind = "heal", slot = s })
+    end
+    -- Pass 3: Attacks per slot (simultaneous within slot)
+    for s = 1, maxSlots do
+        table.insert(self.resolveQueue, { kind = "attack", slot = s })
+    end
+    -- Pass 4: Cleanup (discard) per slot
+    for s = 1, maxSlots do
+        table.insert(self.resolveQueue, { kind = "cleanup", slot = s })
+    end
+end
+
+function GameState:performResolveStep(step)
+    local s = step.slot
+    if step.kind == "block" then
+        for _, p in ipairs(self.players) do
+            local slot = p.boardSlots[s]
+            if slot and slot.card and slot.card.definition then
+                local def = slot.card.definition
+                if def.block and def.block > 0 then
+                    p.block = (p.block or 0) + def.block
+                    self:addLog(string.format("Slot %d: P%d gains %d block (%s)", s, p.id or 0, def.block, slot.card.name or ""))
+                end
+            end
+        end
+    elseif step.kind == "heal" then
+        for _, p in ipairs(self.players) do
+            local slot = p.boardSlots[s]
+            if slot and slot.card and slot.card.definition then
+                local def = slot.card.definition
+                if def.heal and def.heal > 0 then
+                    local mh = p.maxHealth or 20
+                    local before = p.health or mh
+                    p.health = math.min(before + def.heal, mh)
+                    local gained = p.health - before
+                    if gained > 0 then
+                        self:addLog(string.format("Slot %d: P%d heals %d (%s)", s, p.id or 0, gained, slot.card.name or ""))
+                    end
+                end
+            end
+        end
+    elseif step.kind == "attack" then
+        local function atkAt(p, idx)
+            local slot = p.boardSlots[idx]
+            if slot and slot.card and slot.card.definition and slot.card.definition.attack then
+                return slot.card.definition.attack or 0
+            end
+            return 0
+        end
+        local p1, p2 = self.players[1], self.players[2]
+        local a1 = atkAt(p1, s)
+        local a2 = atkAt(p2, s)
+        if a1 > 0 or a2 > 0 then
+            -- compute absorption using pre-step block values (simultaneous within slot)
+            local preB1 = p1.block or 0
+            local preB2 = p2.block or 0
+            local absorb2 = math.min(preB2, a1)
+            local absorb1 = math.min(preB1, a2)
+            p2.block = preB2 - absorb2
+            p1.block = preB1 - absorb1
+            local r1 = a2 - absorb1
+            local r2 = a1 - absorb2
+            if r2 > 0 then p2.health = (p2.health or p2.maxHealth or 20) - r2 end
+            if r1 > 0 then p1.health = (p1.health or p1.maxHealth or 20) - r1 end
+            if a1 > 0 then
+                self:addLog(string.format("Slot %d: P1 attacks P2 for %d (block %d, dmg %d)", s, a1, absorb2, math.max(0, r2)))
+            end
+            if a2 > 0 then
+                self:addLog(string.format("Slot %d: P2 attacks P1 for %d (block %d, dmg %d)", s, a2, absorb1, math.max(0, r1)))
+            end
+        end
+    elseif step.kind == "cleanup" then
+        for _, p in ipairs(self.players) do
+            local slot = p.boardSlots[s]
+            if slot and slot.card then
+                self:addLog(string.format("Slot %d: P%d discards %s", s, p.id or 0, slot.card.name or "card"))
+                self:discardCard(slot.card)
+                slot.card = nil
+            end
+        end
+
+        -- Optional victory check
+        for idx, p in ipairs(self.players) do
+            if (p.health or 0) <= 0 then
+                print(string.format("Player %d has been defeated!", idx))
+                self:addLog(string.format("Player %d is defeated!", idx))
+            end
+        end
+    end
+end
+
+function GameState:addLog(msg)
+    self.resolveLog = self.resolveLog or {}
+    table.insert(self.resolveLog, msg)
+    local limit = self.maxResolveLogLines or 14
+    while #self.resolveLog > limit do
+        table.remove(self.resolveLog, 1)
     end
 end
 
@@ -241,9 +457,8 @@ function GameState:maybeFinishPlayPhase()
     end
 
     if allDone then
-        self.phase = "resolve"
-        -- TODO: trigger resolve logic/animation here
         print("Both players have finished placing cards! Switching to resolve phase.")
+        self:startResolve()
     end
 end
 

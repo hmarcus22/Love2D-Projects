@@ -6,6 +6,9 @@ function Player:init(args)
     self.id = args.id
     self.maxHandSize = args.maxHandSize or 5
     self.maxBoardCards = args.maxBoardCards or 3
+    self.maxHealth = args.maxHealth or 20
+    self.health = args.health or self.maxHealth
+    self.block = 0
     self.slots = {}
     self.deck = {}
     self.boardSlots = {}
