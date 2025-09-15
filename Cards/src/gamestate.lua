@@ -51,6 +51,9 @@ function GameState:new()
     gs.roundStarter = 1
     gs.playsInRound = 0
 
+    -- modifier attachments played onto existing cards (per round)
+    gs.attachments = { [1] = {}, [2] = {} }
+
     -- resolve animation state
     gs.resolveQueue = {}
     gs.resolveIndex = 0
@@ -108,6 +111,9 @@ function GameState:newFromDraft(draftedPlayers)
     gs.roundStarter = 1
     gs.playsInRound = 0
 
+    -- modifier attachments played onto existing cards (per round)
+    gs.attachments = { [1] = {}, [2] = {} }
+
     -- resolve animation state
     gs.resolveQueue = {}
     gs.resolveIndex = 0
@@ -162,6 +168,58 @@ function GameState:draw()
                 slot.card.x = slotX
                 slot.card.y = slotY
                 slot.card:draw()
+                -- draw retarget indicator if present
+                local mods = self.attachments and self.attachments[i] and self.attachments[i][s]
+                if mods then
+                    local dir = nil
+                    local dAtk, dBlk, dHeal = 0, 0, 0
+                    for _, m in ipairs(mods) do
+                        if m.retargetOffset then dir = m.retargetOffset end
+                        if m.attack then dAtk = dAtk + (m.attack or 0) end
+                        if m.block then dBlk = dBlk + (m.block or 0) end
+                        if m.heal then dHeal = dHeal + (m.heal or 0) end
+                    end
+                    -- outline to indicate this card is modified
+                    if (dAtk ~= 0) or (dBlk ~= 0) or (dHeal ~= 0) or dir then
+                        love.graphics.setColor(1, 1, 0, 0.6)
+                        love.graphics.rectangle("line", slotX-2, slotY-2, 104, 154, 8, 8)
+                    end
+                    if dir then
+                        love.graphics.setColor(0.9, 0.2, 0.2, 0.8)
+                        local triX = slotX + (dir < 0 and 10 or 90)
+                        local triY = slotY + 12
+                        if dir < 0 then
+                            love.graphics.polygon("fill", triX, triY, triX+10, triY-6, triX+10, triY+6)
+                        else
+                            love.graphics.polygon("fill", triX, triY, triX-10, triY-6, triX-10, triY+6)
+                        end
+                    end
+                    -- badges for stat mods
+                    local function drawBadge(x, y, bg, text)
+                        love.graphics.setColor(bg[1], bg[2], bg[3], bg[4] or 0.9)
+                        love.graphics.rectangle("fill", x-1, y-1, 34, 16, 4, 4)
+                        love.graphics.setColor(0,0,0,1)
+                        love.graphics.rectangle("line", x-1, y-1, 34, 16, 4, 4)
+                        love.graphics.setColor(1,1,1,1)
+                        love.graphics.printf(text, x, y+2, 32, "center")
+                    end
+                    local bx = slotX + 6
+                    local by = slotY + 28
+                    if dAtk ~= 0 then
+                        local txt = (dAtk > 0 and "+"..dAtk or tostring(dAtk)) .. " A"
+                        drawBadge(bx, by, {0.8, 0.2, 0.2, 0.9}, txt)
+                        bx = bx + 36
+                    end
+                    if dBlk ~= 0 then
+                        local txt = (dBlk > 0 and "+"..dBlk or tostring(dBlk)) .. " B"
+                        drawBadge(bx, by, {0.2, 0.4, 0.8, 0.9}, txt)
+                        bx = bx + 36
+                    end
+                    if dHeal ~= 0 then
+                        local txt = (dHeal > 0 and "+"..dHeal or tostring(dHeal)) .. " H"
+                        drawBadge(bx, by, {0.2, 0.8, 0.2, 0.9}, txt)
+                    end
+                end
             end
         end
     end
@@ -199,10 +257,35 @@ function GameState:draw()
             cleanup = {0.6, 0.6, 0.6, 0.3}
         }
         local c = colors[step.kind] or {1,1,0,0.3}
-        love.graphics.setColor(c[1], c[2], c[3], c[4])
-        for pi = 1, #self.players do
-            local sx, sy = self:getBoardSlotPosition(pi, step.slot)
-            love.graphics.rectangle("fill", sx, sy, 100, 150, 8, 8)
+        if step.kind ~= "attack" then
+            love.graphics.setColor(c[1], c[2], c[3], c[4])
+            for pi = 1, #self.players do
+                local sx, sy = self:getBoardSlotPosition(pi, step.slot)
+                love.graphics.rectangle("fill", sx, sy, 100, 150, 8, 8)
+            end
+        else
+            -- attack: show arrows from attackers to their target slot (feint aware)
+            love.graphics.setColor(c[1], c[2], c[3], c[4])
+            for pi = 1, #self.players do
+                local sx, sy = self:getBoardSlotPosition(pi, step.slot)
+                love.graphics.rectangle("fill", sx, sy, 100, 150, 8, 8)
+                local mods = self.activeMods and self.activeMods[pi] and self.activeMods[pi].perSlot[step.slot]
+                local off = mods and mods.retargetOffset or 0
+                local targetSlot = step.slot + off
+                local maxSlots = self.maxBoardCards or #self.players[pi].boardSlots
+                if targetSlot < 1 or targetSlot > maxSlots then targetSlot = step.slot end
+                local enemyIndex = (pi == 1) and 2 or 1
+                local tx, ty = self:getBoardSlotPosition(enemyIndex, targetSlot)
+                -- draw line arrow
+                love.graphics.setColor(0.9, 0.2, 0.2, 0.8)
+                local ax, ay = sx + 50, sy + 75
+                local bx, by = tx + 50, ty + 75
+                love.graphics.setLineWidth(2)
+                love.graphics.line(ax, ay, bx, by)
+                -- small target marker
+                love.graphics.setColor(0.9, 0.2, 0.2, 0.3)
+                love.graphics.rectangle("fill", tx, ty, 100, 150, 8, 8)
+            end
         end
         love.graphics.setColor(1,1,1,1)
         love.graphics.printf(string.format("Resolving %s on slot %d", step.kind, step.slot), 0, 20, Viewport.getWidth(), "center")
@@ -279,6 +362,8 @@ function GameState:update(dt)
                 self.resolveQueue = {}
                 self.resolveIndex = 0
                 self.resolveCurrentStep = nil
+                -- clear attachments for next round
+                self.attachments = { [1] = {}, [2] = {} }
                 self:addLog("Round resolved. Back to play.")
                 self:updateCardVisibility()
             else
@@ -310,6 +395,138 @@ function GameState:drawCardToPlayer(playerIndex)
     end
 end
 
+-- Play a modifier card onto an existing card in a board slot
+function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retargetOffset)
+    if self.phase ~= "play" then return false end
+    local owner = card.owner
+    if not owner then return false end
+
+    local targetPlayer = self.players[targetPlayerIndex]
+    if not targetPlayer then return false end
+    local slot = targetPlayer.boardSlots[slotIndex]
+    if not slot or not slot.card then return false end
+
+    local def = card.definition or {}
+    local m = def.mod
+    if not m then return false end
+
+    -- enforce target allegiance
+    local isEnemy = (targetPlayer ~= owner)
+    local targetOk = (m.target == "enemy" and isEnemy) or (m.target == "ally" or m.target == nil) and (not isEnemy)
+    if not targetOk then
+        owner:snapCard(card, self)
+        return false
+    end
+
+    -- special rule: Feint (retarget) only applies to cards that attack
+    if m.retarget then
+        local baseAttack = (slot.card.definition and slot.card.definition.attack) or 0
+        if baseAttack <= 0 then
+            if owner then owner:snapCard(card, self) end
+            self:addLog("Feint can only target a card with attack")
+            return false
+        end
+    end
+
+    -- record attachment to the target slot for this round
+    self.attachments[targetPlayerIndex][slotIndex] = self.attachments[targetPlayerIndex][slotIndex] or {}
+    local stored = {}
+    for k, v in pairs(m) do stored[k] = v end
+    if m.retarget and retargetOffset then
+        stored.retargetOffset = retargetOffset
+    end
+    table.insert(self.attachments[targetPlayerIndex][slotIndex], stored)
+
+    -- discard the modifier card (modifiers do not occupy board slots)
+    self:discardCard(card)
+
+    if stored.retargetOffset then
+        local dir = stored.retargetOffset < 0 and "left" or "right"
+        self:addLog(string.format("P%d plays %s (%s) on P%d slot %d", owner.id or 0, card.name or "modifier", dir, targetPlayerIndex, slotIndex))
+    else
+        self:addLog(string.format("P%d plays %s on P%d slot %d", owner.id or 0, card.name or "modifier", targetPlayerIndex, slotIndex))
+    end
+
+    -- micro-round progression
+    if self.playsInRound == 0 then
+        self.playsInRound = 1
+        self:nextPlayer()
+    else
+        self.playsInRound = 2
+        self.roundStarter = (self.roundStarter == 1) and 2 or 1
+        self.currentPlayer = self.roundStarter
+        self.playsInRound = 0
+        self:updateCardVisibility()
+    end
+
+    self:maybeFinishPlayPhase()
+    return true
+end
+
+-- Build a snapshot of active modifiers from modifier-type cards on the board.
+-- Cards can specify definition.mod = { attack=dx, block=dx, heal=dx, target="ally|enemy", scope="all|same_slot" }
+function GameState:computeActiveModifiers()
+    local function emptyMods()
+        return { attack = 0, block = 0, heal = 0 }
+    end
+
+    self.activeMods = {
+        [1] = { global = emptyMods(), perSlot = {} },
+        [2] = { global = emptyMods(), perSlot = {} },
+    }
+
+    local function addMods(dst, mod)
+        if mod.attack then dst.attack = (dst.attack or 0) + mod.attack end
+        if mod.block then dst.block = (dst.block or 0) + mod.block end
+        if mod.heal then dst.heal = (dst.heal or 0) + mod.heal end
+        if mod.retargetOffset then dst.retargetOffset = mod.retargetOffset end
+    end
+
+    for pi, p in ipairs(self.players) do
+        for s, slot in ipairs(p.boardSlots) do
+            local c = slot.card
+            local def = c and c.definition or nil
+            local m = def and def.mod or nil
+            if m then
+                local targetSide = (m.target == "enemy") and (pi == 1 and 2 or 1) or pi
+                local entry = self.activeMods[targetSide]
+                if m.scope == "same_slot" then
+                    entry.perSlot[s] = entry.perSlot[s] or emptyMods()
+                    addMods(entry.perSlot[s], m)
+                else -- default to global/all
+                    addMods(entry.global, m)
+                end
+            end
+        end
+    end
+
+    -- add targeted attachments (played onto an existing card during play)
+    if self.attachments then
+        for pi = 1, #self.players do
+            local sideEntry = self.activeMods[pi]
+            for s, mods in pairs(self.attachments[pi] or {}) do
+                for _, m in ipairs(mods) do
+                    sideEntry.perSlot[s] = sideEntry.perSlot[s] or emptyMods()
+                    addMods(sideEntry.perSlot[s], m)
+                end
+            end
+        end
+    end
+end
+
+-- Get the stat of a card adjusted by active modifiers affecting the owning side/slot
+function GameState:getEffectiveStat(playerIndex, slotIndex, def, key)
+    local base = def and def[key] or 0
+    local mods = self.activeMods or {}
+    local side = mods[playerIndex]
+    if not side then return base end
+    local total = base + (side.global[key] or 0)
+    local sm = side.perSlot[slotIndex]
+    if sm then total = total + (sm[key] or 0) end
+    if total < 0 then total = 0 end
+    return total
+end
+
 -- Apply effects of all cards on board, then clean up and start next round
 function GameState:startResolve()
     self.phase = "resolve"
@@ -320,6 +537,9 @@ function GameState:startResolve()
     self:addLog("--- Begin Resolution ---")
 
     local maxSlots = self.maxBoardCards or (#self.players[1].boardSlots)
+
+    -- snapshot modifiers from any modifier cards on the board for this round
+    self:computeActiveModifiers()
 
     -- Pass 1: Block additions per slot
     for s = 1, maxSlots do
@@ -342,25 +562,27 @@ end
 function GameState:performResolveStep(step)
     local s = step.slot
     if step.kind == "block" then
-        for _, p in ipairs(self.players) do
+        for idx, p in ipairs(self.players) do
             local slot = p.boardSlots[s]
             if slot and slot.card and slot.card.definition then
                 local def = slot.card.definition
-                if def.block and def.block > 0 then
-                    p.block = (p.block or 0) + def.block
-                    self:addLog(string.format("Slot %d: P%d gains %d block (%s)", s, p.id or 0, def.block, slot.card.name or ""))
+                local add = self:getEffectiveStat(idx, s, def, "block")
+                if add and add > 0 then
+                    p.block = (p.block or 0) + add
+                    self:addLog(string.format("Slot %d [Block]: P%d +%d block (%s) -> %d", s, p.id or 0, add, slot.card.name or "", p.block))
                 end
             end
         end
     elseif step.kind == "heal" then
-        for _, p in ipairs(self.players) do
+        for idx, p in ipairs(self.players) do
             local slot = p.boardSlots[s]
             if slot and slot.card and slot.card.definition then
                 local def = slot.card.definition
-                if def.heal and def.heal > 0 then
+                local heal = self:getEffectiveStat(idx, s, def, "heal")
+                if heal and heal > 0 then
                     local mh = p.maxHealth or 20
                     local before = p.health or mh
-                    p.health = math.min(before + def.heal, mh)
+                    p.health = math.min(before + heal, mh)
                     local gained = p.health - before
                     if gained > 0 then
                         self:addLog(string.format(
@@ -372,16 +594,30 @@ function GameState:performResolveStep(step)
             end
         end
     elseif step.kind == "attack" then
-        local function atkAt(p, idx)
+        local function atkAt(playerIdx, idx)
+            local p = self.players[playerIdx]
             local slot = p.boardSlots[idx]
-            if slot and slot.card and slot.card.definition and slot.card.definition.attack then
-                return slot.card.definition.attack or 0
+            if slot and slot.card and slot.card.definition then
+                return self:getEffectiveStat(playerIdx, idx, slot.card.definition, "attack") or 0
             end
             return 0
         end
+        local function targetIndexFor(playerIdx, srcIdx)
+            local mods = self.activeMods and self.activeMods[playerIdx] and self.activeMods[playerIdx].perSlot[srcIdx]
+            local off = mods and mods.retargetOffset or 0
+            local t = srcIdx + off
+            local maxSlots = self.maxBoardCards or #self.players[playerIdx].boardSlots
+            if t < 1 or t > maxSlots then
+                t = srcIdx -- fallback to straight if out of range
+            end
+            return t
+        end
+
         local p1, p2 = self.players[1], self.players[2]
-        local a1 = atkAt(p1, s)
-        local a2 = atkAt(p2, s)
+        local a1 = atkAt(1, s)
+        local a2 = atkAt(2, s)
+        local t1 = targetIndexFor(1, s)
+        local t2 = targetIndexFor(2, s)
         if a1 > 0 or a2 > 0 then
             -- compute absorption using pre-step block values (simultaneous within slot)
             local preB1 = p1.block or 0
@@ -395,10 +631,12 @@ function GameState:performResolveStep(step)
             if r2 > 0 then p2.health = (p2.health or p2.maxHealth or 20) - r2 end
             if r1 > 0 then p1.health = (p1.health or p1.maxHealth or 20) - r1 end
             if a1 > 0 then
-                self:addLog(string.format("Slot %d: P1 attacks P2 for %d (block %d, dmg %d)", s, a1, absorb2, math.max(0, r2)))
+                local suffix = (t1 ~= s) and string.format(" -> slot %d (feint)", t1) or ""
+                self:addLog(string.format("Slot %d: P1 attacks P2 for %d (block %d, dmg %d)%s", s, a1, absorb2, math.max(0, r2), suffix))
             end
             if a2 > 0 then
-                self:addLog(string.format("Slot %d: P2 attacks P1 for %d (block %d, dmg %d)", s, a2, absorb1, math.max(0, r1)))
+                local suffix = (t2 ~= s) and string.format(" -> slot %d (feint)", t2) or ""
+                self:addLog(string.format("Slot %d: P2 attacks P1 for %d (block %d, dmg %d)%s", s, a2, absorb1, math.max(0, r1), suffix))
             end
         end
     elseif step.kind == "cleanup" then

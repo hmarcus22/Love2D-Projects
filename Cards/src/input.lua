@@ -52,11 +52,39 @@ function Input:mousereleased(gs, x, y, button)
         gs:discardCard(card)
     else
         if gs.phase == "play" and card.owner == current then
-            local idx = hoveredBoardSlot(gs, gs.currentPlayer, x, y)
-            if idx and (not current.boardSlots[idx].card) then
-                gs:playCardFromHand(card, idx)
+            local def = card.definition or {}
+            local isModifier = def.mod ~= nil
+            if isModifier then
+                -- try play onto any hovered occupied board slot (ally or enemy), based on drop position
+                local targetPi, targetIdx = nil, nil
+                for pi = 1, #gs.players do
+                    local idx = hoveredBoardSlot(gs, pi, x, y)
+                    if idx and gs.players[pi].boardSlots[idx].card then
+                        targetPi, targetIdx = pi, idx
+                        break
+                    end
+                end
+                if targetPi and targetIdx then
+                    local retargetOffset = nil
+                    if def.mod and def.mod.retarget then
+                        -- decide left/right by drop x relative to target slot center
+                        local sx, sy = gs:getBoardSlotPosition(targetPi, targetIdx)
+                        local centerX = sx + 50
+                        retargetOffset = (x < centerX) and -1 or 1
+                    end
+                    local ok = gs:playModifierOnSlot(card, targetPi, targetIdx, retargetOffset)
+                    if not ok and card.owner then card.owner:snapCard(card, gs) end
+                else
+                    if card.owner then card.owner:snapCard(card, gs) end
+                end
             else
-                if card.owner then card.owner:snapCard(card, gs) end
+                -- normal card: must be dropped on an empty slot of current player
+                local idx = hoveredBoardSlot(gs, gs.currentPlayer, x, y)
+                if idx and (not current.boardSlots[idx].card) then
+                    gs:playCardFromHand(card, idx)
+                else
+                    if card.owner then card.owner:snapCard(card, gs) end
+                end
             end
         else
             if card.owner then card.owner:snapCard(card, gs) end

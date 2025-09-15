@@ -38,6 +38,22 @@ function draft:enter()
     for _, c in ipairs(factory.createCopies("fireball", 4)) do
         table.insert(self.draftPool, c)
     end
+    -- add some modifiers
+    for _, c in ipairs(factory.createCopies("banner", 4)) do
+        table.insert(self.draftPool, c)
+    end
+    for _, c in ipairs(factory.createCopies("hex", 4)) do
+        table.insert(self.draftPool, c)
+    end
+    for _, c in ipairs(factory.createCopies("rally", 3)) do
+        table.insert(self.draftPool, c)
+    end
+    for _, c in ipairs(factory.createCopies("duelist", 3)) do
+        table.insert(self.draftPool, c)
+    end
+    for _, c in ipairs(factory.createCopies("feint", 5)) do
+        table.insert(self.draftPool, c)
+    end
 
     -- shuffle draft pool
     for i = #self.draftPool, 2, -1 do

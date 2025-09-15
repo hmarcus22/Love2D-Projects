@@ -26,6 +26,42 @@ local defs = {
         description = "Deal 4 damage but costs 2 energy.",
         cost = 2,
         attack = 4
+    },
+    {
+        id = "feint",
+        name = "Feint",
+        description = "Retarget this card's attack to adjacent opposing slot (drop left/right to pick).",
+        cost = 1,
+        mod = { target = "ally", scope = "target", retarget = true }
+    },
+    -- Modifier cards: adjust stats of other cards for this round
+    {
+        id = "banner",
+        name = "War Banner",
+        description = "+1 attack to a target allied card this round.",
+        cost = 1,
+        mod = { attack = 1, target = "ally", scope = "target" }
+    },
+    {
+        id = "rally",
+        name = "Rally",
+        description = "+1 block to a target allied card this round.",
+        cost = 1,
+        mod = { block = 1, target = "ally", scope = "target" }
+    },
+    {
+        id = "hex",
+        name = "Hex",
+        description = "-1 attack to a target enemy card this round.",
+        cost = 1,
+        mod = { attack = -1, target = "enemy", scope = "target" }
+    },
+    {
+        id = "duelist",
+        name = "Duelist",
+        description = "+2 attack to a target allied card this round.",
+        cost = 1,
+        mod = { attack = 2, target = "ally", scope = "target" }
     }
 }
 
