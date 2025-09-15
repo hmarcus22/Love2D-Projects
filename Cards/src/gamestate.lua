@@ -325,13 +325,13 @@ function GameState:startResolve()
     for s = 1, maxSlots do
         table.insert(self.resolveQueue, { kind = "block", slot = s })
     end
-    -- Pass 2: Heals per slot
-    for s = 1, maxSlots do
-        table.insert(self.resolveQueue, { kind = "heal", slot = s })
-    end
-    -- Pass 3: Attacks per slot (simultaneous within slot)
+    -- Pass 2: Attacks per slot (simultaneous within slot)
     for s = 1, maxSlots do
         table.insert(self.resolveQueue, { kind = "attack", slot = s })
+    end
+    -- Pass 3: Heals per slot (after block and attack)
+    for s = 1, maxSlots do
+        table.insert(self.resolveQueue, { kind = "heal", slot = s })
     end
     -- Pass 4: Cleanup (discard) per slot
     for s = 1, maxSlots do
@@ -363,7 +363,10 @@ function GameState:performResolveStep(step)
                     p.health = math.min(before + def.heal, mh)
                     local gained = p.health - before
                     if gained > 0 then
-                        self:addLog(string.format("Slot %d: P%d heals %d (%s)", s, p.id or 0, gained, slot.card.name or ""))
+                        self:addLog(string.format(
+                            "Slot %d [Heal]: P%d +%d HP (%s) -> %d/%d",
+                            s, p.id or 0, gained, slot.card.name or "", p.health, mh
+                        ))
                     end
                 end
             end
