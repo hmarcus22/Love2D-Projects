@@ -1,4 +1,5 @@
 local Input = {}
+local Viewport = require "src.viewport"
 
 local function pointInRect(x, y, rx, ry, rw, rh)
     return x >= rx and x <= rx+rw and y >= ry and y <= ry+rh
@@ -21,7 +22,7 @@ function Input:mousepressed(gs, x, y, button)
     if gs.phase ~= "play" then return end
 
     -- Click-to-draw from current player's deck (only during play phase)
-    local deckX, deckY = 20, love.graphics.getHeight() - 170
+    local deckX, deckY = 20, Viewport.getHeight() - 170
     if gs.phase == "play" and x >= deckX and x <= deckX + 100 and y >= deckY and y <= deckY + 150 then
         gs:drawCardToPlayer(gs.currentPlayer)
         return
@@ -69,7 +70,7 @@ end
 
 function Input:keypressed(gs, key)
     if key == "space" then
-        gs:nextPlayer()
+        gs:advanceTurn()
     end
 end
 

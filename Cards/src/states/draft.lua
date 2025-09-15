@@ -3,6 +3,7 @@ local Card = require "src.card"
 local game = require "src.states.game"
 local Player = require "src.player"
 local factory = require "src.card_factory"
+local Viewport = require "src.viewport"
 
 local MAX_HAND_SIZE = 5
 local MAX_BOARD_CARDS = 3
@@ -64,17 +65,18 @@ function draft:nextChoices()
 end
 
 function draft:draw()
+    Viewport.apply()
     love.graphics.setColor(1,1,1)
-    love.graphics.printf("Draft Phase", 0, 40, love.graphics.getWidth(), "center")
-    love.graphics.printf("Player " .. self.currentPlayer .. " choose a card", 0, 80, love.graphics.getWidth(), "center")
+    love.graphics.printf("Draft Phase", 0, 40, Viewport.getWidth(), "center")
+    love.graphics.printf("Player " .. self.currentPlayer .. " choose a card", 0, 80, Viewport.getWidth(), "center")
 
     -- draw current choices
     for _, c in ipairs(self.choices) do
         c:draw()
     end
 
-    -- screen height
-    local screenH = love.graphics.getHeight()
+    -- screen height (virtual)
+    local screenH = Viewport.getHeight()
 
     -- show drafted cards at the bottom
     for i, p in ipairs(self.players) do
@@ -83,7 +85,7 @@ function draft:draw()
 
         love.graphics.setColor(1,1,1)
         love.graphics.printf("Player " .. i .. " deck (" .. #p.deck .. "/12):",
-            20, rowY - 20, love.graphics.getWidth(), "left")
+            20, rowY - 20, Viewport.getWidth(), "left")
 
         local startX = 40
         for j, c in ipairs(p.deck) do
@@ -100,11 +102,14 @@ function draft:draw()
             love.graphics.printf(c.name, cx+2, cy+25, 46, "center")
         end
     end
+    Viewport.unapply()
 end
 
 
 function draft:mousepressed(x, y, button)
     if button ~= 1 then return end
+    -- incoming x,y are screen coords; convert to virtual
+    x, y = Viewport.toVirtual(x, y)
 
     for i, c in ipairs(self.choices) do
         if c:isHovered(x, y) then

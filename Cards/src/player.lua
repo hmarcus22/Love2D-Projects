@@ -143,7 +143,8 @@ end
 
 function Player:drawHand(isCurrent)
     if not isCurrent then return end
-    local handY = love.graphics.getHeight() - 170
+    local Viewport = require "src.viewport"
+    local handY = Viewport.getHeight() - 170
 
     for i, slot in ipairs(self.slots) do
         local x = 150 + (i - 1) * 110

@@ -1,6 +1,7 @@
 local Card = require "src.card"
 local Deck = require "src.deck"
 local Player = require "src.player"
+local Viewport = require "src.viewport"
 
 local GameState = {}
 GameState.__index = GameState
@@ -33,7 +34,7 @@ function GameState:new()
 
     -- discard pile (UI element)
     local slotSpacing = 110
-    local handY = love.graphics.getHeight() - 170
+    local handY = Viewport.getHeight() - 170
     local lastSlotX = 150 + (self.players[1].maxHandSize - 1) * slotSpacing
 
     gs.discardStack = Card(-2, "Discard", lastSlotX + 150, handY)
@@ -45,6 +46,10 @@ function GameState:new()
     for _, p in ipairs(gs.players) do
         gs.playedCount[p.id] = 0
     end
+
+    -- turn order (micro-round of one card each)
+    gs.roundStarter = 1
+    gs.playsInRound = 0
 
     -- resolve animation state
     gs.resolveQueue = {}
@@ -85,7 +90,7 @@ function GameState:newFromDraft(draftedPlayers)
 
     -- discard placement (based on hand slots)
     local slotSpacing = 110
-    local handY = love.graphics.getHeight() - 170
+    local handY = Viewport.getHeight() - 170
     local lastSlotX = 150 + (gs.players[1].maxHandSize - 1) * slotSpacing
     gs.discardStack = Card(-2, "Discard", lastSlotX + 150, handY)
     gs.discardStack.faceUp = false
@@ -98,6 +103,10 @@ function GameState:newFromDraft(draftedPlayers)
         assert(p.id, "Player missing id!")                     -- debug safety
         gs.playedCount[p.id] = 0
     end
+
+    -- turn order (micro-round of one card each)
+    gs.roundStarter = 1
+    gs.playsInRound = 0
 
     -- resolve animation state
     gs.resolveQueue = {}
@@ -136,7 +145,7 @@ function GameState:draw()
     love.graphics.print(string.format("P1 HP: %d  Block: %d", p1.health or 0, p1.block or 0), 20, 40)
     love.graphics.print(string.format("P2 HP: %d  Block: %d", p2.health or 0, p2.block or 0), 20, 60)
 
-    local screenH = love.graphics.getHeight()
+    local screenH = Viewport.getHeight()
     local boardYTop = 80
     local boardYBottom = screenH - 350
 
@@ -196,12 +205,12 @@ function GameState:draw()
             love.graphics.rectangle("fill", sx, sy, 100, 150, 8, 8)
         end
         love.graphics.setColor(1,1,1,1)
-        love.graphics.printf(string.format("Resolving %s on slot %d", step.kind, step.slot), 0, 20, love.graphics.getWidth(), "center")
+        love.graphics.printf(string.format("Resolving %s on slot %d", step.kind, step.slot), 0, 20, Viewport.getWidth(), "center")
     end
 
     -- draw resolve log panel (right side)
     local panelW = 280
-    local panelX = love.graphics.getWidth() - panelW - 16
+    local panelX = Viewport.getWidth() - panelW - 16
     local panelY = 80
     local lineH = 16
     local titleH = 20
@@ -223,7 +232,7 @@ end
 
 -- returns x,y for a given player's slot index, relative to current turn
 function GameState:getBoardSlotPosition(playerIndex, slotIndex)
-    local screenH = love.graphics.getHeight()
+    local screenH = Viewport.getHeight()
     local boardYTop = 80
     local boardYBottom = screenH - 350
 
@@ -236,13 +245,14 @@ end
 
 -- returns x,y for a given player's hand slot index (always bottom for current)
 function GameState:getHandSlotPosition(slotIndex)
-    local handY = love.graphics.getHeight() - 170
+    local handY = Viewport.getHeight() - 170
     local x = 150 + (slotIndex - 1) * 110
     return x, handY
 end
 
 function GameState:update(dt)
     local mx, my = love.mouse.getPosition()
+    mx, my = Viewport.toVirtual(mx, my)
     if self.draggingCard then
         self.draggingCard.x = mx - self.draggingCard.offsetX
         self.draggingCard.y = my - self.draggingCard.offsetY
@@ -263,7 +273,8 @@ function GameState:update(dt)
                 for _, p in ipairs(self.players) do
                     self.playedCount[p.id] = 0
                 end
-                self.currentPlayer = 1
+                -- start next play phase with alternating starter
+                self.currentPlayer = self.roundStarter or 1
                 self.phase = "play"
                 self.resolveQueue = {}
                 self.resolveIndex = 0
@@ -446,6 +457,26 @@ function GameState:nextPlayer()
     self:updateCardVisibility()
 end
 
+-- Advance the turn respecting the micro-round alternation.
+-- Debug helper used by the space key; does not alter playedCount.
+function GameState:advanceTurn()
+    if self.phase ~= "play" then return end
+    if (self.playsInRound or 0) == 0 then
+        self.playsInRound = 1
+        self:nextPlayer()
+    else
+        -- Complete the micro-round and toggle next starter
+        self.playsInRound = 0
+        if self.roundStarter == 1 then
+            self.roundStarter = 2
+        else
+            self.roundStarter = 1
+        end
+        self.currentPlayer = self.roundStarter
+        self:updateCardVisibility()
+    end
+end
+
 -- check if both have placed 3, if so go to resolve
 function GameState:maybeFinishPlayPhase()
     local allDone = true
@@ -485,7 +516,25 @@ function GameState:playCardFromHand(card, slotIndex)
             pid, slotIndex, self.playedCount[pid], self.maxBoardCards
         ))
 
-        self:nextPlayer()
+        -- micro-round handling: one card per player, alternate starting player next round
+        if self.playsInRound == 0 then
+            self.playsInRound = 1
+            self:nextPlayer()
+        else
+            -- second play in the micro-round
+            self.playsInRound = 2
+            -- toggle starter for next micro-round
+            if self.roundStarter == 1 then
+                self.roundStarter = 2
+            else
+                self.roundStarter = 1
+            end
+            -- set next current player to new starter (unless we enter resolve)
+            self.currentPlayer = self.roundStarter
+            self.playsInRound = 0
+            self:updateCardVisibility()
+        end
+
         self:maybeFinishPlayPhase()
     else
         current:snapCard(card, self)
