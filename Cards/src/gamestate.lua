@@ -2,6 +2,7 @@ local Card = require "src.card"
 local Deck = require "src.deck"
 local Player = require "src.player"
 local Viewport = require "src.viewport"
+local Config = require "src.config"
 
 local GameState = {}
 GameState.__index = GameState
@@ -35,12 +36,14 @@ function GameState:new()
     -- discard pile (UI element)
     local slotSpacing = 110
     local handY = Viewport.getHeight() - 170
-    local lastSlotX = 150 + (self.players[1].maxHandSize - 1) * slotSpacing
+    local firstPlayerMax = (gs.players[1] and gs.players[1].maxHandSize) or (Config.rules.maxHandSize or 5)
+    local lastSlotX = 150 + (firstPlayerMax - 1) * slotSpacing
 
     gs.discardStack = Card(-2, "Discard", lastSlotX + 150, handY)
     gs.discardStack.faceUp = false
     gs.discardPile = {} -- holds actual discarded cards
     gs.highlightDiscard = false
+    gs.highlightPass = false
     gs.phase = "play"         -- "play" | "resolve"
     gs.playedCount = {}
     for _, p in ipairs(gs.players) do
@@ -61,18 +64,14 @@ function GameState:new()
     gs.resolveStepDuration = 0.5
     gs.resolveCurrentStep = nil
 
-    -- log of resolve events
-    gs.resolveLog = {}
-    gs.maxResolveLogLines = 14
-
-    -- log of resolve events
     gs.resolveLog = {}
     gs.maxResolveLogLines = 14
 
 
-    -- initial deal
+    -- initial deal (configurable)
+    local startN = (Config.rules.startingHand or 3)
     for p = 1, #gs.players do
-        for i = 1, 3 do
+        for i = 1, startN do
             gs:drawCardToPlayer(p)
         end
     end
@@ -98,6 +97,7 @@ function GameState:newFromDraft(draftedPlayers)
     gs.discardStack = Card(-2, "Discard", lastSlotX + 150, handY)
     gs.discardStack.faceUp = false
     gs.discardPile = {}
+    gs.highlightPass = false
 
     gs.phase = "play"
     gs.maxBoardCards = draftedPlayers[1].maxBoardCards or 3   -- ✅ set this
@@ -125,9 +125,10 @@ function GameState:newFromDraft(draftedPlayers)
     gs.resolveLog = {}
     gs.maxResolveLogLines = 14
 
-    -- deal starting hands
+    -- deal starting hands (configurable)
     for _, p in ipairs(gs.players) do
-        for i = 1, p.maxHandSize do
+        local startN = (Config.rules.startingHand or p.maxHandSize or 3)
+        for i = 1, startN do
             local c = table.remove(p.deck)
             if c then
                 p:addCard(c)
@@ -224,11 +225,13 @@ function GameState:draw()
         end
     end
 
-    -- discard pile
-    if #self.discardPile > 0 then
-        self.discardPile[#self.discardPile]:draw()
-    else
-        self.discardStack:draw()
+    -- discard pile (optional UI)
+    if Config.rules.showDiscardPile then
+        if #self.discardPile > 0 then
+            self.discardPile[#self.discardPile]:draw()
+        else
+            self.discardStack:draw()
+        end
     end
 
     -- draw current player's hand at bottom
@@ -242,6 +245,22 @@ function GameState:draw()
     love.graphics.setColor(0,0,0)
     love.graphics.rectangle("line", deckX, deckY, 100, 150, 8, 8)
     love.graphics.printf("Deck\n" .. #current.deck, deckX, deckY + 50, 100, "center")
+
+    -- Pass button (only meaningful during play phase)
+    local bx, by, bw, bh = self:getPassButtonRect()
+    if self.phase == "play" then
+        if self.highlightPass then
+            love.graphics.setColor(0.95, 0.95, 0.95, 1)
+        else
+            love.graphics.setColor(0.85, 0.85, 0.85, 1)
+        end
+    else
+        love.graphics.setColor(0.6, 0.6, 0.6, 0.5)
+    end
+    love.graphics.rectangle("fill", bx, by, bw, bh, 8, 8)
+    love.graphics.setColor(0,0,0,1)
+    love.graphics.rectangle("line", bx, by, bw, bh, 8, 8)
+    love.graphics.printf("Pass", bx, by + 12, bw, "center")
 
     if self.draggingCard then
         self.draggingCard:draw()
@@ -333,6 +352,31 @@ function GameState:getHandSlotPosition(slotIndex)
     return x, handY
 end
 
+-- returns rect for the Pass button (x, y, w, h)
+function GameState:getPassButtonRect()
+    local screenW, screenH = Viewport.getWidth(), Viewport.getHeight()
+    local cardW = (Config.layout and Config.layout.cardW) or 100
+    local cardH = (Config.layout and Config.layout.cardH) or 150
+    local margin = 30
+    local w, h = 100, 40
+
+    local handY = screenH - 170
+    local y = handY + math.floor((cardH - h) / 2)
+
+    local baseX = 140
+    if (Config.rules.showDiscardPile and self.discardStack) then
+        baseX = self.discardStack.x + cardW + margin
+    else
+        local current = self:getCurrentPlayer()
+        local lastX = 150 + ((current.maxHandSize or 5) - 1) * 110
+        baseX = lastX + cardW + margin
+    end
+
+    -- keep within screen
+    local x = math.min(baseX, screenW - w - margin)
+    return x, y, w, h
+end
+
 function GameState:update(dt)
     local mx, my = love.mouse.getPosition()
     mx, my = Viewport.toVirtual(mx, my)
@@ -340,10 +384,23 @@ function GameState:update(dt)
         self.draggingCard.x = mx - self.draggingCard.offsetX
         self.draggingCard.y = my - self.draggingCard.offsetY
 
-        -- highlight discard pile if hovered
-        self.highlightDiscard = self.discardStack:isHovered(mx, my)
+        -- highlight discard pile if hovered and allowed
+        if Config.rules.allowManualDiscard and Config.rules.showDiscardPile and self.discardStack then
+            self.highlightDiscard = self.discardStack:isHovered(mx, my)
+        else
+            self.highlightDiscard = false
+        end
     else
         self.highlightDiscard = false
+    end
+
+    -- Pass button hover (always based on mouse, independent of dragging)
+    self.highlightPass = false
+    if self.phase == "play" then
+        local bx, by, bw, bh = self:getPassButtonRect()
+        if mx >= bx and mx <= bx + bw and my >= by and my <= by + bh then
+            self.highlightPass = true
+        end
     end
 
     -- resolve animation progression
@@ -366,6 +423,20 @@ function GameState:update(dt)
                 self.attachments = { [1] = {}, [2] = {} }
                 self:addLog("Round resolved. Back to play.")
                 self:updateCardVisibility()
+
+                -- reset pass streak on new round
+                self.lastActionWasPass = false
+                self.lastPassBy = nil
+
+                -- auto-draw for each player at start of new round (if configured)
+                local perRound = Config.rules.autoDrawPerRound or 0
+                if perRound > 0 then
+                    for pi = 1, #self.players do
+                        for i = 1, perRound do
+                            self:drawCardToPlayer(pi)
+                        end
+                    end
+                end
             else
                 local step = self.resolveQueue[self.resolveIndex]
                 self.resolveCurrentStep = step
@@ -457,10 +528,53 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
         self.currentPlayer = self.roundStarter
         self.playsInRound = 0
         self:updateCardVisibility()
+        -- auto draw on turn start (for new starter), if configured
+        local n = Config.rules.autoDrawOnTurnStart or 0
+        if self.phase == "play" and n > 0 then
+            for i = 1, n do self:drawCardToPlayer(self.currentPlayer) end
+        end
     end
+    -- any play breaks pass streak
+    self.lastActionWasPass = false
 
     self:maybeFinishPlayPhase()
     return true
+end
+
+-- Current player passes. Two consecutive passes (by different players) trigger resolve.
+function GameState:passTurn()
+    if self.phase ~= "play" then return end
+    local pid = self.currentPlayer
+    self:addLog(string.format("P%d passes", pid))
+
+    local triggerResolve = false
+    if self.lastActionWasPass and self.lastPassBy and self.lastPassBy ~= pid then
+        triggerResolve = true
+    end
+    self.lastActionWasPass = true
+    self.lastPassBy = pid
+
+    if (self.playsInRound or 0) == 0 then
+        self.playsInRound = 1
+        self:nextPlayer()
+    else
+        -- complete micro-round, toggle next starter
+        self.playsInRound = 2
+        if self.roundStarter == 1 then self.roundStarter = 2 else self.roundStarter = 1 end
+        self.currentPlayer = self.roundStarter
+        self.playsInRound = 0
+        self:updateCardVisibility()
+        -- auto draw on turn start for new starter if configured
+        local n = Config.rules.autoDrawOnTurnStart or 0
+        if self.phase == "play" and n > 0 then
+            for i = 1, n do self:drawCardToPlayer(self.currentPlayer) end
+        end
+    end
+
+    if triggerResolve then
+        self:addLog("Both players pass. Resolving.")
+        self:startResolve()
+    end
 end
 
 -- Build a snapshot of active modifiers from modifier-type cards on the board.
@@ -696,6 +810,15 @@ end
 function GameState:nextPlayer()
     self.currentPlayer = self.currentPlayer % #self.players + 1
     self:updateCardVisibility()
+    -- auto draw at turn start if configured and in play phase
+    if self.phase == "play" then
+        local n = Config.rules.autoDrawOnTurnStart or 0
+        if n > 0 then
+            for i = 1, n do
+                self:drawCardToPlayer(self.currentPlayer)
+            end
+        end
+    end
 end
 
 -- Advance the turn respecting the micro-round alternation.
@@ -774,7 +897,15 @@ function GameState:playCardFromHand(card, slotIndex)
             self.currentPlayer = self.roundStarter
             self.playsInRound = 0
             self:updateCardVisibility()
+            -- auto draw on turn start (for new starter), if configured
+            local n = Config.rules.autoDrawOnTurnStart or 0
+            if self.phase == "play" and n > 0 then
+                for i = 1, n do self:drawCardToPlayer(self.currentPlayer) end
+            end
         end
+
+        -- any play breaks pass streak
+        self.lastActionWasPass = false
 
         self:maybeFinishPlayPhase()
     else

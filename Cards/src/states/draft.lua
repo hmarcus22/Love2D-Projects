@@ -4,17 +4,17 @@ local game = require "src.states.game"
 local Player = require "src.player"
 local factory = require "src.card_factory"
 local Viewport = require "src.viewport"
+local Config = require "src.config"
 
-local MAX_HAND_SIZE = 5
-local MAX_BOARD_CARDS = 3
+-- Config-driven limits for hand and board sizes
 
 local draft = {}
 
 function draft:enter()
     -- setup players with empty decks
    self.players = {
-        Player{ id = 1, maxHandSize = MAX_HAND_SIZE, maxBoardCards = MAX_BOARD_CARDS },
-        Player{ id = 2, maxHandSize = MAX_HAND_SIZE, maxBoardCards = MAX_BOARD_CARDS }
+        Player{ id = 1, maxHandSize = (Config.rules.maxHandSize or 5), maxBoardCards = (Config.rules.maxBoardCards or 3) },
+        Player{ id = 2, maxHandSize = (Config.rules.maxHandSize or 5), maxBoardCards = (Config.rules.maxBoardCards or 3) }
     }
     self.players[1].deck = {}
     self.players[2].deck = {}

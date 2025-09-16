@@ -1,5 +1,6 @@
 local Input = {}
 local Viewport = require "src.viewport"
+local Config = require "src.config"
 
 local function pointInRect(x, y, rx, ry, rw, rh)
     return x >= rx and x <= rx+rw and y >= ry and y <= ry+rh
@@ -23,9 +24,18 @@ function Input:mousepressed(gs, x, y, button)
 
     -- Click-to-draw from current player's deck (only during play phase)
     local deckX, deckY = 20, Viewport.getHeight() - 170
-    if gs.phase == "play" and x >= deckX and x <= deckX + 100 and y >= deckY and y <= deckY + 150 then
+    if Config.rules.allowManualDraw and gs.phase == "play" and x >= deckX and x <= deckX + 100 and y >= deckY and y <= deckY + 150 then
         gs:drawCardToPlayer(gs.currentPlayer)
         return
+    end
+
+    -- Click Pass button
+    if gs.phase == "play" then
+        local bx, by, bw, bh = gs:getPassButtonRect()
+        if x >= bx and x <= bx + bw and y >= by and y <= by + bh then
+            gs:passTurn()
+            return
+        end
     end
 
     -- Pick up a hand card (top-down)
@@ -48,7 +58,7 @@ function Input:mousereleased(gs, x, y, button)
     local card = gs.draggingCard
     local current = gs:getCurrentPlayer()
 
-    if gs.discardStack and gs.discardStack:isHovered(x, y) then
+    if Config.rules.allowManualDiscard and Config.rules.showDiscardPile and gs.discardStack and gs.discardStack:isHovered(x, y) then
         gs:discardCard(card)
     else
         if gs.phase == "play" and card.owner == current then
@@ -99,6 +109,8 @@ end
 function Input:keypressed(gs, key)
     if key == "space" then
         gs:advanceTurn()
+    elseif key == "return" or key == "kpenter" then
+        gs:passTurn()
     end
 end
 
