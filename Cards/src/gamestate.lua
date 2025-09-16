@@ -44,6 +44,7 @@ function GameState:new()
     gs.discardPile = {} -- holds actual discarded cards
     gs.highlightDiscard = false
     gs.highlightPass = false
+    gs.roundIndex = 0
     gs.phase = "play"         -- "play" | "resolve"
     gs.playedCount = {}
     for _, p in ipairs(gs.players) do
@@ -67,6 +68,14 @@ function GameState:new()
     gs.resolveLog = {}
     gs.maxResolveLogLines = 14
 
+
+    -- set initial energy
+    if Config.rules.energyEnabled ~= false then
+        local startE = Config.rules.energyStart or 3
+        for _, p in ipairs(gs.players) do
+            p.energy = startE
+        end
+    end
 
     -- initial deal (configurable)
     local startN = (Config.rules.startingHand or 3)
@@ -98,6 +107,7 @@ function GameState:newFromDraft(draftedPlayers)
     gs.discardStack.faceUp = false
     gs.discardPile = {}
     gs.highlightPass = false
+    gs.roundIndex = 0
 
     gs.phase = "play"
     gs.maxBoardCards = draftedPlayers[1].maxBoardCards or 3   -- ✅ set this
@@ -125,6 +135,14 @@ function GameState:newFromDraft(draftedPlayers)
     gs.resolveLog = {}
     gs.maxResolveLogLines = 14
 
+    -- set initial energy
+    if Config.rules.energyEnabled ~= false then
+        local startE = Config.rules.energyStart or 3
+        for _, p in ipairs(gs.players) do
+            p.energy = startE
+        end
+    end
+
     -- deal starting hands (configurable)
     for _, p in ipairs(gs.players) do
         local startN = (Config.rules.startingHand or p.maxHandSize or 3)
@@ -149,8 +167,8 @@ function GameState:draw()
     local p1 = self.players[1]
     local p2 = self.players[2]
     love.graphics.setColor(1,1,1)
-    love.graphics.print(string.format("P1 HP: %d  Block: %d", p1.health or 0, p1.block or 0), 20, 40)
-    love.graphics.print(string.format("P2 HP: %d  Block: %d", p2.health or 0, p2.block or 0), 20, 60)
+    love.graphics.print(string.format("P1 HP: %d  Block: %d  Energy: %d", p1.health or 0, p1.block or 0, p1.energy or 0), 20, 40)
+    love.graphics.print(string.format("P2 HP: %d  Block: %d  Energy: %d", p2.health or 0, p2.block or 0, p2.energy or 0), 20, 60)
 
     local screenH = Viewport.getHeight()
     local boardYTop = 80
@@ -245,6 +263,18 @@ function GameState:draw()
     love.graphics.setColor(0,0,0)
     love.graphics.rectangle("line", deckX, deckY, 100, 150, 8, 8)
     love.graphics.printf("Deck\n" .. #current.deck, deckX, deckY + 50, 100, "center")
+
+    -- energy badge near deck (current player)
+    if Config.rules.energyEnabled ~= false then
+        local e = current.energy or 0
+        local cx = deckX + 20
+        local cy = deckY + 20
+        love.graphics.setColor(0.95, 0.9, 0.2, 1)
+        love.graphics.circle("fill", cx, cy, 16)
+        love.graphics.setColor(0,0,0,1)
+        love.graphics.circle("line", cx, cy, 16)
+        love.graphics.printf(tostring(e), cx - 12, cy - 6, 24, "center")
+    end
 
     -- Pass button (only meaningful during play phase)
     local bx, by, bw, bh = self:getPassButtonRect()
@@ -428,6 +458,18 @@ function GameState:update(dt)
                 self.lastActionWasPass = false
                 self.lastPassBy = nil
 
+                -- increment round and refill energy
+                if Config.rules.energyEnabled ~= false then
+                    self.roundIndex = (self.roundIndex or 0) + 1
+                    local base = Config.rules.energyStart or 3
+                    local inc = Config.rules.energyIncrementPerRound or 0
+                    local refill = base + (self.roundIndex * inc)
+                    for _, p in ipairs(self.players) do
+                        p.energy = refill
+                    end
+                    self:addLog(string.format("Energy refilled to %d (round %d)", refill, self.roundIndex))
+                end
+
                 -- auto-draw for each player at start of new round (if configured)
                 local perRound = Config.rules.autoDrawPerRound or 0
                 if perRound > 0 then
@@ -499,6 +541,18 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
         end
     end
 
+    -- cost check
+    if Config.rules.energyEnabled ~= false then
+        local cost = (card.definition and card.definition.cost) or 0
+        local energy = owner.energy or 0
+        if cost > energy then
+            if owner then owner:snapCard(card, self) end
+            self:addLog("Not enough energy")
+            return false
+        end
+        owner.energy = energy - cost
+    end
+
     -- record attachment to the target slot for this round
     self.attachments[targetPlayerIndex][slotIndex] = self.attachments[targetPlayerIndex][slotIndex] or {}
     local stored = {}
@@ -534,6 +588,9 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
             for i = 1, n do self:drawCardToPlayer(self.currentPlayer) end
         end
     end
+    -- any play breaks pass streak
+    self.lastActionWasPass = false
+
     -- any play breaks pass streak
     self.lastActionWasPass = false
 
@@ -868,8 +925,25 @@ function GameState:playCardFromHand(card, slotIndex)
         return
     end
 
+    -- cost check
+    if Config.rules.energyEnabled ~= false then
+        local cost = (card.definition and card.definition.cost) or 0
+        local energy = current.energy or 0
+        if cost > energy then
+            current:snapCard(card, self)
+            self:addLog("Not enough energy")
+            return
+        end
+    end
+
     local ok = current:playCardToBoard(card, slotIndex, self)
     if ok then
+        if Config.rules.energyEnabled ~= false then
+            local cost = (card.definition and card.definition.cost) or 0
+            if cost and cost > 0 then
+                current.energy = (current.energy or 0) - cost
+            end
+        end
         card.zone = "board"
         card.faceUp = true
         self.playedCount[pid] = self.playedCount[pid] + 1
@@ -907,9 +981,27 @@ function GameState:playCardFromHand(card, slotIndex)
         -- any play breaks pass streak
         self.lastActionWasPass = false
 
+        -- any play breaks pass streak
+        self.lastActionWasPass = false
+
         self:maybeFinishPlayPhase()
     else
         current:snapCard(card, self)
+    end
+end
+
+-- Manually refill energy based on current roundIndex and config
+function GameState:refillEnergyNow(manual)
+    if Config.rules.energyEnabled ~= false then
+        local base = Config.rules.energyStart or 3
+        local inc = Config.rules.energyIncrementPerRound or 0
+        local refill = base + ((self.roundIndex or 0) * inc)
+        for _, p in ipairs(self.players) do
+            p.energy = refill
+        end
+        if manual then
+            self:addLog(string.format("Energy refilled to %d (manual)", refill))
+        end
     end
 end
 

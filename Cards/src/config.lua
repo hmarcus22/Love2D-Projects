@@ -10,6 +10,11 @@ return {
 
     autoDrawPerRound = 0,      -- draw X for each player after resolve
     autoDrawOnTurnStart = 0,   -- draw X for current player on turn start
+
+    -- Energy / cost system
+    energyEnabled = true,      -- enforce card costs when playing
+    energyStart = 3,           -- starting energy at round 0
+    energyIncrementPerRound = 1, -- energy added to the refill each round
   },
   ui = {
     showDeckCount = true,
@@ -21,4 +26,3 @@ return {
     cardH = 150,
   }
 }
-

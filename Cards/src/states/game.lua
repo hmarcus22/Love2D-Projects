@@ -9,6 +9,7 @@ local game = {}
 function game:enter(from, draftedPlayers)
     if type(draftedPlayers) == "table" then
         local Player = require "src.player"
+        local factory = require "src.card_factory"
         local newPlayers = {}
         for i, p in ipairs(draftedPlayers) do
             -- create proper Player object
@@ -21,10 +22,50 @@ function game:enter(from, draftedPlayers)
             player.deck = p.deck
             newPlayers[i] = player
         end
+        -- snapshot initial decks (by def id) and player props for restart
+        self.initialPlayerProps = {}
+        self.initialDeckIds = {}
+        for i, player in ipairs(newPlayers) do
+            self.initialPlayerProps[i] = {
+                id = player.id,
+                maxHandSize = player.maxHandSize,
+                maxBoardCards = player.maxBoardCards,
+            }
+            local ids = {}
+            for _, c in ipairs(player.deck or {}) do
+                table.insert(ids, c.id)
+            end
+            self.initialDeckIds[i] = ids
+        end
         self.gs = GameState:newFromDraft(newPlayers)
+        local Globals = require "src.globals"
+        Globals.activeGame = self
     else
         error("Game state requires drafted players! Did you skip draft?")
     end
+end
+
+-- Restart the battle with the originally drafted decks (new card instances)
+function game:restartBattle()
+    if not (self.initialPlayerProps and self.initialDeckIds) then return end
+    local Player = require "src.player"
+    local factory = require "src.card_factory"
+    local GameState = require "src.gamestate"
+
+    local newPlayers = {}
+    for i, props in ipairs(self.initialPlayerProps) do
+        local player = Player{
+            id = props.id,
+            maxHandSize = props.maxHandSize,
+            maxBoardCards = props.maxBoardCards,
+        }
+        player.deck = {}
+        for _, defId in ipairs(self.initialDeckIds[i] or {}) do
+            table.insert(player.deck, factory.createCard(defId))
+        end
+        newPlayers[i] = player
+    end
+    self.gs = GameState:newFromDraft(newPlayers)
 end
 
 function game:update(dt)  self.gs:update(dt) end
