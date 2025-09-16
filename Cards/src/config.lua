@@ -2,13 +2,13 @@ return {
   rules = {
     maxHandSize = 5,
     maxBoardCards = 3,
-    startingHand = 3,
+    startingHand = 4,
 
     allowManualDraw = true,
     allowManualDiscard = true,
     showDiscardPile = true,
 
-    autoDrawPerRound = 0,      -- draw X for each player after resolve
+    autoDrawPerRound = 2,      -- draw X for each player after resolve
     autoDrawOnTurnStart = 0,   -- draw X for current player on turn start
 
     -- Energy / cost system

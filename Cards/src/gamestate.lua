@@ -23,7 +23,10 @@ function GameState:new()
     Player{ id = 1, maxHandSize = 5 },
     Player{ id = 2, maxHandSize = 5 }
     }
-    gs.currentPlayer = 1
+    -- coin toss for first round start
+    gs.roundStartPlayer = love.math.random(2)
+    gs.microStarter = gs.roundStartPlayer
+    gs.currentPlayer = gs.roundStartPlayer
 
     -- table objects
     gs.allCards = {}
@@ -52,7 +55,6 @@ function GameState:new()
     end
 
     -- turn order (micro-round of one card each)
-    gs.roundStarter = 1
     gs.playsInRound = 0
 
     -- modifier attachments played onto existing cards (per round)
@@ -67,6 +69,7 @@ function GameState:new()
 
     gs.resolveLog = {}
     gs.maxResolveLogLines = 14
+    table.insert(gs.resolveLog, string.format("Coin toss: P%d starts", gs.roundStartPlayer))
 
 
     -- set initial energy
@@ -94,7 +97,10 @@ function GameState:newFromDraft(draftedPlayers)
     local gs = setmetatable({}, self)
 
     gs.players = draftedPlayers
-    gs.currentPlayer = 1
+    -- coin toss for first round start
+    gs.roundStartPlayer = love.math.random(2)
+    gs.microStarter = gs.roundStartPlayer
+    gs.currentPlayer = gs.roundStartPlayer
     gs.allCards = {}
     gs.draggingCard = nil
     gs.deckStack = nil -- no shared deck in this mode (each has their own)
@@ -118,7 +124,6 @@ function GameState:newFromDraft(draftedPlayers)
     end
 
     -- turn order (micro-round of one card each)
-    gs.roundStarter = 1
     gs.playsInRound = 0
 
     -- modifier attachments played onto existing cards (per round)
@@ -134,6 +139,7 @@ function GameState:newFromDraft(draftedPlayers)
     -- log of resolve events
     gs.resolveLog = {}
     gs.maxResolveLogLines = 14
+    table.insert(gs.resolveLog, string.format("Coin toss: P%d starts", gs.roundStartPlayer))
 
     -- set initial energy
     if Config.rules.energyEnabled ~= false then
@@ -443,8 +449,9 @@ function GameState:update(dt)
                 for _, p in ipairs(self.players) do
                     self.playedCount[p.id] = 0
                 end
-                -- start next play phase with alternating starter
-                self.currentPlayer = self.roundStarter or 1
+                -- start next play phase; alternate starting player per round
+                self.roundStartPlayer = (self.roundStartPlayer == 1) and 2 or 1
+                self.currentPlayer = self.roundStartPlayer
                 self.phase = "play"
                 self.resolveQueue = {}
                 self.resolveIndex = 0
@@ -453,6 +460,8 @@ function GameState:update(dt)
                 self.attachments = { [1] = {}, [2] = {} }
                 self:addLog("Round resolved. Back to play.")
                 self:updateCardVisibility()
+                self.microStarter = self.roundStartPlayer
+                self:addLog(string.format("Next round: P%d starts", self.roundStartPlayer))
 
                 -- reset pass streak on new round
                 self.lastActionWasPass = false
@@ -578,8 +587,9 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
         self:nextPlayer()
     else
         self.playsInRound = 2
-        self.roundStarter = (self.roundStarter == 1) and 2 or 1
-        self.currentPlayer = self.roundStarter
+        -- toggle micro-round starter (within the same round)
+        self.microStarter = (self.microStarter == 1) and 2 or 1
+        self.currentPlayer = self.microStarter
         self.playsInRound = 0
         self:updateCardVisibility()
         -- auto draw on turn start (for new starter), if configured
@@ -617,8 +627,8 @@ function GameState:passTurn()
     else
         -- complete micro-round, toggle next starter
         self.playsInRound = 2
-        if self.roundStarter == 1 then self.roundStarter = 2 else self.roundStarter = 1 end
-        self.currentPlayer = self.roundStarter
+        self.microStarter = (self.microStarter == 1) and 2 or 1
+        self.currentPlayer = self.microStarter
         self.playsInRound = 0
         self:updateCardVisibility()
         -- auto draw on turn start for new starter if configured
@@ -888,12 +898,8 @@ function GameState:advanceTurn()
     else
         -- Complete the micro-round and toggle next starter
         self.playsInRound = 0
-        if self.roundStarter == 1 then
-            self.roundStarter = 2
-        else
-            self.roundStarter = 1
-        end
-        self.currentPlayer = self.roundStarter
+        self.microStarter = (self.microStarter == 1) and 2 or 1
+        self.currentPlayer = self.microStarter
         self:updateCardVisibility()
     end
 end
@@ -962,13 +968,9 @@ function GameState:playCardFromHand(card, slotIndex)
             -- second play in the micro-round
             self.playsInRound = 2
             -- toggle starter for next micro-round
-            if self.roundStarter == 1 then
-                self.roundStarter = 2
-            else
-                self.roundStarter = 1
-            end
-            -- set next current player to new starter (unless we enter resolve)
-            self.currentPlayer = self.roundStarter
+            self.microStarter = (self.microStarter == 1) and 2 or 1
+            -- set next current player to new micro starter (unless we enter resolve)
+            self.currentPlayer = self.microStarter
             self.playsInRound = 0
             self:updateCardVisibility()
             -- auto draw on turn start (for new starter), if configured
