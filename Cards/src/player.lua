@@ -1,6 +1,7 @@
 local Class = require "libs.hump.class"
 
 local Player = Class{}
+local Viewport = require "src.viewport"
 
 local DEBUG_PLAYER_LOG = false
 
@@ -155,40 +156,61 @@ function Player:drawHand(isCurrent, gs)
     local layout = gs and gs:getLayout() or {}
     local cardW = layout.cardW or 100
     local cardH = layout.cardH or 150
-    local spacing = layout.slotSpacing or 110
     local bottomMargin = layout.handBottomMargin or 20
 
+    local startX, spacing
     local handY
+
     if gs then
+        startX, _, layout, _, spacing = gs:getHandMetrics(self)
+        spacing = spacing or layout.slotSpacing or cardW
         handY = gs:getHandY()
     else
-        local Viewport = require "src.viewport"
+        spacing = layout.slotSpacing or 110
         handY = Viewport.getHeight() - cardH - bottomMargin
+        startX = 150
+    end
+
+    cardW = layout.cardW or cardW
+    cardH = layout.cardH or cardH
+
+    local hoveredCard = nil
+    local mx, my
+    if gs then
+        local rawX, rawY = love.mouse.getPosition()
+        mx, my = Viewport.toVirtual(rawX, rawY)
     end
 
     for i, slot in ipairs(self.slots) do
-        local x, y
-        if gs then
-            x, y = gs:getHandSlotPosition(i, self)
-        else
-            x = 150 + (i - 1) * spacing
-            y = handY
-        end
+        local x = startX + (i - 1) * spacing
+        local y = handY
 
         slot.x, slot.y = x, y
+
+        love.graphics.setColor(0.7, 0.7, 0.7, slot.card and 0.2 or 0.35)
+        love.graphics.rectangle("line", x, y, cardW, cardH, 8, 8)
+        love.graphics.setColor(1, 1, 1, 1)
 
         if slot.card then
             slot.card.x = x
             slot.card.y = y
-        end
-
-        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
-        love.graphics.rectangle("line", x, y, cardW, cardH, 8, 8)
-
-        if slot.card then
-            slot.card:draw()
+            if mx and my and not slot.card.dragging and slot.card:isHovered(mx, my) then
+                hoveredCard = slot.card
+            else
+                slot.card:draw()
+            end
         end
     end
+
+    if hoveredCard and (not gs or hoveredCard ~= gs.draggingCard) then
+        local lift = layout.handHoverLift or math.floor(cardH * 0.15)
+        local originalY = hoveredCard.y
+        hoveredCard.y = originalY - lift
+        hoveredCard:draw()
+        hoveredCard.y = originalY
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 

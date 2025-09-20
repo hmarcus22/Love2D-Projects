@@ -110,8 +110,9 @@ end
 
 -- returns x,y for a given player's hand slot index (always bottom for current)
 function GameState:getHandSlotPosition(slotIndex, player)
-    local startX, _, layout = self:getHandMetrics(player or (self.players and self.players[self.currentPlayer]))
-    local x = startX + (slotIndex - 1) * layout.slotSpacing
+    local startX, _, layout, _, spacing = self:getHandMetrics(player or (self.players and self.players[self.currentPlayer]))
+    local step = spacing or layout.slotSpacing
+    local x = startX + (slotIndex - 1) * step
     return x, self:getHandY()
 end
 

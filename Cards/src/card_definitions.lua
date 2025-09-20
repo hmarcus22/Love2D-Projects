@@ -27,6 +27,7 @@ local defs = {
         cost = 2,
         attack = 4
     },
+    -- Modifier cards: adjust stats of other cards for this round
     {
         id = "feint",
         name = "Feint",
@@ -34,7 +35,6 @@ local defs = {
         cost = 1,
         mod = { target = "ally", scope = "target", retarget = true }
     },
-    -- Modifier cards: adjust stats of other cards for this round
     {
         id = "banner",
         name = "War Banner",

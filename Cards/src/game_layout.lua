@@ -13,7 +13,32 @@ local function resolve()
         boardTopMargin = layout.boardTopMargin or 80,
         boardHandGap = layout.boardHandGap or 30,
         sideGap = layout.sideGap or 30,
+        handAreaWidth = layout.handAreaWidth,
+        handReferenceCount = layout.handReferenceCount,
+        handMinSpacingFactor = layout.handMinSpacingFactor,
+        handHoverLift = layout.handHoverLift,
     }
+end
+
+local function handCardCount(player)
+    if not player or not player.slots then return 0 end
+    local count = 0
+    for _, slot in ipairs(player.slots) do
+        if slot.card then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function resolveHandAreaWidth(layout)
+    if layout.handAreaWidth then
+        return layout.handAreaWidth
+    end
+    local viewportWidth = Viewport.getWidth()
+    local side = layout.cardW + layout.sideGap
+    local available = viewportWidth - side * 2
+    return math.max(layout.cardW, available)
 end
 
 function Layout.buildCache(state)
@@ -30,13 +55,46 @@ function Layout.getCardDimensions(state)
     return layout.cardW, layout.cardH
 end
 
+local function computeHandSpacing(layout, areaWidth, maxHand, cardCount)
+    local rules = Config.rules or {}
+    local defaultReference = math.min(maxHand, rules.maxHandSize or maxHand, 5)
+    local reference = layout.handReferenceCount or defaultReference
+    reference = math.max(1, math.min(reference, maxHand))
+    local countForSpacing = math.max(cardCount, reference)
+    countForSpacing = math.max(1, math.min(countForSpacing, maxHand))
+
+    if countForSpacing <= 1 then
+        return 0
+    end
+
+    local baseSpacing = (areaWidth - layout.cardW) / (countForSpacing - 1)
+    local spacing = math.min(layout.slotSpacing or baseSpacing, baseSpacing)
+    if spacing < 0 then spacing = 0 end
+
+    local minSpacingFactor = layout.handMinSpacingFactor
+    if minSpacingFactor then
+        local minSpacing = layout.cardW * minSpacingFactor
+        if baseSpacing >= minSpacing then
+            spacing = math.max(minSpacing, spacing)
+        else
+            spacing = math.max(0, baseSpacing)
+        end
+    end
+
+    return spacing
+end
+
 function Layout.getHandMetrics(state, player)
     local layout = Layout.getLayout(state)
-    local maxHand = (player and player.maxHandSize) or (Config.rules.maxHandSize or 5)
+    local rules = Config.rules or {}
+    local maxHand = (player and player.maxHandSize) or (rules.maxHandSize or 5)
     maxHand = math.max(1, maxHand)
-    local width = layout.cardW + layout.slotSpacing * (maxHand - 1)
+    local cardCount = handCardCount(player)
+    local areaWidth = resolveHandAreaWidth(layout)
+    local spacing = computeHandSpacing(layout, areaWidth, maxHand, cardCount)
+    local width = layout.cardW + spacing * (maxHand - 1)
     local startX = math.floor((Viewport.getWidth() - width) / 2)
-    return startX, width, layout, maxHand
+    return startX, width, layout, maxHand, spacing
 end
 
 function Layout.getHandY(state)

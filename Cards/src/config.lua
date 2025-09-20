@@ -10,9 +10,9 @@ return {
     },
   },
   rules = {
-    maxHandSize = 5,
+    maxHandSize = 7,
     maxBoardCards = 3,
-    startingHand = 4,
+    startingHand = 7,
 
     allowManualDraw = true,
     allowManualDiscard = true,
@@ -37,7 +37,7 @@ return {
       { id = "hex", count = 4 },
       { id = "rally", count = 3 },
       { id = "duelist", count = 3 },
-      { id = "feint", count = 5 },
+      { id = "feint", count = 4 },
     },
   },
   ui = {
@@ -52,6 +52,10 @@ return {
     cardW = 100,
     cardH = 150,
     handBottomMargin = 20,
+    handAreaWidth = 560,
+    handReferenceCount = 5,
+    handMinSpacingFactor = 0.35,
+    handHoverLift = 24,
     boardTopMargin = 80,
     boardHandGap = 30,
     sideGap = 30,
