@@ -333,68 +333,55 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
         self:addLog(string.format("P%d plays %s on P%d slot %d", owner.id or 0, card.name or "modifier", targetPlayerIndex, slotIndex))
     end
 
-    -- micro-round progression
-    if self.playsInRound == 0 then
-        self.playsInRound = 1
-        self:nextPlayer()
-    else
-        self.playsInRound = 2
-        -- toggle micro-round starter (within the same round)
-        self.microStarter = (self.microStarter == 1) and 2 or 1
-        self.currentPlayer = self.microStarter
-        self.playsInRound = 0
-        self:updateCardVisibility()
-        -- auto draw on turn start (for new starter), if configured
-        local n = Config.rules.autoDrawOnTurnStart or 0
-        if self.phase == "play" and n > 0 then
-            for i = 1, n do self:drawCardToPlayer(self.currentPlayer) end
-        end
-    end
-    -- any play breaks pass streak
     self.lastActionWasPass = false
 
-    -- any play breaks pass streak
-    self.lastActionWasPass = false
+    self:nextPlayer()
 
     self:maybeFinishPlayPhase()
+
     return true
 end
 
 -- Current player passes. Two consecutive passes (by different players) trigger resolve.
 function GameState:passTurn()
+
     if self.phase ~= "play" then return end
+
     local pid = self.currentPlayer
+
     self:addLog(string.format("P%d passes", pid))
 
     local triggerResolve = false
+
     if self.lastActionWasPass and self.lastPassBy and self.lastPassBy ~= pid then
+
         triggerResolve = true
+
     end
+
     self.lastActionWasPass = true
+
     self.lastPassBy = pid
 
-    if (self.playsInRound or 0) == 0 then
-        self.playsInRound = 1
-        self:nextPlayer()
-    else
-        -- complete micro-round, toggle next starter
-        self.playsInRound = 2
-        self.microStarter = (self.microStarter == 1) and 2 or 1
-        self.currentPlayer = self.microStarter
-        self.playsInRound = 0
-        self:updateCardVisibility()
-        -- auto draw on turn start for new starter if configured
-        local n = Config.rules.autoDrawOnTurnStart or 0
-        if self.phase == "play" and n > 0 then
-            for i = 1, n do self:drawCardToPlayer(self.currentPlayer) end
-        end
-    end
+    self:nextPlayer()
 
     if triggerResolve then
+
         self:addLog("Both players pass. Resolving.")
+
         self:startResolve()
+
     end
+
 end
+
+
+
+
+
+
+
+
 
 -- Build a snapshot of active modifiers from modifier-type cards on the board.
 -- Cards can specify definition.mod = { attack=dx, block=dx, heal=dx, target="ally|enemy", scope="all|same_slot" }
@@ -626,35 +613,49 @@ function GameState:getCurrentPlayer()
     return self.players[self.currentPlayer]
 end
 
-function GameState:nextPlayer()
+function GameState:nextPlayer(shouldAutoDraw)
+
     self.currentPlayer = self.currentPlayer % #self.players + 1
+
+    self.microStarter = self.currentPlayer
+
+    self.playsInRound = 0
+
     self:updateCardVisibility()
-    -- auto draw at turn start if configured and in play phase
-    if self.phase == "play" then
+
+    if shouldAutoDraw ~= false and self.phase == "play" then
+
         local n = Config.rules.autoDrawOnTurnStart or 0
+
         if n > 0 then
+
             for i = 1, n do
+
                 self:drawCardToPlayer(self.currentPlayer)
+
             end
+
         end
+
     end
+
 end
+
+
 
 -- Advance the turn respecting the micro-round alternation.
 -- Debug helper used by the space key; does not alter playedCount.
 function GameState:advanceTurn()
+
     if self.phase ~= "play" then return end
-    if (self.playsInRound or 0) == 0 then
-        self.playsInRound = 1
-        self:nextPlayer()
-    else
-        -- Complete the micro-round and toggle next starter
-        self.playsInRound = 0
-        self.microStarter = (self.microStarter == 1) and 2 or 1
-        self.currentPlayer = self.microStarter
-        self:updateCardVisibility()
-    end
+
+    self.lastActionWasPass = false
+
+    self:nextPlayer()
+
 end
+
+
 
 -- check if both have placed 3, if so go to resolve
 function GameState:maybeFinishPlayPhase()
@@ -712,31 +713,8 @@ function GameState:playCardFromHand(card, slotIndex)
             pid, slotIndex, self.playedCount[pid], self.maxBoardCards
         ))
 
-        -- micro-round handling: one card per player, alternate starting player next round
-        if self.playsInRound == 0 then
-            self.playsInRound = 1
-            self:nextPlayer()
-        else
-            -- second play in the micro-round
-            self.playsInRound = 2
-            -- toggle starter for next micro-round
-            self.microStarter = (self.microStarter == 1) and 2 or 1
-            -- set next current player to new micro starter (unless we enter resolve)
-            self.currentPlayer = self.microStarter
-            self.playsInRound = 0
-            self:updateCardVisibility()
-            -- auto draw on turn start (for new starter), if configured
-            local n = Config.rules.autoDrawOnTurnStart or 0
-            if self.phase == "play" and n > 0 then
-                for i = 1, n do self:drawCardToPlayer(self.currentPlayer) end
-            end
-        end
-
-        -- any play breaks pass streak
         self.lastActionWasPass = false
-
-        -- any play breaks pass streak
-        self.lastActionWasPass = false
+        self:nextPlayer()
 
         self:maybeFinishPlayPhase()
     else

@@ -151,74 +151,165 @@ function Player:drawBoard()
 end
 
 function Player:drawHand(isCurrent, gs)
+
     if not isCurrent then return end
 
+
+
     local layout = gs and gs:getLayout() or {}
+
     local cardW = layout.cardW or 100
+
     local cardH = layout.cardH or 150
+
     local bottomMargin = layout.handBottomMargin or 20
 
+
+
     local startX, spacing
+
     local handY
 
     if gs then
+
         startX, _, layout, _, spacing = gs:getHandMetrics(self)
+
         spacing = spacing or layout.slotSpacing or cardW
+
         handY = gs:getHandY()
+
     else
+
         spacing = layout.slotSpacing or 110
+
         handY = Viewport.getHeight() - cardH - bottomMargin
+
         startX = 150
+
     end
+
+
 
     cardW = layout.cardW or cardW
+
     cardH = layout.cardH or cardH
 
+
+
     local liftAmount = layout.handHoverLift or math.floor(cardH * 0.15)
-    local hoveredCard = nil
+
     local mx, my
+
     if gs then
+
         local rawX, rawY = love.mouse.getPosition()
+
         mx, my = Viewport.toVirtual(rawX, rawY)
+
     end
 
+
+
     for i, slot in ipairs(self.slots) do
+
         local x = startX + (i - 1) * spacing
+
         local y = handY
 
         slot.x, slot.y = x, y
 
-        if slot.card then
-            local card = slot.card
+
+
+        local card = slot.card
+
+        if card then
+
             local amount = card.handHoverAmount or 0
+
             local currentLift = liftAmount * amount
+
             card.x = x
+
             card.y = y - currentLift
 
-            local isHovered = false
-            if mx and my and not card.dragging and card:isHovered(mx, my) then
-                isHovered = true
+        end
+
+    end
+
+
+
+    local hoveredCard = nil
+
+    if gs and mx and my then
+
+        for idx = #self.slots, 1, -1 do
+
+            local card = self.slots[idx].card
+
+            if card and not card.dragging and card:isHovered(mx, my) then
+
                 hoveredCard = card
+
+                break
+
             end
+
+        end
+
+    end
+
+
+
+    for _, slot in ipairs(self.slots) do
+
+        local card = slot.card
+
+        if card then
 
             if gs then
-                card.handHoverTarget = isHovered and 1 or 0
+
+                if card == hoveredCard and not card.dragging then
+
+                    card.handHoverTarget = 1
+
+                else
+
+                    card.handHoverTarget = 0
+
+                end
+
             else
+
                 card.handHoverTarget = 0
+
             end
 
-            if not isHovered then
+
+
+            if card ~= hoveredCard then
+
                 card:draw()
+
             end
+
         end
+
     end
+
+
 
     if hoveredCard and (not gs or hoveredCard ~= gs.draggingCard) then
+
         hoveredCard:draw()
+
     end
 
+
+
     love.graphics.setColor(1, 1, 1, 1)
+
 end
+
 
 
 
