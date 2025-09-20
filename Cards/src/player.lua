@@ -2,6 +2,14 @@ local Class = require "libs.hump.class"
 
 local Player = Class{}
 
+local DEBUG_PLAYER_LOG = false
+
+local function log(...)
+    if DEBUG_PLAYER_LOG then
+        print(...)
+    end
+end
+
 function Player:init(args)
     self.id = args.id
     self.maxHandSize = args.maxHandSize or 5
@@ -45,7 +53,7 @@ function Player:addCard(card)
             return true
         end
     end
-    print("Hand full for Player " .. self.id)
+    log("Hand full for Player " .. self.id)
     return false
 end
 
@@ -55,7 +63,7 @@ function Player:removeCard(card)
     if oldSlot and self.slots[oldSlot] and self.slots[oldSlot].card == card then
         self.slots[oldSlot].card = nil
     end
-    print("Removing card", card.name, "from slot", oldSlot, "Player", self.id)
+    log("Removing card", card.name, "from slot", oldSlot, "Player", self.id)
     card.owner = nil
     card.slotIndex = nil
 
@@ -95,15 +103,15 @@ end
 -- draw one card from deck into hand
 function Player:drawCard()
     if not self.deck or #self.deck == 0 then
-        print("No cards left in deck")
+        log("No cards left in deck")
         return nil
     end
 
-    print("Drawing card for player " .. self.id)
+    log("Drawing card for player " .. self.id)
 
     local c = table.remove(self.deck)
     if not self:addCard(c) then
-        print("Hand full, cannot draw")
+        log("Hand full, cannot draw")
         table.insert(self.deck, c) -- put back
         return nil
     end
@@ -186,3 +194,4 @@ end
 
 
 return Player
+

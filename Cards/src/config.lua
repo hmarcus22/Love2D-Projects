@@ -26,6 +26,20 @@ return {
     energyStart = 3,           -- starting energy at round 0
     energyIncrementPerRound = 1, -- energy added to the refill each round
   },
+  draft = {
+    deckSize = 12,
+    pool = {
+      { id = "strike", count = 10 },
+      { id = "heal", count = 5 },
+      { id = "block", count = 10 },
+      { id = "fireball", count = 4 },
+      { id = "banner", count = 4 },
+      { id = "hex", count = 4 },
+      { id = "rally", count = 3 },
+      { id = "duelist", count = 3 },
+      { id = "feint", count = 5 },
+    },
+  },
   ui = {
     showDeckCount = true,
   },
