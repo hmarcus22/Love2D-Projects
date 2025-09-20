@@ -47,6 +47,7 @@ return {
     designWidth = 2000,
     designHeight = 1200,
     scaleFactor = 2.0,
+    pixelPerfect = true,
     slotSpacing = 110,
     cardW = 100,
     cardH = 150,

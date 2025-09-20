@@ -4,6 +4,7 @@ local Viewport = {}
 Viewport.designW = 3840
 Viewport.designH = 2160
 Viewport.scaleFactor = 1
+Viewport.pixelPerfect = true
 Viewport.vw = Viewport.designW
 Viewport.vh = Viewport.designH
 
@@ -25,6 +26,19 @@ function Viewport.setup(vw, vh, opts)
     if vw then Viewport.designW = vw end
     if vh then Viewport.designH = vh end
     opts = opts or {}
+    if opts.pixelPerfect ~= nil then
+        Viewport.pixelPerfect = opts.pixelPerfect
+    end
+    if Viewport.pixelPerfect then
+        love.graphics.setDefaultFilter("nearest", "nearest", 1)
+        if love.graphics.setLineStyle then
+            love.graphics.setLineStyle("rough")
+        end
+        local font = love.graphics.getFont()
+        if font and font.setFilter then
+            font:setFilter("nearest", "nearest", 1)
+        end
+    end
     if opts.scale then
         Viewport.scaleFactor = math.max(opts.scale, 0.1)
     end

@@ -26,10 +26,11 @@ function love.load()
     local designWidth = layoutConfig.designWidth or width
     local designHeight = layoutConfig.designHeight or height
     local scaleFactor = layoutConfig.scaleFactor or 1.0
+    local pixelPerfect = layoutConfig.pixelPerfect
 
     love.window.setMode(width, height, flags)
     love.graphics.setBackgroundColor(0.2, 0.5, 0.2)
-    Viewport.setup(designWidth, designHeight, { scale = scaleFactor })
+    Viewport.setup(designWidth, designHeight, { scale = scaleFactor, pixelPerfect = pixelPerfect })
 
     -- start at menu
     Gamestate.registerEvents()
