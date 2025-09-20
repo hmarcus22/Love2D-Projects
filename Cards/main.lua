@@ -22,9 +22,14 @@ function love.load()
         flags[key] = value
     end
 
+    local layoutConfig = Config.layout or {}
+    local designWidth = layoutConfig.designWidth or width
+    local designHeight = layoutConfig.designHeight or height
+    local scaleFactor = layoutConfig.scaleFactor or 1.0
+
     love.window.setMode(width, height, flags)
     love.graphics.setBackgroundColor(0.2, 0.5, 0.2)
-    Viewport.setup(width, height)
+    Viewport.setup(designWidth, designHeight, { scale = scaleFactor })
 
     -- start at menu
     Gamestate.registerEvents()
@@ -34,3 +39,4 @@ end
 function love.resize(w, h)
     Viewport.resize(w, h)
 end
+

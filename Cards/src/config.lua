@@ -19,7 +19,7 @@ return {
     showDiscardPile = true,
 
     autoDrawPerRound = 2,      -- draw X for each player after resolve
-    autoDrawOnTurnStart = 0,   -- draw X for current player on turn start
+    autoDrawOnTurnStart = 2,   -- draw X for current player on turn start
 
     -- Energy / cost system
     energyEnabled = true,      -- enforce card costs when playing
@@ -30,6 +30,9 @@ return {
     showDeckCount = true,
   },
   layout = {
+    designWidth = 2000,
+    designHeight = 1200,
+    scaleFactor = 2.0,
     slotSpacing = 110,
     cardW = 100,
     cardH = 150,
@@ -39,3 +42,4 @@ return {
     sideGap = 30,
   }
 }
+
