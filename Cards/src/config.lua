@@ -1,4 +1,14 @@
 return {
+  window = {
+    width = 2000,
+    height = 1200,
+    flags = {
+      resizable = true,
+      highdpi = false,
+      minwidth = 800,
+      minheight = 480,
+    },
+  },
   rules = {
     maxHandSize = 5,
     maxBoardCards = 3,
@@ -21,8 +31,11 @@ return {
   },
   layout = {
     slotSpacing = 110,
-    handLeftX = 150,
     cardW = 100,
     cardH = 150,
+    handBottomMargin = 20,
+    boardTopMargin = 80,
+    boardHandGap = 30,
+    sideGap = 30,
   }
 }

@@ -66,56 +66,82 @@ function draft:enter()
     self:nextChoices()
 end
 
+function draft:updateChoicePositions()
+    local layout = Config.layout or {}
+    local cardW = layout.cardW or 100
+    local cardH = layout.cardH or 150
+    local gap = (layout.sideGap or 30) * 2
+    local spacing = cardW + gap
+    local count = #self.choices
+    if count == 0 then return end
+
+    local totalWidth = cardW + spacing * math.max(0, count - 1)
+    local startX = math.floor((Viewport.getWidth() - totalWidth) / 2)
+    local choiceY = math.floor((Viewport.getHeight() - cardH) / 2)
+
+    for i, c in ipairs(self.choices) do
+        c.x = startX + (i - 1) * spacing
+        c.y = choiceY
+    end
+end
+
 function draft:nextChoices()
     -- only refill if no choices left
     if #self.choices == 0 then
         for i = 1, 3 do
             local c = table.remove(self.draftPool)
             if c then
-                c.x = 200 + (i-1) * 150
-                c.y = 250
                 table.insert(self.choices, c)
             end
         end
+        self:updateChoicePositions()
     end
 end
 
 function draft:draw()
     Viewport.apply()
     love.graphics.setColor(1,1,1)
-    love.graphics.printf("Draft Phase", 0, 40, Viewport.getWidth(), "center")
-    love.graphics.printf("Player " .. self.currentPlayer .. " choose a card", 0, 80, Viewport.getWidth(), "center")
+    local screenW = Viewport.getWidth()
+    love.graphics.printf("Draft Phase", 0, 40, screenW, "center")
+    love.graphics.printf("Player " .. self.currentPlayer .. " choose a card", 0, 80, screenW, "center")
 
-    -- draw current choices
+    self:updateChoicePositions()
+
     for _, c in ipairs(self.choices) do
         c:draw()
     end
 
-    -- screen height (virtual)
     local screenH = Viewport.getHeight()
+    local miniCardW = 50
+    local miniCardH = 70
+    local miniSpacing = 60
 
-    -- show drafted cards at the bottom
     for i, p in ipairs(self.players) do
-        -- stack rows: player 1 above player 2
         local rowY = screenH - (i * 90)
 
         love.graphics.setColor(1,1,1)
-        love.graphics.printf("Player " .. i .. " deck (" .. #p.deck .. "/12):",
-            20, rowY - 20, Viewport.getWidth(), "left")
+        love.graphics.printf("Player " .. i .. " deck (" .. #p.deck .. "/12):", 0, rowY - 30, screenW, "center")
 
-        local startX = 40
-        for j, c in ipairs(p.deck) do
-            local cx = startX + (j-1) * 60
-            local cy = rowY
+        local count = math.max(1, #p.deck)
+        local totalWidth = miniCardW + miniSpacing * math.max(0, count - 1)
+        local startX = math.floor((screenW - totalWidth) / 2)
 
-            -- mini card box
+        if #p.deck == 0 then
+            love.graphics.setColor(1,1,1,0.4)
+            love.graphics.rectangle("line", startX, rowY, miniCardW, miniCardH, 6, 6)
             love.graphics.setColor(1,1,1)
-            love.graphics.rectangle("fill", cx, cy, 50, 70, 6, 6)
-            love.graphics.setColor(0,0,0)
-            love.graphics.rectangle("line", cx, cy, 50, 70, 6, 6)
+        else
+            for j, c in ipairs(p.deck) do
+                local cx = startX + (j - 1) * miniSpacing
+                local cy = rowY
 
-            -- card name (truncated if too long)
-            love.graphics.printf(c.name, cx+2, cy+25, 46, "center")
+                love.graphics.setColor(1,1,1)
+                love.graphics.rectangle("fill", cx, cy, miniCardW, miniCardH, 6, 6)
+                love.graphics.setColor(0,0,0)
+                love.graphics.rectangle("line", cx, cy, miniCardW, miniCardH, 6, 6)
+
+                love.graphics.printf(c.name, cx + 2, cy + 25, miniCardW - 4, "center")
+            end
         end
     end
     Viewport.unapply()
@@ -126,6 +152,7 @@ function draft:mousepressed(x, y, button)
     if button ~= 1 then return end
     -- incoming x,y are screen coords; convert to virtual
     x, y = Viewport.toVirtual(x, y)
+    self:updateChoicePositions()
 
     for i, c in ipairs(self.choices) do
         if c:isHovered(x, y) then

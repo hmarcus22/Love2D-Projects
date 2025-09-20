@@ -85,7 +85,7 @@ end
 -- snap card back to its assigned slot
 function Player:snapCard(card, gs)
     if card.slotIndex then
-        local x, y = gs:getHandSlotPosition(card.slotIndex)
+        local x, y = gs:getHandSlotPosition(card.slotIndex, self)
         card.x = x
         card.y = y
         self.slots[card.slotIndex].card = card
@@ -141,25 +141,42 @@ function Player:drawBoard()
     end
 end
 
-function Player:drawHand(isCurrent)
+function Player:drawHand(isCurrent, gs)
     if not isCurrent then return end
-    local Viewport = require "src.viewport"
-    local handY = Viewport.getHeight() - 170
+
+    local layout = gs and gs:getLayout() or {}
+    local cardW = layout.cardW or 100
+    local cardH = layout.cardH or 150
+    local spacing = layout.slotSpacing or 110
+    local bottomMargin = layout.handBottomMargin or 20
+
+    local handY
+    if gs then
+        handY = gs:getHandY()
+    else
+        local Viewport = require "src.viewport"
+        handY = Viewport.getHeight() - cardH - bottomMargin
+    end
 
     for i, slot in ipairs(self.slots) do
-        local x = 150 + (i - 1) * 110
-
-        -- update card position
-        if slot.card then
-            slot.card.x = x
-            slot.card.y = handY
+        local x, y
+        if gs then
+            x, y = gs:getHandSlotPosition(i, self)
+        else
+            x = 150 + (i - 1) * spacing
+            y = handY
         end
 
-        -- slot outline
-        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
-        love.graphics.rectangle("line", x, handY, 100, 150, 8, 8)
+        slot.x, slot.y = x, y
 
-        -- card
+        if slot.card then
+            slot.card.x = x
+            slot.card.y = y
+        end
+
+        love.graphics.setColor(0.7, 0.7, 0.7, 0.3)
+        love.graphics.rectangle("line", x, y, cardW, cardH, 8, 8)
+
         if slot.card then
             slot.card:draw()
         end

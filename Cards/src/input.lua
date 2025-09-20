@@ -1,5 +1,4 @@
 local Input = {}
-local Viewport = require "src.viewport"
 local Config = require "src.config"
 
 local function pointInRect(x, y, rx, ry, rw, rh)
@@ -7,9 +6,10 @@ local function pointInRect(x, y, rx, ry, rw, rh)
 end
 
 local function hoveredBoardSlot(gs, playerIndex, x, y)
+    local cardW, cardH = gs:getCardDimensions()
     for i, _ in ipairs(gs.players[playerIndex].boardSlots) do
         local sx, sy = gs:getBoardSlotPosition(playerIndex, i)
-        if pointInRect(x, y, sx, sy, 100, 150) then
+        if pointInRect(x, y, sx, sy, cardW, cardH) then
             return i
         end
     end
@@ -23,8 +23,8 @@ function Input:mousepressed(gs, x, y, button)
     if gs.phase ~= "play" then return end
 
     -- Click-to-draw from current player's deck (only during play phase)
-    local deckX, deckY = 20, Viewport.getHeight() - 170
-    if Config.rules.allowManualDraw and gs.phase == "play" and x >= deckX and x <= deckX + 100 and y >= deckY and y <= deckY + 150 then
+    local deckX, deckY, deckW, deckH = gs:getDeckRect()
+    if Config.rules.allowManualDraw and gs.phase == "play" and gs.deckStack and pointInRect(x, y, deckX, deckY, deckW, deckH) then
         gs:drawCardToPlayer(gs.currentPlayer)
         return
     end
@@ -57,6 +57,7 @@ function Input:mousereleased(gs, x, y, button)
     if button ~= 1 or not gs.draggingCard then return end
     local card = gs.draggingCard
     local current = gs:getCurrentPlayer()
+    local cardW = select(1, gs:getCardDimensions())
 
     if Config.rules.allowManualDiscard and Config.rules.showDiscardPile and gs.discardStack and gs.discardStack:isHovered(x, y) then
         gs:discardCard(card)
@@ -79,7 +80,7 @@ function Input:mousereleased(gs, x, y, button)
                     if def.mod and def.mod.retarget then
                         -- decide left/right by drop x relative to target slot center
                         local sx, sy = gs:getBoardSlotPosition(targetPi, targetIdx)
-                        local centerX = sx + 50
+                        local centerX = sx + cardW / 2
                         retargetOffset = (x < centerX) and -1 or 1
                     end
                     local ok = gs:playModifierOnSlot(card, targetPi, targetIdx, retargetOffset)

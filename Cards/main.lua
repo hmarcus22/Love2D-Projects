@@ -1,4 +1,5 @@
 -- require("lovedebug")
+local Config = require "src.config"
 local Gamestate = require "libs.hump.gamestate"
 local Viewport = require "src.viewport"
 
@@ -7,9 +8,23 @@ local game  = require "src.states.game"
 local pause = require "src.states.pause"
 
 function love.load()
-    love.window.setMode(1000, 600, { resizable = true, highdpi = false, minwidth = 800, minheight = 480 })
+    local windowConfig = Config.window or {}
+    local width = windowConfig.width or 1000
+    local height = windowConfig.height or 600
+    local flags = {
+        resizable = true,
+        highdpi = false,
+        minwidth = 800,
+        minheight = 480,
+    }
+
+    for key, value in pairs(windowConfig.flags or {}) do
+        flags[key] = value
+    end
+
+    love.window.setMode(width, height, flags)
     love.graphics.setBackgroundColor(0.2, 0.5, 0.2)
-    Viewport.setup(1000, 600)
+    Viewport.setup(width, height)
 
     -- start at menu
     Gamestate.registerEvents()
