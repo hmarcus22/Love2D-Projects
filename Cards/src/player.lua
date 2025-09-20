@@ -174,6 +174,7 @@ function Player:drawHand(isCurrent, gs)
     cardW = layout.cardW or cardW
     cardH = layout.cardH or cardH
 
+    local liftAmount = layout.handHoverLift or math.floor(cardH * 0.15)
     local hoveredCard = nil
     local mx, my
     if gs then
@@ -187,27 +188,33 @@ function Player:drawHand(isCurrent, gs)
 
         slot.x, slot.y = x, y
 
-        love.graphics.setColor(0.7, 0.7, 0.7, slot.card and 0.2 or 0.35)
-        love.graphics.rectangle("line", x, y, cardW, cardH, 8, 8)
-        love.graphics.setColor(1, 1, 1, 1)
-
         if slot.card then
-            slot.card.x = x
-            slot.card.y = y
-            if mx and my and not slot.card.dragging and slot.card:isHovered(mx, my) then
-                hoveredCard = slot.card
+            local card = slot.card
+            local amount = card.handHoverAmount or 0
+            local currentLift = liftAmount * amount
+            card.x = x
+            card.y = y - currentLift
+
+            local isHovered = false
+            if mx and my and not card.dragging and card:isHovered(mx, my) then
+                isHovered = true
+                hoveredCard = card
+            end
+
+            if gs then
+                card.handHoverTarget = isHovered and 1 or 0
             else
-                slot.card:draw()
+                card.handHoverTarget = 0
+            end
+
+            if not isHovered then
+                card:draw()
             end
         end
     end
 
     if hoveredCard and (not gs or hoveredCard ~= gs.draggingCard) then
-        local lift = layout.handHoverLift or math.floor(cardH * 0.15)
-        local originalY = hoveredCard.y
-        hoveredCard.y = originalY - lift
         hoveredCard:draw()
-        hoveredCard.y = originalY
     end
 
     love.graphics.setColor(1, 1, 1, 1)
@@ -216,4 +223,3 @@ end
 
 
 return Player
-

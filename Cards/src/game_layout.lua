@@ -17,6 +17,7 @@ local function resolve()
         handReferenceCount = layout.handReferenceCount,
         handMinSpacingFactor = layout.handMinSpacingFactor,
         handHoverLift = layout.handHoverLift,
+        handHoverSpeed = layout.handHoverSpeed,
     }
 end
 

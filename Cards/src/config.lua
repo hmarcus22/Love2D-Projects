@@ -56,9 +56,9 @@ return {
     handReferenceCount = 5,
     handMinSpacingFactor = 0.35,
     handHoverLift = 24,
+    handHoverSpeed = 12,
     boardTopMargin = 80,
     boardHandGap = 30,
     sideGap = 30,
   }
 }
-

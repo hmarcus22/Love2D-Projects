@@ -13,6 +13,8 @@ function Card:init(id, name, x, y)
     self.slotIndex = nil
     self.owner = nil
     self.definition = nil -- will be attached by factory
+    self.handHoverTarget = 0
+    self.handHoverAmount = 0
 end
 
 function Card:draw()

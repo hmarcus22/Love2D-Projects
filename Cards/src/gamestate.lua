@@ -138,6 +138,34 @@ end
 
 function GameState:update(dt)
     self:refreshLayoutPositions()
+    local layout = self:getLayout()
+    local hoverSpeed = layout.handHoverSpeed or 12
+    local lerpFactor = math.min(1, hoverSpeed * dt)
+    if self.players then
+        for _, player in ipairs(self.players) do
+            if player.slots then
+                local isCurrent = (self.players and self.players[self.currentPlayer] == player)
+                for _, slot in ipairs(player.slots) do
+                    local card = slot.card
+                    if card then
+                        local target = card.handHoverTarget or 0
+                        if not isCurrent then
+                            target = 0
+                        end
+                        if card.dragging then
+                            target = 0
+                        end
+                        local amount = card.handHoverAmount or 0
+                        amount = amount + (target - amount) * lerpFactor
+                        if target == 0 and math.abs(amount) < 0.001 then
+                            amount = 0
+                        end
+                        card.handHoverAmount = amount
+                    end
+                end
+            end
+        end
+    end
     local mx, my = love.mouse.getPosition()
     mx, my = Viewport.toVirtual(mx, my)
     if self.draggingCard then
@@ -732,4 +760,3 @@ function GameState:refillEnergyNow(manual)
 end
 
 return GameState
-
