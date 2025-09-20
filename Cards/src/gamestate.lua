@@ -3,195 +3,36 @@ local Deck = require "src.deck"
 local Player = require "src.player"
 local Viewport = require "src.viewport"
 local Config = require "src.config"
-
-local function resolveLayoutConfig()
-    local layout = Config.layout or {}
-    return {
-        slotSpacing = layout.slotSpacing or 110,
-        cardW = layout.cardW or 100,
-        cardH = layout.cardH or 150,
-        handBottomMargin = layout.handBottomMargin or 20,
-        boardTopMargin = layout.boardTopMargin or 80,
-        boardHandGap = layout.boardHandGap or 30,
-        sideGap = layout.sideGap or 30,
-    }
-end
+local Layout = require "src.game_layout"
+local Initialiser = require "src.game_initialiser"
+local BoardRenderer = require "src.renderers.board_renderer"
+local HudRenderer = require "src.renderers.hud_renderer"
+local ResolveRenderer = require "src.renderers.resolve_renderer"
 
 local GameState = {}
 GameState.__index = GameState
 
-function GameState:buildLayoutCache()
-    self.layoutCache = resolveLayoutConfig()
-    return self.layoutCache
-end
+GameState.buildLayoutCache = Layout.buildCache
+GameState.getLayout = Layout.getLayout
+GameState.getCardDimensions = Layout.getCardDimensions
+GameState.getHandMetrics = Layout.getHandMetrics
+GameState.getHandY = Layout.getHandY
+GameState.getDeckPosition = Layout.getDeckPosition
+GameState.getDiscardPosition = Layout.getDiscardPosition
+GameState.getDeckRect = Layout.getDeckRect
+GameState.getBoardMetrics = Layout.getBoardMetrics
+GameState.getBoardY = Layout.getBoardY
+GameState.refreshLayoutPositions = Layout.refreshPositions
 
-function GameState:getLayout()
-    return self.layoutCache or self:buildLayoutCache()
-end
+GameState.initPlayers = Initialiser.initPlayers
+GameState.initTurnOrder = Initialiser.initTurnOrder
+GameState.initRoundState = Initialiser.initRoundState
+GameState.initUiState = Initialiser.initUiState
+GameState.initAttachments = Initialiser.initAttachments
+GameState.initResolveState = Initialiser.initResolveState
+GameState.applyInitialEnergy = Initialiser.applyInitialEnergy
+GameState.dealStartingHandsFromPlayerDecks = Initialiser.dealStartingHandsFromPlayerDecks
 
-function GameState:getCardDimensions()
-    local layout = self:getLayout()
-    return layout.cardW, layout.cardH
-end
-
-function GameState:getHandMetrics(player)
-    local layout = self:getLayout()
-    local maxHand = (player and player.maxHandSize) or (Config.rules.maxHandSize or 5)
-    maxHand = math.max(1, maxHand)
-    local width = layout.cardW + layout.slotSpacing * (maxHand - 1)
-    local startX = math.floor((Viewport.getWidth() - width) / 2)
-    return startX, width, layout, maxHand
-end
-
-function GameState:getHandY()
-    local layout = self:getLayout()
-    return Viewport.getHeight() - layout.cardH - layout.handBottomMargin
-end
-
-function GameState:getDeckPosition()
-    local currentPlayer = self.players and self.players[self.currentPlayer]
-    local startX, _, layout = self:getHandMetrics(currentPlayer)
-    local x = startX - layout.cardW - layout.sideGap
-    if x < layout.sideGap then
-        x = layout.sideGap
-    end
-    return x, self:getHandY()
-end
-
-function GameState:getDiscardPosition()
-    local currentPlayer = self.players and self.players[self.currentPlayer]
-    local startX, width, layout = self:getHandMetrics(currentPlayer)
-    local x = startX + width + layout.sideGap
-    local maxX = Viewport.getWidth() - layout.cardW - layout.sideGap
-    if x > maxX then
-        x = maxX
-    end
-    return x, self:getHandY()
-end
-
-function GameState:getDeckRect()
-    local x, y = self:getDeckPosition()
-    local layout = self:getLayout()
-    return x, y, layout.cardW, layout.cardH
-end
-
-function GameState:getBoardMetrics(playerIndex)
-    local layout = self:getLayout()
-    local player = self.players and self.players[playerIndex]
-    local count = (player and player.maxBoardCards) or self.maxBoardCards or (Config.rules.maxBoardCards or 3)
-    count = math.max(1, count)
-    local width = layout.cardW + layout.slotSpacing * (count - 1)
-    local startX = math.floor((Viewport.getWidth() - width) / 2)
-    return startX, width, layout, count
-end
-
-function GameState:getBoardY(playerIndex)
-    local layout = self:getLayout()
-    if playerIndex == self.currentPlayer then
-        return self:getHandY() - layout.cardH - layout.boardHandGap
-    end
-    return layout.boardTopMargin
-end
-
-function GameState:refreshLayoutPositions()
-    local layout = self:getLayout()
-    if self.deckStack then
-        local dx, dy = self:getDeckPosition()
-        self.deckStack.x, self.deckStack.y = dx, dy
-        self.deckStack.w, self.deckStack.h = layout.cardW, layout.cardH
-    end
-    if self.discardStack then
-        local sx, sy = self:getDiscardPosition()
-        self.discardStack.x, self.discardStack.y = sx, sy
-        self.discardStack.w, self.discardStack.h = layout.cardW, layout.cardH
-    end
-    if Config.rules.showDiscardPile and self.discardPile and #self.discardPile > 0 and self.discardStack then
-        local top = self.discardPile[#self.discardPile]
-        top.x, top.y = self.discardStack.x, self.discardStack.y
-        top.w, top.h = layout.cardW, layout.cardH
-    end
-end
-function GameState:initPlayers(players)
-    self.players = players
-    self.playedCount = {}
-    for _, player in ipairs(players) do
-        assert(player.id, "Player missing id!")
-        self.playedCount[player.id] = 0
-    end
-    local first = players[1]
-    self.maxBoardCards = (first and first.maxBoardCards) or (Config.rules.maxBoardCards or 3)
-end
-
-function GameState:initTurnOrder()
-    self.roundStartPlayer = love.math.random(#self.players)
-    self.microStarter = self.roundStartPlayer
-    self.currentPlayer = self.roundStartPlayer
-end
-
-function GameState:initRoundState()
-    self.roundIndex = 0
-    self.phase = "play"
-    self.playsInRound = 0
-end
-
-function GameState:initUiState(hasSharedDeck)
-    self.allCards = {}
-    self.draggingCard = nil
-
-    if hasSharedDeck then
-        self.deckStack = Card(-1, "Deck", 0, 0)
-        self.deckStack.faceUp = false
-    else
-        self.deckStack = nil
-    end
-
-    self.discardStack = Card(-2, "Discard", 0, 0)
-    self.discardStack.faceUp = false
-    self.discardPile = {}
-    self.highlightDiscard = false
-    self.highlightPass = false
-end
-
-function GameState:initAttachments()
-    self.attachments = {}
-    for index = 1, #self.players do
-        self.attachments[index] = {}
-    end
-end
-
-function GameState:initResolveState()
-    self.resolveQueue = {}
-    self.resolveIndex = 0
-    self.resolveTimer = 0
-    self.resolveStepDuration = 0.5
-    self.resolveCurrentStep = nil
-
-    self.resolveLog = {}
-    self.maxResolveLogLines = 14
-    table.insert(self.resolveLog, string.format("Coin toss: P%d starts", self.roundStartPlayer))
-end
-
-function GameState:applyInitialEnergy()
-    if Config.rules.energyEnabled ~= false then
-        local startE = Config.rules.energyStart or 3
-        for _, player in ipairs(self.players) do
-            player.energy = startE
-        end
-    end
-end
-
-function GameState:dealStartingHandsFromPlayerDecks()
-    for _, player in ipairs(self.players) do
-        local startN = (Config.rules.startingHand or player.maxHandSize or 3)
-        for _ = 1, startN do
-            local card = table.remove(player.deck)
-            if card then
-                player:addCard(card)
-                table.insert(self.allCards, card)
-            end
-        end
-    end
-end
 function GameState:new()
     local gs = setmetatable({}, self)
 
@@ -247,257 +88,18 @@ function GameState:newFromDraft(draftedPlayers)
     gs:refreshLayoutPositions()
     return gs
 end
-local function summarizeModifierEffects(mods)
-    local direction, attack, block, heal = nil, 0, 0, 0
-    for _, mod in ipairs(mods) do
-        if mod.retargetOffset then direction = mod.retargetOffset end
-        attack = attack + (mod.attack or 0)
-        block = block + (mod.block or 0)
-        heal = heal + (mod.heal or 0)
-    end
-    return direction, attack, block, heal
-end
-
-local function drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
-    local direction, attack, block, heal = summarizeModifierEffects(mods)
-    if (attack ~= 0) or (block ~= 0) or (heal ~= 0) or direction then
-        love.graphics.setColor(1, 1, 0, 0.6)
-        love.graphics.rectangle("line", slotX - 2, slotY - 2, cardW + 4, cardH + 4, 8, 8)
-    end
-
-    if direction then
-        love.graphics.setColor(0.9, 0.2, 0.2, 0.8)
-        local triX = slotX + (direction < 0 and math.floor(cardW * 0.1) or (cardW - math.floor(cardW * 0.1)))
-        local triY = slotY + math.floor(cardH * 0.08)
-        if direction < 0 then
-            love.graphics.polygon("fill", triX, triY, triX + 10, triY - 6, triX + 10, triY + 6)
-        else
-            love.graphics.polygon("fill", triX, triY, triX - 10, triY - 6, triX - 10, triY + 6)
-        end
-    end
-
-    local function drawBadge(x, y, bg, text)
-        love.graphics.setColor(bg[1], bg[2], bg[3], bg[4] or 0.9)
-        love.graphics.rectangle("fill", x - 1, y - 1, 34, 16, 4, 4)
-        love.graphics.setColor(0, 0, 0, 1)
-        love.graphics.rectangle("line", x - 1, y - 1, 34, 16, 4, 4)
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.printf(text, x, y + 2, 32, "center")
-    end
-
-    local badgeX = slotX + 6
-    local badgeY = slotY + 28
-    if attack ~= 0 then
-        local txt = (attack > 0 and "+" .. attack or tostring(attack)) .. " A"
-        drawBadge(badgeX, badgeY, {0.8, 0.2, 0.2, 0.9}, txt)
-        badgeX = badgeX + 36
-    end
-    if block ~= 0 then
-        local txt = (block > 0 and "+" .. block or tostring(block)) .. " B"
-        drawBadge(badgeX, badgeY, {0.2, 0.4, 0.8, 0.9}, txt)
-        badgeX = badgeX + 36
-    end
-    if heal ~= 0 then
-        local txt = (heal > 0 and "+" .. heal or tostring(heal)) .. " H"
-        drawBadge(badgeX, badgeY, {0.2, 0.8, 0.2, 0.9}, txt)
-    end
-
-    love.graphics.setColor(1, 1, 1, 1)
-end
-
-function GameState:drawTurnBanner(screenW)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.printf(string.format("Player %d's turn", self.currentPlayer), 0, 20, screenW, "center")
-
-    local p1 = self.players[1]
-    local p2 = self.players[2]
-    if p1 then
-        love.graphics.printf(string.format("P1 HP: %d  Block: %d  Energy: %d", p1.health or 0, p1.block or 0, p1.energy or 0), 0, 50, screenW, "center")
-    end
-    if p2 then
-        love.graphics.printf(string.format("P2 HP: %d  Block: %d  Energy: %d", p2.health or 0, p2.block or 0, p2.energy or 0), 0, 70, screenW, "center")
-    end
-end
-
-function GameState:drawBoardSlots(layout)
-    local cardW, cardH = layout.cardW, layout.cardH
-    for playerIndex, player in ipairs(self.players) do
-        for slotIndex, slot in ipairs(player.boardSlots) do
-            local slotX, slotY = self:getBoardSlotPosition(playerIndex, slotIndex)
-            love.graphics.setColor(0.8, 0.8, 0.2, 0.35)
-            love.graphics.rectangle("line", slotX, slotY, cardW, cardH, 8, 8)
-
-            if slot.card then
-                slot.card.x = slotX
-                slot.card.y = slotY
-                slot.card:draw()
-
-                local mods = self.attachments and self.attachments[playerIndex] and self.attachments[playerIndex][slotIndex]
-                if mods and #mods > 0 then
-                    drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
-                end
-            end
-        end
-    end
-    love.graphics.setColor(1, 1, 1, 1)
-end
-
-function GameState:drawDiscardArea()
-    if not Config.rules.showDiscardPile then return end
-    if self.discardPile and #self.discardPile > 0 then
-        self.discardPile[#self.discardPile]:draw()
-    elseif self.discardStack then
-        self.discardStack:draw()
-    end
-end
-
-function GameState:drawCurrentHand()
-    local current = self:getCurrentPlayer()
-    if current then
-        current:drawHand(true, self)
-    end
-end
-
-function GameState:drawDeckArea()
-    local current = self:getCurrentPlayer()
-    if not (current and current.deck and self.deckStack) then return end
-
-    local deckX, deckY, deckW, deckH = self:getDeckRect()
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.rectangle("fill", deckX, deckY, deckW, deckH, 8, 8)
-    love.graphics.setColor(0, 0, 0)
-    love.graphics.rectangle("line", deckX, deckY, deckW, deckH, 8, 8)
-    love.graphics.printf("Deck\n" .. #current.deck, deckX, deckY + math.floor(deckH * 0.33), deckW, "center")
-
-    if Config.rules.energyEnabled ~= false then
-        local energy = current.energy or 0
-        local cx = deckX + math.floor(deckW * 0.2)
-        local cy = deckY + math.floor(deckH * 0.2)
-        love.graphics.setColor(0.95, 0.9, 0.2, 1)
-        love.graphics.circle("fill", cx, cy, 16)
-        love.graphics.setColor(0, 0, 0, 1)
-        love.graphics.circle("line", cx, cy, 16)
-        love.graphics.printf(tostring(energy), cx - 12, cy - 6, 24, "center")
-    end
-
-    love.graphics.setColor(1, 1, 1, 1)
-end
-
-function GameState:drawPassButton()
-    local bx, by, bw, bh = self:getPassButtonRect()
-    if self.phase == "play" then
-        if self.highlightPass then
-            love.graphics.setColor(0.95, 0.95, 0.95, 1)
-        else
-            love.graphics.setColor(0.85, 0.85, 0.85, 1)
-        end
-    else
-        love.graphics.setColor(0.6, 0.6, 0.6, 0.5)
-    end
-    love.graphics.rectangle("fill", bx, by, bw, bh, 8, 8)
-    love.graphics.setColor(0, 0, 0, 1)
-    love.graphics.rectangle("line", bx, by, bw, bh, 8, 8)
-    love.graphics.printf("Pass", bx, by + math.floor((bh - 16) / 2), bw, "center")
-    love.graphics.setColor(1, 1, 1, 1)
-end
-
-function GameState:drawDraggingCard()
-    if self.draggingCard then
-        self.draggingCard:draw()
-    end
-end
-
-function GameState:drawResolveOverlay(layout, screenW)
-    if self.phase ~= "resolve" or not self.resolveCurrentStep then return end
-
-    local cardW, cardH = layout.cardW, layout.cardH
-    local step = self.resolveCurrentStep
-    local colors = {
-        block = {0.2, 0.4, 0.9, 0.35},
-        heal = {0.2, 0.8, 0.2, 0.35},
-        attack = {0.9, 0.2, 0.2, 0.35},
-        cleanup = {0.6, 0.6, 0.6, 0.3},
-    }
-    local color = colors[step.kind] or {1, 1, 0, 0.3}
-
-    if step.kind ~= "attack" then
-        love.graphics.setColor(color[1], color[2], color[3], color[4])
-        for playerIndex = 1, #self.players do
-            local sx, sy = self:getBoardSlotPosition(playerIndex, step.slot)
-            love.graphics.rectangle("fill", sx, sy, cardW, cardH, 8, 8)
-        end
-    else
-        love.graphics.setColor(color[1], color[2], color[3], color[4])
-        for playerIndex = 1, #self.players do
-            local sx, sy = self:getBoardSlotPosition(playerIndex, step.slot)
-            love.graphics.rectangle("fill", sx, sy, cardW, cardH, 8, 8)
-
-            local mods = self.activeMods and self.activeMods[playerIndex] and self.activeMods[playerIndex].perSlot and self.activeMods[playerIndex].perSlot[step.slot]
-            local offset = mods and mods.retargetOffset or 0
-            local targetSlot = step.slot + offset
-            local maxSlots = self.maxBoardCards or (#self.players[playerIndex].boardSlots)
-            if targetSlot < 1 or targetSlot > maxSlots then
-                targetSlot = step.slot
-            end
-            local enemyIndex = (playerIndex == 1) and 2 or 1
-            local tx, ty = self:getBoardSlotPosition(enemyIndex, targetSlot)
-            love.graphics.setColor(0.9, 0.2, 0.2, 0.8)
-            local ax = sx + cardW / 2
-            local ay = sy + cardH / 2
-            local bx2 = tx + cardW / 2
-            local by2 = ty + cardH / 2
-            love.graphics.setLineWidth(2)
-            love.graphics.line(ax, ay, bx2, by2)
-            love.graphics.setColor(0.9, 0.2, 0.2, 0.3)
-            love.graphics.rectangle("fill", tx, ty, cardW, cardH, 8, 8)
-        end
-    end
-
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.printf(string.format("Resolving %s on slot %d", step.kind, step.slot), 0, 20, screenW, "center")
-end
-
-function GameState:drawResolveLog(screenW)
-    local panelW = 280
-    local panelX = screenW - panelW - 16
-    local panelY = 80
-    local lineH = 16
-    local titleH = 20
-    local visibleLines = math.min(#self.resolveLog, self.maxResolveLogLines or 14)
-    local panelH = titleH + visibleLines * lineH + 10
-
-    love.graphics.setColor(0, 0, 0, 0.35)
-    love.graphics.rectangle("fill", panelX, panelY, panelW, panelH, 8, 8)
-    love.graphics.setColor(1, 1, 1, 0.85)
-    love.graphics.rectangle("line", panelX, panelY, panelW, panelH, 8, 8)
-    love.graphics.print("Log", panelX + 8, panelY + 4)
-
-    love.graphics.setColor(1, 1, 1, 1)
-    local startIdx = math.max(1, #self.resolveLog - (self.maxResolveLogLines or 14) + 1)
-    local y = panelY + titleH
-    for i = startIdx, #self.resolveLog do
-        love.graphics.printf(self.resolveLog[i], panelX + 8, y, panelW - 16, "left")
-        y = y + lineH
-    end
-end
-
-
 function GameState:draw()
     self:refreshLayoutPositions()
 
     local screenW = Viewport.getWidth()
     local layout = self:getLayout()
 
-    self:drawTurnBanner(screenW)
-    self:drawBoardSlots(layout)
-    self:drawDiscardArea()
-    self:drawCurrentHand()
-    self:drawDeckArea()
-    self:drawPassButton()
-    self:drawDraggingCard()
-    self:drawResolveOverlay(layout, screenW)
-    self:drawResolveLog(screenW)
+    HudRenderer.drawTurnBanner(self, screenW)
+    BoardRenderer.draw(self, layout)
+    HudRenderer.drawPostBoard(self)
+    ResolveRenderer.draw(self, layout, screenW)
 end
+
 -- returns x,y for a given player's slot index, relative to current turn
 function GameState:getBoardSlotPosition(playerIndex, slotIndex)
     local startX, _, layout = self:getBoardMetrics(playerIndex)
