@@ -204,6 +204,7 @@ function GameState:update(dt)
                 -- start next play phase; alternate starting player per round
                 self.roundStartPlayer = (self.roundStartPlayer == 1) and 2 or 1
                 self.currentPlayer = self.roundStartPlayer
+                self.turnActionCount = 0
                 self.phase = "play"
                 self.resolveQueue = {}
                 self.resolveIndex = 0
@@ -333,6 +334,7 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
         self:addLog(string.format("P%d plays %s on P%d slot %d", owner.id or 0, card.name or "modifier", targetPlayerIndex, slotIndex))
     end
 
+    self:registerTurnAction()
     self.lastActionWasPass = false
 
     self:nextPlayer()
@@ -352,8 +354,9 @@ function GameState:passTurn()
     self:addLog(string.format("P%d passes", pid))
 
     local triggerResolve = false
+    local isFirstAction = (self.turnActionCount or 0) == 0
 
-    if self.lastActionWasPass and self.lastPassBy and self.lastPassBy ~= pid then
+    if self.lastActionWasPass and self.lastPassBy and self.lastPassBy ~= pid and isFirstAction then
 
         triggerResolve = true
 
@@ -374,13 +377,6 @@ function GameState:passTurn()
     end
 
 end
-
-
-
-
-
-
-
 
 
 -- Build a snapshot of active modifiers from modifier-type cards on the board.
@@ -613,35 +609,60 @@ function GameState:getCurrentPlayer()
     return self.players[self.currentPlayer]
 end
 
-function GameState:nextPlayer(shouldAutoDraw)
+function GameState:registerTurnAction()
+    self.turnActionCount = (self.turnActionCount or 0) + 1
+end
 
-    self.currentPlayer = self.currentPlayer % #self.players + 1
+function GameState:nextPlayer(shouldAutoDraw)
+    local players = self.players
+    if not players or #players == 0 then
+        return
+    end
+
+    local playerCount = #players
+    local originalIndex = self.currentPlayer or 1
+    local candidateIndex = originalIndex
+    local found = false
+
+    local function canStillPlay(index)
+        local player = players[index]
+        if not player or not player.id then
+            return false
+        end
+        local plays = (self.playedCount and self.playedCount[player.id]) or 0
+        local limit = self.maxBoardCards or (plays + 1)
+        return plays < limit
+    end
+
+    for _ = 1, playerCount do
+        candidateIndex = (candidateIndex % playerCount) + 1
+        if candidateIndex ~= originalIndex and canStillPlay(candidateIndex) then
+            found = true
+            break
+        end
+    end
+
+    if found then
+        self.currentPlayer = candidateIndex
+    else
+        self.currentPlayer = (originalIndex % playerCount) + 1
+    end
 
     self.microStarter = self.currentPlayer
-
+    self.turnActionCount = 0
     self.playsInRound = 0
-
     self:updateCardVisibility()
 
     if shouldAutoDraw ~= false and self.phase == "play" then
-
         local n = Config.rules.autoDrawOnTurnStart or 0
-
         if n > 0 then
-
             for i = 1, n do
-
                 self:drawCardToPlayer(self.currentPlayer)
-
             end
-
         end
-
     end
 
 end
-
-
 
 -- Advance the turn respecting the micro-round alternation.
 -- Debug helper used by the space key; does not alter playedCount.
@@ -706,6 +727,7 @@ function GameState:playCardFromHand(card, slotIndex)
         card.zone = "board"
         card.faceUp = true
         self.playedCount[pid] = self.playedCount[pid] + 1
+        self:registerTurnAction()
 
         -- 🟢 Debug info
         print(string.format(

@@ -24,6 +24,7 @@ function Initialiser.initRoundState(state)
     state.roundIndex = 0
     state.phase = "play"
     state.playsInRound = 0
+    state.turnActionCount = 0
 end
 
 function Initialiser.initUiState(state, hasSharedDeck)
