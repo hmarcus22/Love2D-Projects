@@ -43,15 +43,26 @@ function draft:shuffleDraftPool()
     end
 end
 
-function draft:enter()
+function draft:enter(previous, players)
     local rules = Config.rules or {}
     local maxHand = rules.maxHandSize or 5
     local maxBoard = rules.maxBoardCards or 3
 
-    self.players = {
-        Player{ id = 1, maxHandSize = maxHand, maxBoardCards = maxBoard },
-        Player{ id = 2, maxHandSize = maxHand, maxBoardCards = maxBoard },
-    }
+    if players and #players > 0 then
+        self.players = {}
+        for idx, p in ipairs(players) do
+            p.maxHandSize = p.maxHandSize or maxHand
+            p.maxBoardCards = p.maxBoardCards or maxBoard
+            p.deck = {}
+            self.players[idx] = p
+        end
+    else
+        self.players = {
+            Player{ id = 1, maxHandSize = maxHand, maxBoardCards = maxBoard },
+            Player{ id = 2, maxHandSize = maxHand, maxBoardCards = maxBoard },
+        }
+    end
+
     self.currentPlayer = 1
 
     local draftConfig = Config.draft or {}
@@ -63,7 +74,6 @@ function draft:enter()
     self.choices = {}
     self:nextChoices()
 end
-
 function draft:updateChoicePositions()
     local layout = Config.layout or {}
     local cardW = layout.cardW or 100
@@ -100,12 +110,30 @@ function draft:draw()
     love.graphics.setColor(1, 1, 1)
     local screenW = Viewport.getWidth()
     love.graphics.printf("Draft Phase", 0, 40, screenW, "center")
-    love.graphics.printf("Player " .. self.currentPlayer .. " choose a card", 0, 80, screenW, "center")
+
+    local prompt = string.format("Player %d choose a card", self.currentPlayer)
+    local current = self.players and self.players[self.currentPlayer]
+    if current and current.getFighter then
+        local fighter = current:getFighter()
+        if fighter then
+            local label = fighter.shortName or fighter.name or ""
+            prompt = string.format("Player %d (%s) choose a card", self.currentPlayer, label)
+        end
+    end
+    love.graphics.printf(prompt, 0, 80, screenW, "center")
 
     self:updateChoicePositions()
 
+    local highlightPlayer = self.players and self.players[self.currentPlayer]
     for _, c in ipairs(self.choices) do
         c:draw()
+        if highlightPlayer and highlightPlayer.isCardFavored and highlightPlayer:isCardFavored(c.definition) then
+            love.graphics.setColor(1, 1, 0.4, 0.9)
+            love.graphics.setLineWidth(3)
+            love.graphics.rectangle("line", c.x - 6, c.y - 6, (c.w or 100) + 12, (c.h or 150) + 12, 12, 12)
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(1, 1, 1, 1)
+        end
     end
 
     local screenH = Viewport.getHeight()
@@ -117,7 +145,13 @@ function draft:draw()
         local rowY = screenH - (i * 90)
 
         love.graphics.setColor(1, 1, 1)
-        love.graphics.printf("Player " .. i .. " deck (" .. #p.deck .. "/" .. self.targetDeckSize .. "):", 0, rowY - 30, screenW, "center")
+        local fighter = p.getFighter and p:getFighter()
+        local fighterLabel = fighter and (fighter.shortName or fighter.name)
+        local header = string.format("Player %d deck (%d/%d)", i, #p.deck, self.targetDeckSize)
+        if fighterLabel and fighterLabel ~= "" then
+            header = header .. string.format(" - %s", fighterLabel)
+        end
+        love.graphics.printf(header .. ":", 0, rowY - 30, screenW, "center")
 
         local count = math.max(1, #p.deck)
         local totalWidth = miniCardW + miniSpacing * math.max(0, count - 1)
@@ -143,7 +177,6 @@ function draft:draw()
     end
     Viewport.unapply()
 end
-
 function draft:mousepressed(x, y, button)
     if button ~= 1 then return end
     x, y = Viewport.toVirtual(x, y)

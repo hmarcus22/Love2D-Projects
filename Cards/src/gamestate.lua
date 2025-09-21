@@ -428,6 +428,20 @@ function GameState:computeActiveModifiers()
             end
         end
     end
+
+    if self.players then
+        for pi, player in ipairs(self.players) do
+            local passive = player.getBoardPassiveMods and player:getBoardPassiveMods()
+            if passive then
+                local entry = self.activeMods[pi]
+                local slotCount = self.maxBoardCards or player.maxBoardCards or #player.boardSlots or 0
+                for s = 1, slotCount do
+                    entry.perSlot[s] = entry.perSlot[s] or emptyMods()
+                    addMods(entry.perSlot[s], passive)
+                end
+            end
+        end
+    end
 end
 
 -- Get the stat of a card adjusted by active modifiers affecting the owning side/slot
@@ -729,7 +743,7 @@ function GameState:playCardFromHand(card, slotIndex)
         self.playedCount[pid] = self.playedCount[pid] + 1
         self:registerTurnAction()
 
-        -- 🟢 Debug info
+        -- Debug info
         print(string.format(
             "Player %d placed a card in slot %d. Played %d/%d cards.",
             pid, slotIndex, self.playedCount[pid], self.maxBoardCards

@@ -1,3 +1,5 @@
+local fighters = require "src.fighter_definitions"
+
 return {
   window = {
     width = 2000,
@@ -40,13 +42,14 @@ return {
       { id = "feint", count = 4 },
     },
   },
+  fighters = fighters,
   ui = {
     showDeckCount = true,
   },
   layout = {
-    designWidth = 2000,
-    designHeight = 1200,
-    scaleFactor = 2.0,
+    designWidth = 1000,
+    designHeight = 600,
+    scaleFactor = 1.0,
     pixelPerfect = true,
     slotSpacing = 110,
     cardW = 100,

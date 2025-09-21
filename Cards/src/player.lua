@@ -2,6 +2,7 @@ local Class = require "libs.hump.class"
 
 local Player = Class{}
 local Viewport = require "src.viewport"
+local FighterCatalog = require "src.fighter_definitions"
 
 local DEBUG_PLAYER_LOG = false
 
@@ -22,6 +23,12 @@ function Player:init(args)
     self.deck = {}
     self.boardSlots = {}
 
+    self.fighterId = nil
+    self.fighter = nil
+    if args.fighter or args.fighterId then
+        self:setFighter(args.fighter or args.fighterId)
+    end
+
     for i = 1, self.maxHandSize do
         self.slots[i] = { x = 0, y = 0, card = nil }
     end
@@ -31,6 +38,52 @@ function Player:init(args)
     end
 end
 
+function Player:setFighter(fighter)
+    local resolved = fighter
+    if type(fighter) == "string" then
+        resolved = FighterCatalog.byId[fighter]
+    end
+    self.fighter = resolved or nil
+    if resolved then
+        self.fighterId = resolved.id
+    else
+        self.fighterId = type(fighter) == "string" and fighter or nil
+    end
+end
+
+function Player:getFighter()
+    return self.fighter
+end
+
+function Player:getFighterColor()
+    local f = self.fighter
+    return f and f.color or nil
+end
+
+function Player:getBoardPassiveMods()
+    local f = self.fighter
+    local passives = f and f.passives or nil
+    return passives and passives.boardSlot or nil
+end
+
+function Player:isCardFavored(def)
+    local fighter = self.fighter
+    if not fighter or not fighter.favoredTags then
+        return false
+    end
+    local definitionTags = def and def.tags
+    if not definitionTags then
+        return false
+    end
+    for _, wanted in ipairs(fighter.favoredTags) do
+        for _, tag in ipairs(definitionTags) do
+            if tag == wanted then
+                return true
+            end
+        end
+    end
+    return false
+end
 function Player:getHand()
     local cards = {}
     for _, slot in ipairs(self.slots) do
@@ -138,16 +191,27 @@ function Player:playCardToBoard(card, slotIndex, gs)
 end
 
 function Player:drawBoard()
+    local color = self:getFighterColor()
+    local r, g, b = 0.8, 0.8, 0.2
+    if color then
+        r = color[1] or r
+        g = color[2] or g
+        b = color[3] or b
+    end
+
     for _, slot in ipairs(self.boardSlots) do
-        love.graphics.setColor(0.8, 0.8, 0.2, 0.35)
+        love.graphics.setColor(r, g, b, 0.15)
+        love.graphics.rectangle("fill", slot.x, slot.y, 100, 150, 8, 8)
+        love.graphics.setColor(r, g, b, 0.5)
         love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
         if slot.card then
+            love.graphics.setColor(1, 1, 1, 1)
             slot.card:draw()
         end
     end
-end
 
--- Draw the current player's hand with hover and drag feedback.
+    love.graphics.setColor(1, 1, 1, 1)
+end
 function Player:drawHand(isCurrent, gs)
     if not isCurrent then
         return
