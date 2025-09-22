@@ -1,4 +1,5 @@
 local BoardRenderer = {}
+local Viewport = require "src.viewport"
 
 local function drawPassiveBadge(x, y, w, h, color, text)
     love.graphics.setColor(color[1], color[2], color[3], color[4] or 0.9)
@@ -67,8 +68,134 @@ local function drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+local function getRetargetOffset(state, playerIndex, slotIndex)
+    local perPlayer = state.attachments and state.attachments[playerIndex]
+    local attachments = perPlayer and perPlayer[slotIndex]
+    if attachments then
+        for _, mod in ipairs(attachments) do
+            if mod.retargetOffset ~= nil then
+                return mod.retargetOffset
+            end
+        end
+    end
+    return 0
+end
+
+local function collectAttackTargets(state, playerIndex, slotIndex)
+    local targets = {}
+    local players = state.players or {}
+    local player = players[playerIndex]
+    local slot = player and player.boardSlots and player.boardSlots[slotIndex]
+    if not slot or not slot.card then
+        return targets
+    end
+
+    local def = slot.card.definition or {}
+    local baseAttack = def.attack or 0
+    if baseAttack <= 0 then
+        return targets
+    end
+
+    local offset = getRetargetOffset(state, playerIndex, slotIndex)
+    local opponentIndex = (playerIndex == 1) and 2 or 1
+    local opponent = players[opponentIndex]
+    local opponentSlots = opponent and opponent.boardSlots or {}
+    local maxSlots = state.maxBoardCards or #opponentSlots
+    if maxSlots == 0 then
+        maxSlots = #opponentSlots
+    end
+
+    local targetSlot = slotIndex + offset
+    if maxSlots > 0 then
+        if targetSlot < 1 then targetSlot = 1 end
+        if targetSlot > maxSlots then targetSlot = maxSlots end
+    else
+        targetSlot = slotIndex
+    end
+
+    table.insert(targets, { player = opponentIndex, slot = targetSlot })
+    return targets
+end
+
+local function drawAttackIndicators(state, layout, playerIndex, slotIndex, slotX, slotY, cardW, cardH, targets)
+    if not targets or #targets == 0 then
+        return
+    end
+
+    local startCenterX = slotX + cardW / 2
+    local startCenterY = slotY + cardH / 2
+
+    for _, target in ipairs(targets) do
+        local targetX, targetY = state:getBoardSlotPosition(target.player, target.slot)
+        local targetCenterX = targetX + cardW / 2
+        local targetCenterY = targetY + cardH / 2
+        local dx = targetCenterX - startCenterX
+        local dy = targetCenterY - startCenterY
+        local dist = math.sqrt(dx * dx + dy * dy)
+        if dist < 1 then dist = 1 end
+
+        local insetStart = cardH * 0.5 + 6
+        local insetEnd = cardH * 0.5 + 6
+        local sx = startCenterX + dx / dist * insetStart
+        local sy = startCenterY + dy / dist * insetStart
+        local ex = targetCenterX - dx / dist * insetEnd
+        local ey = targetCenterY - dy / dist * insetEnd
+
+        love.graphics.setColor(1, 1, 0.2, 0.85)
+        love.graphics.setLineWidth(3)
+        love.graphics.line(sx, sy, ex, ey)
+        love.graphics.setLineWidth(1)
+
+        local angle = math.atan2(dy, dx)
+        local headLen = 10
+        local headAngle = 0.4
+        local hx1 = ex - headLen * math.cos(angle - headAngle)
+        local hy1 = ey - headLen * math.sin(angle - headAngle)
+        local hx2 = ex - headLen * math.cos(angle + headAngle)
+        local hy2 = ey - headLen * math.sin(angle + headAngle)
+        love.graphics.polygon("fill", ex, ey, hx1, hy1, hx2, hy2)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+end
+
 function BoardRenderer.draw(state, layout)
     local cardW, cardH = layout.cardW, layout.cardH
+    local pending = state.hasPendingRetarget and state:hasPendingRetarget() and state:getPendingRetarget() or nil
+    local validTargets = nil
+    local cursorX, cursorY = nil, nil
+    if pending then
+        local mx, my = love.mouse.getPosition()
+        if mx and my then
+            cursorX, cursorY = Viewport.toVirtual(mx, my)
+        end
+        validTargets = {}
+        local baseSlot = pending.sourceSlotIndex or 0
+        local opponentIndex = pending.opponentPlayerIndex
+        local sourceIndex = pending.sourcePlayerIndex
+        if opponentIndex then
+            validTargets[opponentIndex] = {}
+            local opponentSlots = state.players and state.players[opponentIndex] and state.players[opponentIndex].boardSlots or {}
+            local maxSlots = state.maxBoardCards or #opponentSlots
+            if maxSlots == 0 then
+                maxSlots = #opponentSlots
+            end
+            for offset = -1, 1 do
+                local slot = baseSlot + offset
+                if maxSlots <= 0 then
+                    if slot == baseSlot then
+                        validTargets[opponentIndex][slot] = true
+                    end
+                elseif slot >= 1 and slot <= maxSlots then
+                    validTargets[opponentIndex][slot] = true
+                end
+            end
+        end
+        if sourceIndex then
+            validTargets[sourceIndex] = validTargets[sourceIndex] or {}
+            validTargets[sourceIndex][baseSlot] = true
+        end
+    end
+
     for playerIndex, player in ipairs(state.players) do
         local passiveMods = player.getBoardPassiveMods and player:getBoardPassiveMods() or nil
         local passiveBlock = passiveMods and passiveMods.block or 0
@@ -77,10 +204,25 @@ function BoardRenderer.draw(state, layout)
             love.graphics.setColor(0.8, 0.8, 0.2, 0.35)
             love.graphics.rectangle("line", slotX, slotY, cardW, cardH, 8, 8)
 
+            local isPending = pending ~= nil
+            local validSlot = false
+            local hoveredSlot = false
+            if isPending and validTargets then
+                local targetMap = validTargets[playerIndex]
+                validSlot = targetMap and targetMap[slotIndex] or false
+                if validSlot and cursorX and cursorY then
+                    hoveredSlot = cursorX >= slotX and cursorX <= slotX + cardW and cursorY >= slotY and cursorY <= slotY + cardH
+                end
+            end
+
+            local attackTargets = nil
+
             if slot.card then
                 slot.card.x = slotX
                 slot.card.y = slotY
                 slot.card:draw()
+
+                attackTargets = collectAttackTargets(state, playerIndex, slotIndex)
 
                 local statVariance = slot.card.statVariance
                 if statVariance then
@@ -98,6 +240,32 @@ function BoardRenderer.draw(state, layout)
                 if mods and #mods > 0 then
                     drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
                 end
+            end
+
+            if isPending then
+                if validSlot then
+                    if hoveredSlot then
+                        love.graphics.setColor(1, 1, 1, 0.18)
+                        love.graphics.rectangle("fill", slotX, slotY, cardW, cardH, 8, 8)
+                        love.graphics.setColor(1, 1, 0.3, 0.9)
+                        love.graphics.setLineWidth(3)
+                        love.graphics.rectangle("line", slotX - 2, slotY - 2, cardW + 4, cardH + 4, 10, 10)
+                        love.graphics.setLineWidth(1)
+                        love.graphics.setColor(1, 1, 1, 1)
+                    else
+                        love.graphics.setColor(1, 1, 1, 0.08)
+                        love.graphics.rectangle("fill", slotX, slotY, cardW, cardH, 8, 8)
+                        love.graphics.setColor(1, 1, 1, 1)
+                    end
+                else
+                    love.graphics.setColor(0, 0, 0, 0.35)
+                    love.graphics.rectangle("fill", slotX, slotY, cardW, cardH, 8, 8)
+                    love.graphics.setColor(1, 1, 1, 1)
+                end
+            end
+
+            if attackTargets and #attackTargets > 0 then
+                drawAttackIndicators(state, layout, playerIndex, slotIndex, slotX, slotY, cardW, cardH, attackTargets)
             end
 
             if passiveBlock ~= 0 then

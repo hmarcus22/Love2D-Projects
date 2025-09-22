@@ -35,7 +35,7 @@ local defs = {
     {
         id = "feint",
         name = "Feint",
-        description = "Retarget this card's attack to adjacent opposing slot (drop left/right to pick).",
+        description = "Re-aim this card's attack to a neighboring opposing slot; drop left/center/right to choose.",
         cost = 1,
         mod = { target = "ally", scope = "target", retarget = true },
         tags = { "tactician" },

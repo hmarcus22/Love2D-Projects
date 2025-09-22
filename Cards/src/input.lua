@@ -16,8 +16,43 @@ local function hoveredBoardSlot(gs, playerIndex, x, y)
     return nil
 end
 
+function Input:handleRetargetClick(gs, x, y)
+    local pending = gs.getPendingRetarget and gs:getPendingRetarget()
+    if not pending then
+        return true
+    end
+
+    local opponent = pending.opponentPlayerIndex
+    local sourcePlayer = pending.sourcePlayerIndex
+    local targetSlot = nil
+    if gs.players and gs.players[opponent] then
+        targetSlot = hoveredBoardSlot(gs, opponent, x, y)
+    end
+    if targetSlot then
+        gs:selectRetargetSlot(opponent, targetSlot)
+        return true
+    end
+
+    local sourceSlot = nil
+    if gs.players and gs.players[sourcePlayer] then
+        sourceSlot = hoveredBoardSlot(gs, sourcePlayer, x, y)
+    end
+    if sourceSlot and sourceSlot == pending.sourceSlotIndex then
+        gs:selectRetargetSlot(sourcePlayer, sourceSlot)
+        return true
+    end
+
+    return true
+end
+
 function Input:mousepressed(gs, x, y, button)
     if button ~= 1 then return end
+
+    if gs.hasPendingRetarget and gs:hasPendingRetarget() then
+        self:handleRetargetClick(gs, x, y)
+        return
+    end
+
     local current = gs:getCurrentPlayer()
 
     if gs.phase ~= "play" then return end
@@ -54,6 +89,10 @@ function Input:mousepressed(gs, x, y, button)
 end
 
 function Input:mousereleased(gs, x, y, button)
+    if gs.hasPendingRetarget and gs:hasPendingRetarget() then
+        return
+    end
+
     if button ~= 1 or not gs.draggingCard then return end
     local card = gs.draggingCard
     local current = gs:getCurrentPlayer()
@@ -78,10 +117,7 @@ function Input:mousereleased(gs, x, y, button)
                 if targetPi and targetIdx then
                     local retargetOffset = nil
                     if def.mod and def.mod.retarget then
-                        -- decide left/right by drop x relative to target slot center
-                        local sx, sy = gs:getBoardSlotPosition(targetPi, targetIdx)
-                        local centerX = sx + cardW / 2
-                        retargetOffset = (x < centerX) and -1 or 1
+                        retargetOffset = nil
                     end
                     local ok = gs:playModifierOnSlot(card, targetPi, targetIdx, retargetOffset)
                     if not ok and card.owner then card.owner:snapCard(card, gs) end
@@ -108,6 +144,10 @@ function Input:mousereleased(gs, x, y, button)
 end
 
 function Input:keypressed(gs, key)
+    if gs.hasPendingRetarget and gs:hasPendingRetarget() then
+        return
+    end
+
     if key == "space" then
         gs:advanceTurn()
     elseif key == "return" or key == "kpenter" then

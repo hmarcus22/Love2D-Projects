@@ -96,6 +96,7 @@ function GameState:new()
         end
     end
 
+    gs.pendingRetarget = nil
     gs:updateCardVisibility()
     gs:refreshLayoutPositions()
 
@@ -117,6 +118,7 @@ function GameState:newFromDraft(draftedPlayers)
     gs:applyInitialEnergy()
     gs:dealStartingHandsFromPlayerDecks()
 
+    gs.pendingRetarget = nil
     gs:updateCardVisibility()
     gs:refreshLayoutPositions()
     return gs
@@ -330,6 +332,7 @@ end
 -- Play a modifier card onto an existing card in a board slot
 function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retargetOffset)
     if self.phase ~= "play" then return false end
+    if self:hasPendingRetarget() then return false end
     local owner = card.owner
     if not owner then return false end
 
@@ -376,19 +379,37 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
     self.attachments[targetPlayerIndex][slotIndex] = self.attachments[targetPlayerIndex][slotIndex] or {}
     local stored = {}
     for k, v in pairs(m) do stored[k] = v end
-    if m.retarget and retargetOffset then
-        stored.retargetOffset = retargetOffset
+    local cardName = card.name or "modifier"
+    local directionLabel
+    local selectionPending = false
+
+    if m.retarget then
+        if retargetOffset ~= nil then
+            stored.retargetOffset = retargetOffset
+            if retargetOffset == 0 then
+                directionLabel = "straight"
+            else
+                directionLabel = retargetOffset < 0 and "left" or "right"
+            end
+        else
+            selectionPending = true
+        end
     end
+
     table.insert(self.attachments[targetPlayerIndex][slotIndex], stored)
 
     -- discard the modifier card (modifiers do not occupy board slots)
     self:discardCard(card)
 
-    if stored.retargetOffset then
-        local dir = stored.retargetOffset < 0 and "left" or "right"
-        self:addLog(string.format("P%d plays %s (%s) on P%d slot %d", owner.id or 0, card.name or "modifier", dir, targetPlayerIndex, slotIndex))
+    if selectionPending then
+        self:initiateRetargetSelection(owner, targetPlayerIndex, slotIndex, stored, cardName)
+        return true
+    end
+
+    if directionLabel then
+        self:addLog(string.format("P%d plays %s (%s) on P%d slot %d", owner.id or 0, cardName, directionLabel, targetPlayerIndex, slotIndex))
     else
-        self:addLog(string.format("P%d plays %s on P%d slot %d", owner.id or 0, card.name or "modifier", targetPlayerIndex, slotIndex))
+        self:addLog(string.format("P%d plays %s on P%d slot %d", owner.id or 0, cardName, targetPlayerIndex, slotIndex))
     end
 
     self:registerTurnAction()
@@ -405,6 +426,7 @@ end
 function GameState:passTurn()
 
     if self.phase ~= "play" then return end
+    if self.hasPendingRetarget and self:hasPendingRetarget() then return end
 
     local pid = self.currentPlayer
 
@@ -541,6 +563,8 @@ function GameState:startResolve()
     self.resolveTimer = 0
     self.resolveCurrentStep = nil
     self:addLog("--- Begin Resolution ---")
+
+    self.pendingRetarget = nil
 
     for _, player in ipairs(self.players or {}) do
         player.block = 0
@@ -761,6 +785,7 @@ end
 function GameState:advanceTurn()
 
     if self.phase ~= "play" then return end
+    if self:hasPendingRetarget() then return end
 
     self.lastActionWasPass = false
 
@@ -857,6 +882,82 @@ function GameState:rollVarianceForStat(player, card, def, passives, statKey, pas
     return roll
 end
 
+function GameState:initiateRetargetSelection(owner, sourcePlayerIndex, slotIndex, attachment, cardName)
+    local opponentIndex = (sourcePlayerIndex == 1 and 2) or 1
+    if not (self.players and self.players[opponentIndex]) then
+        opponentIndex = sourcePlayerIndex
+        for idx, _ in ipairs(self.players or {}) do
+            if idx ~= sourcePlayerIndex then
+                opponentIndex = idx
+                break
+            end
+        end
+    end
+    self.pendingRetarget = {
+        ownerId = owner and owner.id or 0,
+        sourcePlayerIndex = sourcePlayerIndex,
+        sourceSlotIndex = slotIndex,
+        opponentPlayerIndex = opponentIndex,
+        attachment = attachment,
+        cardName = cardName or 'Feint',
+    }
+    self:addLog(string.format("P%d plays %s on slot %d - choose opposing slot", self.pendingRetarget.ownerId or 0, cardName or 'Feint', slotIndex))
+end
+
+function GameState:hasPendingRetarget()
+    return self.pendingRetarget ~= nil
+end
+
+function GameState:getPendingRetarget()
+    return self.pendingRetarget
+end
+
+function GameState:selectRetargetSlot(playerIndex, slotIndex)
+    local pending = self.pendingRetarget
+    if not pending then
+        return false
+    end
+
+    local sourceSlot = pending.sourceSlotIndex
+    local offset
+    if playerIndex == pending.opponentPlayerIndex then
+        offset = slotIndex - sourceSlot
+        if math.abs(offset) > 1 then
+            self:addLog('Feint can only target adjacent opposing slots')
+            return false
+        end
+    elseif playerIndex == pending.sourcePlayerIndex then
+        if slotIndex ~= sourceSlot then
+            self:addLog('Choose straight, left, or right relative to the current slot')
+            return false
+        end
+        offset = 0
+    else
+        return false
+    end
+
+    local opponentSlots = self.players and self.players[pending.opponentPlayerIndex] and self.players[pending.opponentPlayerIndex].boardSlots or {}
+    local maxSlots = self.maxBoardCards or #opponentSlots
+    if slotIndex < 1 or slotIndex > (maxSlots > 0 and maxSlots or #opponentSlots) then
+        self:addLog('Feint target out of range')
+        return false
+    end
+
+    if pending.attachment then
+        pending.attachment.retargetOffset = offset
+    end
+
+    local direction = (offset == 0) and 'straight' or (offset < 0 and 'left' or 'right')
+    self:addLog(string.format('Feint retarget -> %s (slot %d)', direction, slotIndex))
+
+    self.pendingRetarget = nil
+    self:registerTurnAction()
+    self.lastActionWasPass = false
+    self:nextPlayer()
+    self:maybeFinishPlayPhase()
+    return true
+end
+
 function GameState:getVarianceAmount(config)
     if type(config) == 'table' then
         return config.amount or config.value or config.delta or 0
@@ -936,6 +1037,10 @@ end
 
 function GameState:playCardFromHand(card, slotIndex)
     if self.phase ~= "play" then
+        return
+    end
+
+    if self:hasPendingRetarget() then
         return
     end
 
