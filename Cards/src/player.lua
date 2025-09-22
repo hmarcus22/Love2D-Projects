@@ -66,6 +66,16 @@ function Player:getBoardPassiveMods()
     return passives and passives.boardSlot or nil
 end
 
+function Player:getDrawBonus(trigger)
+    local f = self.fighter
+    local passives = f and f.passives or nil
+    local draw = passives and passives.draw or nil
+    if not draw then
+        return 0
+    end
+    return draw[trigger] or draw.default or 0
+end
+
 function Player:isCardFavored(def)
     local fighter = self.fighter
     if not fighter or not fighter.favoredTags then
@@ -99,6 +109,7 @@ function Player:addCard(card)
         if not slot.card then
             card.slotIndex = i
             card.owner = self
+            card.statVariance = nil
             slot.card = card
             return true
         end
@@ -114,6 +125,7 @@ function Player:removeCard(card)
     end
 
     log("Removing card", card.name, "from slot", oldSlot, "Player", self.id)
+    card.statVariance = nil
     card.owner = nil
     card.slotIndex = nil
 
@@ -146,6 +158,7 @@ function Player:snapCard(card, gs)
     local x, y = gs:getHandSlotPosition(card.slotIndex, self)
     card.x = x
     card.y = y
+    card.statVariance = nil
     self.slots[card.slotIndex].card = card
 end
 

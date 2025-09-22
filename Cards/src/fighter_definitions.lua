@@ -20,7 +20,9 @@ local fighters = {
         color = { 0.2, 0.4, 0.85 },
         description = "Ice-blue planner who reads the fight one step ahead.",
         passives = {
-            -- Reserved for future mechanics, e.g. extra draft choices.
+            draw = {
+                roundStart = 2,
+            },
         },
         traits = { "blue", "control" },
         favoredTags = { "tactician" },
@@ -30,9 +32,9 @@ local fighters = {
         name = "Verdant Wildcard",
         shortName = "Wildcard",
         color = { 0.15, 0.6, 0.35 },
-        description = "Green cage artist thriving on improvisation.",
+        description = "Green cage artist whose attacks fluctuate +/-1.",
         passives = {
-            -- Reserved for future mechanics, e.g. extra energy on resolve.
+            attackVariance = { amount = 1 },
         },
         traits = { "green", "tempo" },
         favoredTags = { "wildcard" },
@@ -49,3 +51,4 @@ return {
     list = order,
     byId = fighters,
 }
+

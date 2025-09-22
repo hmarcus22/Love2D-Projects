@@ -13,10 +13,14 @@ function game:enter(from, draftedPlayers)
         local newPlayers = {}
         for i, p in ipairs(draftedPlayers) do
             -- create proper Player object
+            local fighter = p.getFighter and p:getFighter() or p.fighter
+            local fighterId = p.fighterId or (fighter and fighter.id)
             local player = Player{
                 id = p.id,
                 maxHandSize = p.maxHandSize,
-                maxBoardCards = p.maxBoardCards
+                maxBoardCards = p.maxBoardCards,
+                fighter = fighter,
+                fighterId = fighterId
             }
             -- copy drafted deck into player's deck
             player.deck = p.deck
@@ -30,6 +34,7 @@ function game:enter(from, draftedPlayers)
                 id = player.id,
                 maxHandSize = player.maxHandSize,
                 maxBoardCards = player.maxBoardCards,
+                fighterId = player.fighterId,
             }
             local ids = {}
             for _, c in ipairs(player.deck or {}) do
@@ -58,6 +63,7 @@ function game:restartBattle()
             id = props.id,
             maxHandSize = props.maxHandSize,
             maxBoardCards = props.maxBoardCards,
+            fighterId = props.fighterId,
         }
         player.deck = {}
         for _, defId in ipairs(self.initialDeckIds[i] or {}) do

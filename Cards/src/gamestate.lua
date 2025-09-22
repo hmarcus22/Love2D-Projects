@@ -232,13 +232,14 @@ function GameState:update(dt)
                     self:addLog(string.format("Energy refilled to %d (round %d)", refill, self.roundIndex))
                 end
 
-                -- auto-draw for each player at start of new round (if configured)
+                -- auto-draw for each player at start of new round (config + fighter bonus)
                 local perRound = Config.rules.autoDrawPerRound or 0
-                if perRound > 0 then
-                    for pi = 1, #self.players do
-                        for i = 1, perRound do
-                            self:drawCardToPlayer(pi)
-                        end
+                for pi = 1, #self.players do
+                    local player = self.players[pi]
+                    local bonus = player and player.getDrawBonus and player:getDrawBonus("roundStart") or 0
+                    local total = perRound + (bonus or 0)
+                    for i = 1, total do
+                        self:drawCardToPlayer(pi)
                     end
                 end
             else
@@ -449,10 +450,29 @@ function GameState:getEffectiveStat(playerIndex, slotIndex, def, key)
     local base = def and def[key] or 0
     local mods = self.activeMods or {}
     local side = mods[playerIndex]
-    if not side then return base end
-    local total = base + (side.global[key] or 0)
-    local sm = side.perSlot[slotIndex]
-    if sm then total = total + (sm[key] or 0) end
+    local total = base
+    if side then
+        total = total + (side.global[key] or 0)
+        local perSlot = side.perSlot
+        if perSlot then
+            local sm = perSlot[slotIndex]
+            if sm then
+                total = total + (sm[key] or 0)
+            end
+        end
+    end
+
+    if key == "attack" and total > 0 then
+        local player = self.players and self.players[playerIndex] or nil
+        local slot = player and player.boardSlots and player.boardSlots[slotIndex] or nil
+        local card = slot and slot.card or nil
+        local variance = card and card.statVariance or nil
+        local roll = variance and variance.attack or 0
+        if roll ~= 0 then
+            total = total + roll
+        end
+    end
+
     if total < 0 then total = 0 end
     return total
 end
@@ -616,6 +636,7 @@ function GameState:discardCard(card)
     card.x = self.discardStack.x
     card.y = self.discardStack.y
     card.faceUp = true
+    card.statVariance = nil
     table.insert(self.discardPile, card)
 end
 
@@ -669,10 +690,11 @@ function GameState:nextPlayer(shouldAutoDraw)
 
     if shouldAutoDraw ~= false and self.phase == "play" then
         local n = Config.rules.autoDrawOnTurnStart or 0
-        if n > 0 then
-            for i = 1, n do
-                self:drawCardToPlayer(self.currentPlayer)
-            end
+        local currentPlayer = self.players and self.players[self.currentPlayer] or nil
+        local bonus = currentPlayer and currentPlayer.getDrawBonus and currentPlayer:getDrawBonus("turnStart") or 0
+        local total = n + (bonus or 0)
+        for i = 1, total do
+            self:drawCardToPlayer(self.currentPlayer)
         end
     end
 
@@ -732,8 +754,42 @@ function GameState:playCardFromHand(card, slotIndex)
 
     local ok = current:playCardToBoard(card, slotIndex, self)
     if ok then
+        local def = card.definition
+        local fighter = current and current.getFighter and current:getFighter() or nil
+        local passives = fighter and fighter.passives or nil
+        local variances = nil
+
+        local function rollVariance(statKey, passiveKey)
+            if not def then return end
+            local base = def[statKey]
+            if not base or base <= 0 then return end
+            local config = passives and passives[passiveKey] or nil
+            if not config then return end
+            local amount
+            if type(config) == "table" then
+                amount = config.amount or config.value or config.delta
+            else
+                amount = config
+            end
+            amount = amount or 0
+            if amount <= 0 then return end
+            local rng = (love and love.math and love.math.random) or math.random
+            local roll = ((rng(2) == 1) and 1 or -1) * amount
+            variances = variances or {}
+            variances[statKey] = roll
+            local delta = roll > 0 and ('+' .. roll) or tostring(roll)
+            local cardName = card.name or (def and def.name) or 'card'
+            local msg = string.format("P%d %s variance %s on %s", pid, statKey, delta, cardName)
+            self:addLog(msg)
+            print(msg)
+        end
+
+        rollVariance('attack', 'attackVariance')
+
+        card.statVariance = variances
+
         if Config.rules.energyEnabled ~= false then
-            local cost = (card.definition and card.definition.cost) or 0
+            local cost = (def and def.cost) or 0
             if cost and cost > 0 then
                 current.energy = (current.energy or 0) - cost
             end

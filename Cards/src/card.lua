@@ -15,6 +15,7 @@ function Card:init(id, name, x, y)
     self.definition = nil -- will be attached by factory
     self.handHoverTarget = 0
     self.handHoverAmount = 0
+    self.statVariance = nil
 end
 
 function Card:draw()
@@ -55,7 +56,16 @@ function Card:draw()
             love.graphics.rectangle("fill", self.x + 10, statY, 14, 14)
             love.graphics.setColor(0, 0, 0)
             love.graphics.rectangle("line", self.x + 10, statY, 14, 14)
-            love.graphics.printf("Attack: " .. self.definition.attack,
+            local attackValue = self.definition.attack
+            local varianceRoll = self.statVariance and self.statVariance.attack or 0
+            if varianceRoll ~= 0 then
+                attackValue = attackValue + varianceRoll
+            end
+            local attackText = "Attack: " .. attackValue
+            if varianceRoll ~= 0 then
+                attackText = attackText .. string.format(" (%+d)", varianceRoll)
+            end
+            love.graphics.printf(attackText,
                 self.x + 30, statY - 2, self.w - 40, "left")
             statY = statY + 18
         end
