@@ -11,6 +11,13 @@ local ResolveRenderer = require "src.renderers.resolve_renderer"
 
 local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
 
+local RESOLVE_STEP_HANDLERS = {
+    block = "resolveBlockStep",
+    attack = "resolveAttackStep",
+    heal = "resolveHealStep",
+    cleanup = "resolveCleanupStep",
+}
+
 
 local function sumSlotBlock(player)
     local total = 0
@@ -565,107 +572,127 @@ function GameState:startResolve()
     end
 end
 
+function GameState:resolveBlockStep(slotIndex)
+    for idx, player in ipairs(self.players or {}) do
+        local slot = player.boardSlots and player.boardSlots[slotIndex]
+        if slot then
+            local def = slot.card and slot.card.definition or nil
+            local add = self:getEffectiveStat(idx, slotIndex, def, "block")
+            if add and add > 0 then
+                slot.block = (slot.block or 0) + add
+                player.block = sumSlotBlock(player)
+                local source = slot.card and slot.card.name or "passive"
+                self:addLog(string.format("Slot %d [Block]: P%d +%d block (%s) -> slot %d, total %d", slotIndex, player.id or 0, add, source, slot.block or 0, player.block or 0))
+            end
+        end
+    end
+end
+
+function GameState:resolveHealStep(slotIndex)
+    for idx, player in ipairs(self.players or {}) do
+        local slot = player.boardSlots and player.boardSlots[slotIndex]
+        if slot and slot.card and slot.card.definition then
+            local def = slot.card.definition
+            local heal = self:getEffectiveStat(idx, slotIndex, def, "heal")
+            if heal and heal > 0 then
+                local maxHealth = player.maxHealth or 20
+                local before = player.health or maxHealth
+                player.health = math.min(before + heal, maxHealth)
+                local gained = player.health - before
+                if gained > 0 then
+                    self:addLog(string.format("Slot %d [Heal]: P%d +%d HP (%s) -> %d/%d", slotIndex, player.id or 0, gained, slot.card.name or "", player.health, maxHealth))
+                end
+            end
+        end
+    end
+end
+
+function GameState:resolveAttackStep(slotIndex)
+    local players = self.players or {}
+    local p1, p2 = players[1], players[2]
+
+    local function atkAt(playerIdx, idx)
+        local player = players[playerIdx]
+        local slot = player and player.boardSlots and player.boardSlots[idx]
+        if slot and slot.card and slot.card.definition then
+            return self:getEffectiveStat(playerIdx, idx, slot.card.definition, "attack") or 0
+        end
+        return 0
+    end
+
+    local function targetIndexFor(playerIdx, srcIdx)
+        local mods = self.activeMods and self.activeMods[playerIdx] and self.activeMods[playerIdx].perSlot[srcIdx]
+        local offset = mods and mods.retargetOffset or 0
+        local target = srcIdx + offset
+        local maxSlots = self.maxBoardCards or (players[playerIdx] and #players[playerIdx].boardSlots) or 0
+        if target < 1 or target > maxSlots then
+            target = srcIdx
+        end
+        return target
+    end
+
+    local a1 = atkAt(1, slotIndex)
+    local a2 = atkAt(2, slotIndex)
+    if a1 <= 0 and a2 <= 0 then
+        return
+    end
+
+    local t1 = targetIndexFor(1, slotIndex)
+    local t2 = targetIndexFor(2, slotIndex)
+
+    local blockTargetP2 = (p2 and p2.boardSlots and p2.boardSlots[t1] and p2.boardSlots[t1].block) or 0
+    local blockTargetP1 = (p1 and p1.boardSlots and p1.boardSlots[t2] and p1.boardSlots[t2].block) or 0
+    local absorb2 = math.min(blockTargetP2, a1)
+    local absorb1 = math.min(blockTargetP1, a2)
+
+    consumeSlotBlock(p2, t1, absorb2)
+    consumeSlotBlock(p1, t2, absorb1)
+
+    local remainder1 = a2 - absorb1
+    local remainder2 = a1 - absorb2
+
+    if remainder2 > 0 and p2 then
+        p2.health = (p2.health or p2.maxHealth or 20) - remainder2
+    end
+    if remainder1 > 0 and p1 then
+        p1.health = (p1.health or p1.maxHealth or 20) - remainder1
+    end
+
+    if a1 > 0 then
+        local suffix = (t1 ~= slotIndex) and string.format(" -> slot %d (feint)", t1) or ""
+        self:addLog(string.format("Slot %d: P1 attacks P2 for %d (block %d, dmg %d)%s", slotIndex, a1, absorb2, math.max(0, remainder2), suffix))
+    end
+    if a2 > 0 then
+        local suffix = (t2 ~= slotIndex) and string.format(" -> slot %d (feint)", t2) or ""
+        self:addLog(string.format("Slot %d: P2 attacks P1 for %d (block %d, dmg %d)%s", slotIndex, a2, absorb1, math.max(0, remainder1), suffix))
+    end
+end
+
+function GameState:resolveCleanupStep(slotIndex)
+    for _, player in ipairs(self.players or {}) do
+        local slot = player.boardSlots and player.boardSlots[slotIndex]
+        if slot and slot.card then
+            self:addLog(string.format("Slot %d: P%d discards %s", slotIndex, player.id or 0, slot.card.name or "card"))
+            self:discardCard(slot.card)
+            slot.card = nil
+        end
+        if slot then
+            slot.block = 0
+        end
+    end
+
+    for idx, player in ipairs(self.players or {}) do
+        if (player.health or 0) <= 0 then
+            print(string.format("Player %d has been defeated!", idx))
+            self:addLog(string.format("Player %d is defeated!", idx))
+        end
+    end
+end
+
 function GameState:performResolveStep(step)
-    local s = step.slot
-    if step.kind == "block" then
-        for idx, p in ipairs(self.players) do
-            local slot = p.boardSlots and p.boardSlots[s]
-            if slot then
-                local def = slot.card and slot.card.definition or nil
-                local add = self:getEffectiveStat(idx, s, def, "block")
-                if add and add > 0 then
-                    slot.block = (slot.block or 0) + add
-                    p.block = sumSlotBlock(p)
-                    local source = slot.card and slot.card.name or "passive"
-                    self:addLog(string.format("Slot %d [Block]: P%d +%d block (%s) -> slot %d, total %d", s, p.id or 0, add, source, slot.block or 0, p.block or 0))
-                end
-            end
-        end
-    elseif step.kind == "heal" then
-        for idx, p in ipairs(self.players) do
-            local slot = p.boardSlots[s]
-            if slot and slot.card and slot.card.definition then
-                local def = slot.card.definition
-                local heal = self:getEffectiveStat(idx, s, def, "heal")
-                if heal and heal > 0 then
-                    local mh = p.maxHealth or 20
-                    local before = p.health or mh
-                    p.health = math.min(before + heal, mh)
-                    local gained = p.health - before
-                    if gained > 0 then
-                        self:addLog(string.format(
-                            "Slot %d [Heal]: P%d +%d HP (%s) -> %d/%d",
-                            s, p.id or 0, gained, slot.card.name or "", p.health, mh
-                        ))
-                    end
-                end
-            end
-        end
-    elseif step.kind == "attack" then
-        local function atkAt(playerIdx, idx)
-            local p = self.players[playerIdx]
-            local slot = p.boardSlots[idx]
-            if slot and slot.card and slot.card.definition then
-                return self:getEffectiveStat(playerIdx, idx, slot.card.definition, "attack") or 0
-            end
-            return 0
-        end
-        local function targetIndexFor(playerIdx, srcIdx)
-            local mods = self.activeMods and self.activeMods[playerIdx] and self.activeMods[playerIdx].perSlot[srcIdx]
-            local off = mods and mods.retargetOffset or 0
-            local t = srcIdx + off
-            local maxSlots = self.maxBoardCards or #self.players[playerIdx].boardSlots
-            if t < 1 or t > maxSlots then
-                t = srcIdx -- fallback to straight if out of range
-            end
-            return t
-        end
-
-        local p1, p2 = self.players[1], self.players[2]
-        local a1 = atkAt(1, s)
-        local a2 = atkAt(2, s)
-        local t1 = targetIndexFor(1, s)
-        local t2 = targetIndexFor(2, s)
-        if a1 > 0 or a2 > 0 then
-            local blockTargetP2 = (p2 and p2.boardSlots and p2.boardSlots[t1] and p2.boardSlots[t1].block) or 0
-            local blockTargetP1 = (p1 and p1.boardSlots and p1.boardSlots[t2] and p1.boardSlots[t2].block) or 0
-            local absorb2 = math.min(blockTargetP2, a1)
-            local absorb1 = math.min(blockTargetP1, a2)
-            consumeSlotBlock(p2, t1, absorb2)
-            consumeSlotBlock(p1, t2, absorb1)
-            local r1 = a2 - absorb1
-            local r2 = a1 - absorb2
-            if r2 > 0 then p2.health = (p2.health or p2.maxHealth or 20) - r2 end
-            if r1 > 0 then p1.health = (p1.health or p1.maxHealth or 20) - r1 end
-            if a1 > 0 then
-                local suffix = (t1 ~= s) and string.format(" -> slot %d (feint)", t1) or ""
-                self:addLog(string.format("Slot %d: P1 attacks P2 for %d (block %d, dmg %d)%s", s, a1, absorb2, math.max(0, r2), suffix))
-            end
-            if a2 > 0 then
-                local suffix = (t2 ~= s) and string.format(" -> slot %d (feint)", t2) or ""
-                self:addLog(string.format("Slot %d: P2 attacks P1 for %d (block %d, dmg %d)%s", s, a2, absorb1, math.max(0, r1), suffix))
-            end
-        end
-    elseif step.kind == "cleanup" then
-        for _, p in ipairs(self.players) do
-            local slot = p.boardSlots[s]
-            if slot and slot.card then
-                self:addLog(string.format("Slot %d: P%d discards %s", s, p.id or 0, slot.card.name or "card"))
-                self:discardCard(slot.card)
-                slot.card = nil
-            end
-            if slot then
-                slot.block = 0
-            end
-        end
-
-        -- Optional victory check
-        for idx, p in ipairs(self.players) do
-            if (p.health or 0) <= 0 then
-                print(string.format("Player %d has been defeated!", idx))
-                self:addLog(string.format("Player %d is defeated!", idx))
-            end
-        end
+    local handlerName = RESOLVE_STEP_HANDLERS[step.kind]
+    if handlerName and self[handlerName] then
+        self[handlerName](self, step.slot)
     end
 end
 
@@ -714,33 +741,9 @@ function GameState:nextPlayer(shouldAutoDraw)
         return
     end
 
-    local playerCount = #players
-    local originalIndex = self.currentPlayer or 1
-    local candidateIndex = originalIndex
-    local found = false
-
-    local function canStillPlay(index)
-        local player = players[index]
-        if not player or not player.id then
-            return false
-        end
-        local plays = (self.playedCount and self.playedCount[player.id]) or 0
-        local limit = self.maxBoardCards or (plays + 1)
-        return plays < limit
-    end
-
-    for _ = 1, playerCount do
-        candidateIndex = (candidateIndex % playerCount) + 1
-        if candidateIndex ~= originalIndex and canStillPlay(candidateIndex) then
-            found = true
-            break
-        end
-    end
-
-    if found then
-        self.currentPlayer = candidateIndex
-    else
-        self.currentPlayer = (originalIndex % playerCount) + 1
+    local nextIndex = self:findNextPlayerIndex() or self.currentPlayer
+    if nextIndex then
+        self.currentPlayer = nextIndex
     end
 
     self.microStarter = self.currentPlayer
@@ -748,16 +751,9 @@ function GameState:nextPlayer(shouldAutoDraw)
     self.playsInRound = 0
     self:updateCardVisibility()
 
-    if shouldAutoDraw ~= false and self.phase == "play" then
-        local n = Config.rules.autoDrawOnTurnStart or 0
-        local currentPlayer = self.players and self.players[self.currentPlayer] or nil
-        local bonus = currentPlayer and currentPlayer.getDrawBonus and currentPlayer:getDrawBonus("turnStart") or 0
-        local total = n + (bonus or 0)
-        for i = 1, total do
-            self:drawCardToPlayer(self.currentPlayer)
-        end
+    if shouldAutoDraw ~= false then
+        self:drawCardsForTurnStart()
     end
-
 end
 
 -- Advance the turn respecting the micro-round alternation.
@@ -777,8 +773,8 @@ end
 -- check if both have placed 3, if so go to resolve
 function GameState:maybeFinishPlayPhase()
     local allDone = true
-    for _, p in ipairs(self.players) do
-        if self.playedCount[p.id] < self.maxBoardCards then
+    for _, player in ipairs(self.players or {}) do
+        if self:hasBoardCapacity(player) then
             allDone = false
             break
         end
@@ -790,88 +786,184 @@ function GameState:maybeFinishPlayPhase()
     end
 end
 
-function GameState:playCardFromHand(card, slotIndex)
-    if self.phase ~= "play" then return end
-    local current = self:getCurrentPlayer()
-    local pid = current.id
+function GameState:hasBoardCapacity(player)
+    if not player then
+        return false
+    end
 
-    if card.owner ~= current then return end
-    if self.playedCount[pid] >= self.maxBoardCards then
+    local limit = self.maxBoardCards or player.maxBoardCards or #(player.boardSlots or {})
+    local played = self.playedCount and self.playedCount[player.id] or 0
+    return played < limit
+end
+
+function GameState:canAffordCard(player, card)
+    if Config.rules.energyEnabled == false then
+        return true, 0
+    end
+
+    local def = card and card.definition or nil
+    local cost = def and def.cost or 0
+    local energy = player and player.energy or 0
+    if cost <= energy then
+        return true, cost
+    end
+
+    return false, cost
+end
+
+function GameState:deductEnergyForCard(player, cost)
+    if Config.rules.energyEnabled == false or not player then
+        return
+    end
+
+    local amount = cost or 0
+    if amount > 0 then
+        player.energy = (player.energy or 0) - amount
+    end
+end
+
+function GameState:applyCardVariance(player, card)
+    local def = card and card.definition
+    if not def then
+        card.statVariance = nil
+        return
+    end
+
+    local fighter = player and player.getFighter and player:getFighter() or nil
+    local passives = fighter and fighter.passives or nil
+    local roll = self:rollVarianceForStat(player, card, def, passives, 'attack', 'attackVariance')
+    card.statVariance = roll and { attack = roll } or nil
+end
+
+function GameState:rollVarianceForStat(player, card, def, passives, statKey, passiveKey)
+    if not def then return nil end
+    local base = def[statKey]
+    if not base or base <= 0 then return nil end
+
+    local config = passives and passives[passiveKey] or nil
+    local amount = self:getVarianceAmount(config)
+    if amount <= 0 then return nil end
+
+    local rng = (love and love.math and love.math.random) or math.random
+    local roll = ((rng(2) == 1) and 1 or -1) * amount
+
+    local delta = roll > 0 and ('+' .. roll) or tostring(roll)
+    local cardName = card and (card.name or (card.definition and card.definition.name)) or 'card'
+    local playerId = player and player.id or 0
+    local msg = string.format("P%d %s variance %s on %s", playerId, statKey, delta, cardName)
+    self:addLog(msg)
+    print(msg)
+
+    return roll
+end
+
+function GameState:getVarianceAmount(config)
+    if type(config) == 'table' then
+        return config.amount or config.value or config.delta or 0
+    end
+    return config or 0
+end
+
+function GameState:onCardPlaced(player, card, slotIndex)
+    card.zone = 'board'
+    card.faceUp = true
+
+    local id = player and player.id
+    if id then
+        self.playedCount[id] = (self.playedCount[id] or 0) + 1
+    end
+
+    self:registerTurnAction()
+
+    if id then
+        local limit = self.maxBoardCards or player.maxBoardCards or #(player.boardSlots or {})
+        print(string.format(
+            "Player %d placed a card in slot %d. Played %d/%d cards.",
+            id,
+            slotIndex,
+            self.playedCount[id],
+            limit
+        ))
+    end
+
+    self.lastActionWasPass = false
+    self:nextPlayer()
+    self:maybeFinishPlayPhase()
+end
+
+function GameState:playerCanStillPlay(player)
+    return self:hasBoardCapacity(player)
+end
+
+function GameState:findNextPlayerIndex()
+    local players = self.players
+    local count = players and #players or 0
+    if count == 0 then
+        return nil
+    end
+
+    local originalIndex = self.currentPlayer or 1
+    local candidate = originalIndex
+    for _ = 1, count do
+        candidate = (candidate % count) + 1
+        if candidate ~= originalIndex and self:playerCanStillPlay(players[candidate]) then
+            return candidate
+        end
+    end
+
+    return (originalIndex % count) + 1
+end
+
+function GameState:drawCardsForTurnStart()
+    if self.phase ~= 'play' then
+        return
+    end
+
+    local base = Config.rules.autoDrawOnTurnStart or 0
+    local currentPlayer = self:getCurrentPlayer()
+    if not currentPlayer then
+        return
+    end
+    local bonus = currentPlayer and currentPlayer.getDrawBonus and currentPlayer:getDrawBonus('turnStart') or 0
+    local total = base + (bonus or 0)
+    if total <= 0 then
+        return
+    end
+    for i = 1, total do
+        self:drawCardToPlayer(self.currentPlayer)
+    end
+end
+
+function GameState:playCardFromHand(card, slotIndex)
+    if self.phase ~= "play" then
+        return
+    end
+
+    local current = self:getCurrentPlayer()
+    if not current or card.owner ~= current then
+        return
+    end
+
+    if not self:hasBoardCapacity(current) then
         current:snapCard(card, self)
         return
     end
 
-    -- cost check
-    if Config.rules.energyEnabled ~= false then
-        local cost = (card.definition and card.definition.cost) or 0
-        local energy = current.energy or 0
-        if cost > energy then
-            current:snapCard(card, self)
-            self:addLog("Not enough energy")
-            return
-        end
-    end
-
-    local ok = current:playCardToBoard(card, slotIndex, self)
-    if ok then
-        local def = card.definition
-        local fighter = current and current.getFighter and current:getFighter() or nil
-        local passives = fighter and fighter.passives or nil
-        local variances = nil
-
-        local function rollVariance(statKey, passiveKey)
-            if not def then return end
-            local base = def[statKey]
-            if not base or base <= 0 then return end
-            local config = passives and passives[passiveKey] or nil
-            if not config then return end
-            local amount
-            if type(config) == "table" then
-                amount = config.amount or config.value or config.delta
-            else
-                amount = config
-            end
-            amount = amount or 0
-            if amount <= 0 then return end
-            local rng = (love and love.math and love.math.random) or math.random
-            local roll = ((rng(2) == 1) and 1 or -1) * amount
-            variances = variances or {}
-            variances[statKey] = roll
-            local delta = roll > 0 and ('+' .. roll) or tostring(roll)
-            local cardName = card.name or (def and def.name) or 'card'
-            local msg = string.format("P%d %s variance %s on %s", pid, statKey, delta, cardName)
-            self:addLog(msg)
-            print(msg)
-        end
-
-        rollVariance('attack', 'attackVariance')
-
-        card.statVariance = variances
-
-        if Config.rules.energyEnabled ~= false then
-            local cost = (def and def.cost) or 0
-            if cost and cost > 0 then
-                current.energy = (current.energy or 0) - cost
-            end
-        end
-        card.zone = "board"
-        card.faceUp = true
-        self.playedCount[pid] = self.playedCount[pid] + 1
-        self:registerTurnAction()
-
-        -- Debug info
-        print(string.format(
-            "Player %d placed a card in slot %d. Played %d/%d cards.",
-            pid, slotIndex, self.playedCount[pid], self.maxBoardCards
-        ))
-
-        self.lastActionWasPass = false
-        self:nextPlayer()
-
-        self:maybeFinishPlayPhase()
-    else
+    local canPay, cost = self:canAffordCard(current, card)
+    if not canPay then
         current:snapCard(card, self)
+        self:addLog("Not enough energy")
+        return
     end
+
+    if not current:playCardToBoard(card, slotIndex, self) then
+        current:snapCard(card, self)
+        return
+    end
+
+    self:deductEnergyForCard(current, cost)
+    self:applyCardVariance(current, card)
+    self:onCardPlaced(current, card, slotIndex)
 end
 
 -- Manually refill energy based on current roundIndex and config
