@@ -34,7 +34,7 @@ function Player:init(args)
     end
 
     for i = 1, self.maxBoardCards do
-        self.boardSlots[i] = { x = 0, y = 0, card = nil }
+        self.boardSlots[i] = { x = 0, y = 0, card = nil, block = 0 }
     end
 end
 
@@ -191,6 +191,7 @@ function Player:playCardToBoard(card, slotIndex, gs)
         return false
     end
 
+    boardSlot.block = 0
     boardSlot.card = card
 
     local x, y = gs:getBoardSlotPosition(self.id, slotIndex)

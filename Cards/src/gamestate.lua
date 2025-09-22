@@ -9,6 +9,32 @@ local BoardRenderer = require "src.renderers.board_renderer"
 local HudRenderer = require "src.renderers.hud_renderer"
 local ResolveRenderer = require "src.renderers.resolve_renderer"
 
+local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
+
+
+local function sumSlotBlock(player)
+    local total = 0
+    if player and player.boardSlots then
+        for _, slot in ipairs(player.boardSlots) do
+            total = total + (slot.block or 0)
+        end
+    end
+    return total
+end
+
+local function consumeSlotBlock(player, slotIndex, amount)
+    if not player or not player.boardSlots or not slotIndex then return 0 end
+    local slot = player.boardSlots[slotIndex]
+    if not slot or amount <= 0 then return 0 end
+    local before = slot.block or 0
+    local absorbed = math.min(before, amount)
+    if absorbed > 0 then
+        slot.block = before - absorbed
+    end
+    player.block = sumSlotBlock(player)
+    return absorbed
+end
+
 local GameState = {}
 GameState.__index = GameState
 
@@ -88,8 +114,31 @@ function GameState:newFromDraft(draftedPlayers)
     gs:refreshLayoutPositions()
     return gs
 end
+function GameState:getTurnBackgroundColor()
+    local base = DEFAULT_BACKGROUND_COLOR
+    local player = self:getCurrentPlayer()
+    local color = player and player.getFighterColor and player:getFighterColor() or nil
+    if not color then
+        return base[1], base[2], base[3]
+    end
+
+    local accentR = math.max(0, math.min(1, color[1] or base[1]))
+    local accentG = math.max(0, math.min(1, color[2] or base[2]))
+    local accentB = math.max(0, math.min(1, color[3] or base[3]))
+
+    local blend = 0.7
+    local r = base[1] + (accentR - base[1]) * blend
+    local g = base[2] + (accentG - base[2]) * blend
+    local b = base[3] + (accentB - base[3]) * blend
+
+    return r, g, b
+end
+
 function GameState:draw()
     self:refreshLayoutPositions()
+
+    local r, g, b = self:getTurnBackgroundColor()
+    love.graphics.clear(r, g, b, 1)
 
     local screenW = Viewport.getWidth()
     local layout = self:getLayout()
@@ -486,6 +535,13 @@ function GameState:startResolve()
     self.resolveCurrentStep = nil
     self:addLog("--- Begin Resolution ---")
 
+    for _, player in ipairs(self.players or {}) do
+        player.block = 0
+        for _, slot in ipairs(player.boardSlots or {}) do
+            slot.block = 0
+        end
+    end
+
     local maxSlots = self.maxBoardCards or (#self.players[1].boardSlots)
 
     -- snapshot modifiers from any modifier cards on the board for this round
@@ -513,13 +569,15 @@ function GameState:performResolveStep(step)
     local s = step.slot
     if step.kind == "block" then
         for idx, p in ipairs(self.players) do
-            local slot = p.boardSlots[s]
-            if slot and slot.card and slot.card.definition then
-                local def = slot.card.definition
+            local slot = p.boardSlots and p.boardSlots[s]
+            if slot then
+                local def = slot.card and slot.card.definition or nil
                 local add = self:getEffectiveStat(idx, s, def, "block")
                 if add and add > 0 then
-                    p.block = (p.block or 0) + add
-                    self:addLog(string.format("Slot %d [Block]: P%d +%d block (%s) -> %d", s, p.id or 0, add, slot.card.name or "", p.block))
+                    slot.block = (slot.block or 0) + add
+                    p.block = sumSlotBlock(p)
+                    local source = slot.card and slot.card.name or "passive"
+                    self:addLog(string.format("Slot %d [Block]: P%d +%d block (%s) -> slot %d, total %d", s, p.id or 0, add, source, slot.block or 0, p.block or 0))
                 end
             end
         end
@@ -569,13 +627,12 @@ function GameState:performResolveStep(step)
         local t1 = targetIndexFor(1, s)
         local t2 = targetIndexFor(2, s)
         if a1 > 0 or a2 > 0 then
-            -- compute absorption using pre-step block values (simultaneous within slot)
-            local preB1 = p1.block or 0
-            local preB2 = p2.block or 0
-            local absorb2 = math.min(preB2, a1)
-            local absorb1 = math.min(preB1, a2)
-            p2.block = preB2 - absorb2
-            p1.block = preB1 - absorb1
+            local blockTargetP2 = (p2 and p2.boardSlots and p2.boardSlots[t1] and p2.boardSlots[t1].block) or 0
+            local blockTargetP1 = (p1 and p1.boardSlots and p1.boardSlots[t2] and p1.boardSlots[t2].block) or 0
+            local absorb2 = math.min(blockTargetP2, a1)
+            local absorb1 = math.min(blockTargetP1, a2)
+            consumeSlotBlock(p2, t1, absorb2)
+            consumeSlotBlock(p1, t2, absorb1)
             local r1 = a2 - absorb1
             local r2 = a1 - absorb2
             if r2 > 0 then p2.health = (p2.health or p2.maxHealth or 20) - r2 end
@@ -596,6 +653,9 @@ function GameState:performResolveStep(step)
                 self:addLog(string.format("Slot %d: P%d discards %s", s, p.id or 0, slot.card.name or "card"))
                 self:discardCard(slot.card)
                 slot.card = nil
+            end
+            if slot then
+                slot.block = 0
             end
         end
 
