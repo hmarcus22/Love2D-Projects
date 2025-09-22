@@ -6,6 +6,7 @@ local defs = {
         cost = 1,
         attack = 2,
         tags = { "brute" },
+        art = "assets/cards/punch.png"
     },
     {
         id = "heal",

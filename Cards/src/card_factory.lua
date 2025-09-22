@@ -1,4 +1,5 @@
 local Card = require "src.card"
+local CardArt = require "src.card_art"
 local defs = require "src.card_definitions"
 
 local defsById = {}
@@ -15,6 +16,14 @@ function factory.createCard(defId)
 
     local c = Card(defId, def.name)
     c.definition = def   -- attach stats
+    if def.art then
+        local image = CardArt.load(def.art)
+        if image then
+            c:setArt(image, def.art)
+        else
+            c:setArt(nil, def.art)
+        end
+    end
     return c
 end
 
@@ -28,3 +37,7 @@ function factory.createCopies(defId, count)
 end
 
 return factory
+
+
+
+
