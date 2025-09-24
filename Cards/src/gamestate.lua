@@ -78,9 +78,11 @@ function GameState:new()
     gs.deck = Deck(cards)
     gs.deck:shuffle()
 
+    local rules = Config.rules or {}
+    local defaultHand = rules.maxHandSize or 5
     gs:initPlayers({
-        Player{ id = 1, maxHandSize = 5 },
-        Player{ id = 2, maxHandSize = 5 },
+        Player{ id = 1, maxHandSize = defaultHand, maxBoardCards = rules.maxBoardCards },
+        Player{ id = 2, maxHandSize = defaultHand, maxBoardCards = rules.maxBoardCards },
     })
     gs:initTurnOrder()
     gs:initRoundState()
@@ -281,9 +283,13 @@ function GameState:update(dt)
                 -- increment round and refill energy
                 if Config.rules.energyEnabled ~= false then
                     self.roundIndex = (self.roundIndex or 0) + 1
-                    local base = Config.rules.energyStart or 3
+                    local base = Config.rules.energyStart or 0
                     local inc = Config.rules.energyIncrementPerRound or 0
                     local refill = base + (self.roundIndex * inc)
+                    local maxEnergy = Config.rules.energyMax
+                    if maxEnergy then
+                        refill = math.min(refill, maxEnergy)
+                    end
                     for _, p in ipairs(self.players) do
                         p.energy = refill
                     end
@@ -365,7 +371,7 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
 
     -- cost check
     if Config.rules.energyEnabled ~= false then
-        local cost = (card.definition and card.definition.cost) or 0
+        local cost = self:getEffectiveCardCost(owner, card)
         local energy = owner.energy or 0
         if cost > energy then
             if owner then owner:snapCard(card, self) end
@@ -821,13 +827,48 @@ function GameState:hasBoardCapacity(player)
     return played < limit
 end
 
+function GameState:getEffectiveCardCost(player, card)
+    local def = card and card.definition
+    local cost = def and def.cost or 0
+    if not def or not player then
+        return cost
+    end
+
+    local adjust = def.costAdjust
+    if adjust then
+        local ruleType = adjust.type
+        if ruleType == "belowHalfHealth" then
+            local maxHealth = player.maxHealth or 0
+            local current = player.health or maxHealth
+            local threshold = adjust.threshold or 0.5
+            if maxHealth > 0 and current <= maxHealth * threshold then
+                cost = adjust.cost or cost
+            end
+        end
+
+        local minCost = adjust.min
+        if minCost ~= nil then
+            cost = math.max(cost, minCost)
+        end
+
+        local maxCost = adjust.max
+        if maxCost ~= nil then
+            cost = math.min(cost, maxCost)
+        end
+    end
+
+    if cost < 0 then
+        cost = 0
+    end
+
+    return cost
+end
 function GameState:canAffordCard(player, card)
     if Config.rules.energyEnabled == false then
         return true, 0
     end
 
-    local def = card and card.definition or nil
-    local cost = def and def.cost or 0
+    local cost = self:getEffectiveCardCost(player, card)
     local energy = player and player.energy or 0
     if cost <= energy then
         return true, cost
@@ -1074,9 +1115,13 @@ end
 -- Manually refill energy based on current roundIndex and config
 function GameState:refillEnergyNow(manual)
     if Config.rules.energyEnabled ~= false then
-        local base = Config.rules.energyStart or 3
+        local base = Config.rules.energyStart or 0
         local inc = Config.rules.energyIncrementPerRound or 0
         local refill = base + ((self.roundIndex or 0) * inc)
+        local maxEnergy = Config.rules.energyMax
+        if maxEnergy then
+            refill = math.min(refill, maxEnergy)
+        end
         for _, p in ipairs(self.players) do
             p.energy = refill
         end

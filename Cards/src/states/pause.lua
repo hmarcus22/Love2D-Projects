@@ -56,10 +56,10 @@ function pause:keypressed(key)
         local n = (Config.rules.autoDrawPerRound or 0)
         Config.rules.autoDrawPerRound = (n + 1) % 3 -- cycle 0..2
     elseif key == "3" then
-        local n = (Config.rules.energyStart or 3)
+        local n = (Config.rules.energyStart or 2)
         Config.rules.energyStart = (n + 1) % 10 -- cycle 0..9
     elseif key == "4" then
-        local n = (Config.rules.energyIncrementPerRound or 1)
+        local n = (Config.rules.energyIncrementPerRound or 2)
         Config.rules.energyIncrementPerRound = (n + 1) % 6 -- cycle 0..5
     elseif key == "e" then
         if Globals.activeGame and Globals.activeGame.gs and Globals.activeGame.gs.refillEnergyNow then
@@ -73,3 +73,4 @@ function pause:keypressed(key)
 end
 
 return pause
+

@@ -5,7 +5,7 @@ local factory = require "src.card_factory"
 local Viewport = require "src.viewport"
 local Config = require "src.config"
 
-local DEFAULT_DECK_SIZE = 12
+local DEFAULT_DECK_SIZE = 14
 local DEFAULT_DRAFT_POOL = {
     { id = "punch", count = 10 },
     { id = "kick", count = 6 },
@@ -16,7 +16,7 @@ local DEFAULT_DRAFT_POOL = {
     { id = "hex", count = 4 },
     { id = "rally", count = 3 },
     { id = "duelist", count = 3 },
-    { id = "feint", count = 5 },
+    { id = "feint", count = 3 },
 }
 
 local draft = {}
@@ -209,5 +209,6 @@ function draft:mousepressed(x, y, button)
 end
 
 return draft
+
 
 

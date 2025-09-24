@@ -66,9 +66,14 @@ end
 
 function Initialiser.applyInitialEnergy(state)
     if Config.rules.energyEnabled ~= false then
-        local startE = Config.rules.energyStart or 3
+        local startE = Config.rules.energyStart or 0
+        local maxE = Config.rules.energyMax
+        local value = startE
+        if maxE then
+            value = math.min(value, maxE)
+        end
         for _, player in ipairs(state.players) do
-            player.energy = startE
+            player.energy = value
         end
     end
 end
@@ -87,3 +92,4 @@ function Initialiser.dealStartingHandsFromPlayerDecks(state)
 end
 
 return Initialiser
+

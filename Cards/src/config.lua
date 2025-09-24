@@ -12,9 +12,9 @@ return {
     },
   },
   rules = {
-    maxHandSize = 7,
+    maxHandSize = 6,
     maxBoardCards = 3,
-    startingHand = 7,
+    startingHand = 6,
 
     allowManualDraw = true,
     allowManualDiscard = true,
@@ -25,11 +25,12 @@ return {
 
     -- Energy / cost system
     energyEnabled = true,      -- enforce card costs when playing
-    energyStart = 3,           -- starting energy at round 0
-    energyIncrementPerRound = 1, -- energy added to the refill each round
+    energyStart = 2,           -- starting energy at round 0
+    energyIncrementPerRound = 2, -- energy added to the refill each round
+    energyMax = 6,             -- cap the per-round energy refill
   },
   draft = {
-    deckSize = 12,
+    deckSize = 14,
     pool = {
       { id = "punch", count = 10 },
       { id = "kick", count = 6 },
@@ -40,7 +41,7 @@ return {
       { id = "hex", count = 4 },
       { id = "rally", count = 3 },
       { id = "duelist", count = 3 },
-      { id = "feint", count = 4 },
+      { id = "feint", count = 3 },
     },
   },
   fighters = fighters,
@@ -66,4 +67,3 @@ return {
     sideGap = 30,
   }
 }
-

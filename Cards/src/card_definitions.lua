@@ -20,9 +20,10 @@ local defs = {
     {
         id = "heal",
         name = "Heal",
-        description = "Restore 3 health.",
-        cost = 1,
+        description = "Restore 3 health (cost 1 if at or below half health).",
+        cost = 2,
         heal = 3,
+        costAdjust = { type = "belowHalfHealth", cost = 1, threshold = 0.5 },
         tags = { "wildcard" },
     },
     {
