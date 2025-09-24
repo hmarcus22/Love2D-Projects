@@ -2,8 +2,8 @@ local fighters = require "src.fighter_definitions"
 
 return {
   window = {
-    width = 2000,
-    height = 1200,
+    width = 1000,
+    height = 600,
     flags = {
       resizable = true,
       highdpi = false,
@@ -31,7 +31,8 @@ return {
   draft = {
     deckSize = 12,
     pool = {
-      { id = "strike", count = 10 },
+      { id = "punch", count = 10 },
+      { id = "kick", count = 6 },
       { id = "heal", count = 5 },
       { id = "block", count = 10 },
       { id = "fireball", count = 4 },
@@ -65,3 +66,4 @@ return {
     sideGap = 30,
   }
 }
+

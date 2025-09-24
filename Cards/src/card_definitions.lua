@@ -1,10 +1,19 @@
 local defs = {
     {
-        id = "strike",
-        name = "Strike",
+        id = "punch",
+        name = "Punch",
         description = "Deal 2 damage.",
         cost = 1,
         attack = 2,
+        tags = { "brute" },
+        art = "assets/cards/punch.png"
+    },
+    {
+        id = "kick",
+        name = "Kick",
+        description = "Deal 3 damage.",
+        cost = 1,
+        attack = 3,
         tags = { "brute" },
         art = "assets/cards/punch.png"
     },

@@ -7,7 +7,8 @@ local Config = require "src.config"
 
 local DEFAULT_DECK_SIZE = 12
 local DEFAULT_DRAFT_POOL = {
-    { id = "strike", count = 10 },
+    { id = "punch", count = 10 },
+    { id = "kick", count = 6 },
     { id = "heal", count = 5 },
     { id = "block", count = 10 },
     { id = "fireball", count = 4 },
@@ -208,4 +209,5 @@ function draft:mousepressed(x, y, button)
 end
 
 return draft
+
 
