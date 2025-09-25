@@ -359,6 +359,24 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
         return false
     end
 
+
+    -- Restrict +block modifiers to block cards, +attack modifiers to attack cards
+    if m.block and m.block > 0 then
+        local baseBlock = (slot.card.definition and slot.card.definition.block) or 0
+        if baseBlock <= 0 then
+            if owner then owner:snapCard(card, self) end
+            self:addLog("Block modifier can only target a card with block")
+            return false
+        end
+    end
+    if m.attack and m.attack > 0 then
+        local baseAttack = (slot.card.definition and slot.card.definition.attack) or 0
+        if baseAttack <= 0 then
+            if owner then owner:snapCard(card, self) end
+            self:addLog("Attack modifier can only target a card with attack")
+            return false
+        end
+    end
     -- special rule: Feint (retarget) only applies to cards that attack
     if m.retarget then
         local baseAttack = (slot.card.definition and slot.card.definition.attack) or 0
@@ -645,10 +663,48 @@ function GameState:resolveAttackStep(slotIndex)
         local player = players[playerIdx]
         local slot = player and player.boardSlots and player.boardSlots[idx]
         if slot and slot.card and slot.card.definition then
-            return self:getEffectiveStat(playerIdx, idx, slot.card.definition, "attack") or 0
+            local card = slot.card
+            -- Combo logic: apply bonus if combo requirements met
+            if player.canPlayCombo and player:canPlayCombo(card) then
+                player:applyComboBonus(card)
+            end
+            -- Ultimate logic: apply effect if ultimate
+            if player.canPlayUltimate and player:canPlayUltimate(card) and card.effect then
+                self:applyUltimateEffect(playerIdx, idx, card)
+            end
+            return self:getEffectiveStat(playerIdx, idx, card.definition, "attack") or 0
         end
         return 0
     end
+-- Apply ultimate card effects (simple implementation)
+function GameState:applyUltimateEffect(playerIdx, slotIdx, card)
+    if card.effect == "swap_enemies" then
+        -- Swap all enemy card positions
+        local enemyIdx = (playerIdx == 1) and 2 or 1
+        local enemy = self.players[enemyIdx]
+        if enemy and enemy.boardSlots then
+            local slots = enemy.boardSlots
+            for i = 1, math.floor(#slots / 2) do
+                slots[i], slots[#slots - i + 1] = slots[#slots - i + 1], slots[i]
+            end
+            self:addLog(string.format("Ultimate: P%d swaps all enemy cards!", playerIdx))
+        end
+    elseif card.effect == "aoe_attack" then
+        -- Deal attack to all enemy cards
+        local enemyIdx = (playerIdx == 1) and 2 or 1
+        local enemy = self.players[enemyIdx]
+        if enemy and enemy.boardSlots then
+            for i, slot in ipairs(enemy.boardSlots) do
+                local damage = card.attack or 0
+                if damage > 0 then
+                    local before = enemy.health or enemy.maxHealth or 20
+                    enemy.health = before - damage
+                    self:addLog(string.format("Ultimate: P%d deals %d to P%d (slot %d)", playerIdx, damage, enemyIdx, i))
+                end
+            end
+        end
+    end
+end
 
     local function targetIndexFor(playerIdx, srcIdx)
         local mods = self.activeMods and self.activeMods[playerIdx] and self.activeMods[playerIdx].perSlot[srcIdx]

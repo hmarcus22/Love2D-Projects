@@ -46,8 +46,57 @@ function Player:setFighter(fighter)
     self.fighter = resolved or nil
     if resolved then
         self.fighterId = resolved.id
+        -- Add starter, signature, combo, and ultimate cards to deck
+        local factory = require "src.card_factory"
+        self.deck = {}
+        local function addCards(cardIds)
+            if cardIds then
+                for _, id in ipairs(cardIds) do
+                    table.insert(self.deck, factory.createCard(id))
+                end
+            end
+        end
+        addCards(resolved.starterCards)
+        addCards(resolved.signatureCards)
+        if resolved.comboCards then
+            addCards(resolved.comboCards)
+        end
+        if resolved.ultimate then
+            table.insert(self.deck, factory.createCard(resolved.ultimate))
+        end
     else
         self.fighterId = type(fighter) == "string" and fighter or nil
+    end
+end
+-- Combo and ultimate logic
+function Player:canPlayCombo(card)
+    if not card.combo then return false end
+    local hand = self:getHand()
+    for _, prev in ipairs(hand) do
+        if prev.id == card.combo.after then
+            return true
+        end
+    end
+    return false
+end
+
+function Player:canPlayUltimate(card)
+    return card.ultimate == true
+end
+
+function Player:applyComboBonus(card)
+    if card.combo and self:canPlayCombo(card) then
+        if card.combo.bonus then
+            for k, v in pairs(card.combo.bonus) do
+                card[k] = (card[k] or 0) + v
+            end
+        end
+        -- Penalty logic (optional)
+        if card.combo.penalty then
+            for k, v in pairs(card.combo.penalty) do
+                -- Example: apply penalty next round (not implemented here)
+            end
+        end
     end
 end
 

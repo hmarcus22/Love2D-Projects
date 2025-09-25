@@ -19,7 +19,9 @@ local DEFAULT_DRAFT_POOL = {
     { id = "feint", count = 3 },
 }
 
+local Button = require "src.ui.button"
 local draft = {}
+draft._autoDraftButton = nil
 
 local function buildDraftPool()
     local draftConfig = Config.draft or {}
@@ -177,12 +179,50 @@ function draft:draw()
             end
         end
     end
+
+    -- Draw Auto Draft button
+    local btnW, btnH = 180, 36
+    local btnX = (screenW - btnW) / 2
+    local btnY = screenH - 48
+    if not self._autoDraftButton then
+        self._autoDraftButton = Button:new{
+            x = btnX, y = btnY, w = btnW, h = btnH,
+            label = "Auto Draft (A)",
+            color = {0.2, 0.5, 0.2, 0.85},
+            hoveredColor = {0.3, 0.7, 0.3, 1},
+            textColor = {1, 1, 1, 1},
+            id = "auto_draft_btn",
+            onClick = function()
+                draft:autoDraftDecks()
+            end
+        }
+    else
+        self._autoDraftButton.x = btnX
+        self._autoDraftButton.y = btnY
+    end
+    self._autoDraftButton:draw()
+
     Viewport.unapply()
+function draft:autoDraftDecks()
+    -- Fill both decks with random cards from the draft pool
+    for _, p in ipairs(self.players) do
+        while #p.deck < self.targetDeckSize and #self.draftPool > 0 do
+            local card = table.remove(self.draftPool)
+            table.insert(p.deck, card)
+        end
+    end
+    Gamestate.switch(game, self.players)
+end
 end
 function draft:mousepressed(x, y, button)
     if button ~= 1 then return end
     x, y = Viewport.toVirtual(x, y)
     self:updateChoicePositions()
+
+    -- Check auto draft button
+    if self._autoDraftButton and self._autoDraftButton:click(x, y) then
+        return
+    end
 
     for i, card in ipairs(self.choices) do
         if card:isHovered(x, y) then
@@ -206,6 +246,11 @@ function draft:mousepressed(x, y, button)
             self.currentPlayer = self.currentPlayer % #self.players + 1
             break
         end
+    end
+end
+function draft:keypressed(key)
+    if key == "a" then
+        self:autoDraftDecks()
     end
 end
 

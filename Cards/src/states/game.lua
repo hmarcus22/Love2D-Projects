@@ -22,8 +22,19 @@ function game:enter(from, draftedPlayers)
                 fighter = fighter,
                 fighterId = fighterId
             }
-            -- copy drafted deck into player's deck
-            player.deck = p.deck
+            -- Ensure fighter-specific cards are included
+            player:setFighter(fighter or fighterId)
+            -- Add drafted cards (if any) on top
+            if p.deck then
+                local factory = require "src.card_factory"
+                for _, c in ipairs(p.deck) do
+                    if type(c) == "string" then
+                        table.insert(player.deck, factory.createCard(c))
+                    elseif type(c) == "table" and c.id then
+                        table.insert(player.deck, factory.createCard(c.id))
+                    end
+                end
+            end
             newPlayers[i] = player
         end
         -- snapshot initial decks (by def id) and player props for restart
@@ -74,15 +85,33 @@ function game:restartBattle()
     self.gs = GameState:newFromDraft(newPlayers)
 end
 
-function game:update(dt)  self.gs:update(dt) end
+function game:update(dt)
+    self.gs:update(dt)
+    local HudRenderer = require "src.renderers.hud_renderer"
+    if HudRenderer.update then HudRenderer.update(dt) end
+end
 function game:draw()
     Viewport.apply()
     self.gs:draw()
+    local HudRenderer = require "src.renderers.hud_renderer"
+    if HudRenderer.drawDeckSummaryPopup then HudRenderer.drawDeckSummaryPopup() end
     Viewport.unapply()
 end
 
 function game:mousepressed(x, y, button)
     local vx, vy = Viewport.toVirtual(x, y)
+    local HudRenderer = require "src.renderers.hud_renderer"
+    local screenW = love.graphics.getWidth()
+    local btnW, btnH = 120, 32
+    local btnY = 8
+    -- Check deck inspect buttons
+    for i, player in ipairs(self.gs.players or {}) do
+        local btnX = (i == 1) and 24 or (screenW - btnW - 24)
+        if vx >= btnX and vx <= btnX + btnW and vy >= btnY and vy <= btnY + btnH then
+            HudRenderer.showDeckSummary(player)
+            return
+        end
+    end
     Input:mousepressed(self.gs, vx, vy, button)
 end
 function game:mousereleased(x, y, button)

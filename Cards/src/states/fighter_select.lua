@@ -170,10 +170,11 @@ function fighter_select:startDraft()
             maxHandSize = maxHand,
             maxBoardCards = maxBoard,
         }
+        local player = Player(args)
         if fighter then
-            args.fighter = fighter
+            player:setFighter(fighter)
         end
-        players[i] = Player(args)
+        players[i] = player
     end
 
     Gamestate.switch(draft, players)
