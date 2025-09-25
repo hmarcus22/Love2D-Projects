@@ -144,49 +144,7 @@ local function drawBackArt(x, y, w, h)
     return true
 end
 
-function Card:draw()
-    local x, y, w, h = self.x, self.y, self.w, self.h
-
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.rectangle("fill", x, y, w, h, 8, 8)
-    love.graphics.setColor(0, 0, 0)
-    love.graphics.rectangle("line", x, y, w, h, 8, 8)
-
-    if not self.faceUp then
-        if drawBackArt(x, y, w, h) then
-            return
-        end
-        love.graphics.setColor(0.2, 0.2, 0.6)
-        love.graphics.printf("Deck", x, y + h / 2 - 6, w, "center")
-        return
-    end
-
-    love.graphics.setColor(0, 0, 0)
-    love.graphics.printf(self.name, x, y + 8, w, "center")
-
-    if not self.definition then
-        return
-    end
-
-    if self.definition.cost then
-        love.graphics.setColor(0.9, 0.9, 0.3)
-        love.graphics.circle("fill", x + 15, y + 15, 12)
-        love.graphics.setColor(0, 0, 0)
-        love.graphics.printf(tostring(self.definition.cost), x, y + 9, 30, "center")
-    end
-
-    local descTop = y + h - 60
-    local statY = y + 48
-
-    statY = drawArt(self.art, x, y, w, h, descTop, statY)
-    statY = drawCardStats(self, statY, descTop)
-
-    if self.definition.description then
-        love.graphics.setColor(0.1, 0.1, 0.1)
-        love.graphics.printf(self.definition.description,
-            x + 5, descTop, w - 10, "center")
-    end
-end
+-- Card logic only; rendering is handled by CardRenderer
 
 function Card:isHovered(mx, my)
     return mx > self.x and mx < self.x + self.w and my > self.y and my < self.y + self.h

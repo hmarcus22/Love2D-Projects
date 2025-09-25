@@ -220,7 +220,8 @@ function Player:drawBoard()
         love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
         if slot.card then
             love.graphics.setColor(1, 1, 1, 1)
-            slot.card:draw()
+            local CardRenderer = require "src.card_renderer"
+            CardRenderer.draw(slot.card)
         end
     end
 
@@ -289,13 +290,15 @@ function Player:drawHand(isCurrent, gs)
             end
 
             if card ~= hoveredCard then
-                card:draw()
+                local CardRenderer = require "src.card_renderer"
+                CardRenderer.draw(card)
             end
         end
     end
 
     if hoveredCard and (not gs or hoveredCard ~= gs.draggingCard) then
-        hoveredCard:draw()
+        local CardRenderer = require "src.card_renderer"
+        CardRenderer.draw(hoveredCard)
     end
 
     love.graphics.setColor(1, 1, 1, 1)

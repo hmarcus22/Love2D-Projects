@@ -12,6 +12,7 @@ local fighters = {
         },
         traits = { "red", "cage" },
         favoredTags = { "brute" },
+        signatureCards = { "ground_pound", "iron_guard" },
     },
     tactician = {
         id = "tactician",
@@ -26,6 +27,7 @@ local fighters = {
         },
         traits = { "blue", "control" },
         favoredTags = { "tactician" },
+        signatureCards = { "counterplay", "tactical_shift" },
     },
     wildcard = {
         id = "wildcard",
@@ -38,6 +40,7 @@ local fighters = {
         },
         traits = { "green", "tempo" },
         favoredTags = { "wildcard" },
+        signatureCards = { "hot_cold_combo", "momentum_surge" },
     },
 }
 
@@ -51,4 +54,3 @@ return {
     list = order,
     byId = fighters,
 }
-

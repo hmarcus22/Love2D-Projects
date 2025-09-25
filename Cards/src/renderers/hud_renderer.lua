@@ -23,11 +23,12 @@ function HudRenderer.drawTurnBanner(state, screenW)
 end
 
 function HudRenderer.drawDiscardArea(state)
+    local CardRenderer = require "src.card_renderer"
     if not Config.rules.showDiscardPile then return end
     if state.discardPile and #state.discardPile > 0 then
-        state.discardPile[#state.discardPile]:draw()
+        CardRenderer.draw(state.discardPile[#state.discardPile])
     elseif state.discardStack then
-        state.discardStack:draw()
+        CardRenderer.draw(state.discardStack)
     end
 end
 
@@ -82,8 +83,9 @@ function HudRenderer.drawPassButton(state)
 end
 
 function HudRenderer.drawDraggingCard(state)
+    local CardRenderer = require "src.card_renderer"
     if state.draggingCard then
-        state.draggingCard:draw()
+        CardRenderer.draw(state.draggingCard)
     end
 end
 

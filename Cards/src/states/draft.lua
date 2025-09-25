@@ -126,8 +126,9 @@ function draft:draw()
     self:updateChoicePositions()
 
     local highlightPlayer = self.players and self.players[self.currentPlayer]
+    local CardRenderer = require "src.card_renderer"
     for _, c in ipairs(self.choices) do
-        c:draw()
+        CardRenderer.draw(c)
         if highlightPlayer and highlightPlayer.isCardFavored and highlightPlayer:isCardFavored(c.definition) then
             love.graphics.setColor(1, 1, 0.4, 0.9)
             love.graphics.setLineWidth(3)

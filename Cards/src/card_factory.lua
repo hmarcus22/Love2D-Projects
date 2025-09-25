@@ -9,11 +9,18 @@ end
 
 local factory = {}
 
--- make one card instance by ID
-function factory.createCard(defId)
+function factory.reloadDefinitions()
+    package.loaded["src.card_definitions"] = nil
+    local newDefs = require "src.card_definitions"
+    defsById = {}
+    for _, def in ipairs(newDefs) do
+        defsById[def.id] = def
+    end
+end
+
+function factory.createCard(defId, opts)
     local def = defsById[defId]
     if not def then error("Unknown card id: " .. tostring(defId)) end
-
     local c = Card(defId, def.name)
     c.definition = def   -- attach stats
     if def.art then
@@ -24,14 +31,18 @@ function factory.createCard(defId)
             c:setArt(nil, def.art)
         end
     end
+    if opts then
+        for k, v in pairs(opts) do
+            c[k] = v
+        end
+    end
     return c
 end
 
--- make N copies of a card
-function factory.createCopies(defId, count)
+function factory.createCopies(defId, count, opts)
     local copies = {}
     for i = 1, count do
-        table.insert(copies, factory.createCard(defId))
+        table.insert(copies, factory.createCard(defId, opts))
     end
     return copies
 end

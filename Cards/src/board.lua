@@ -23,7 +23,8 @@ function Board:draw()
             love.graphics.setColor(0.8, 0.8, 0.2, 0.35)
             love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
             if slot.card then
-                slot.card:draw()
+                local CardRenderer = require "src.card_renderer"
+                CardRenderer.draw(slot.card)
             end
         end
     end

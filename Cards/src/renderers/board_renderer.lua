@@ -220,7 +220,8 @@ function BoardRenderer.draw(state, layout)
             if slot.card then
                 slot.card.x = slotX
                 slot.card.y = slotY
-                slot.card:draw()
+                local CardRenderer = require "src.card_renderer"
+                CardRenderer.draw(slot.card)
 
                 attackTargets = collectAttackTargets(state, playerIndex, slotIndex)
 
