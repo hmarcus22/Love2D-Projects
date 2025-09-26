@@ -48,6 +48,22 @@ return {
   fighters = fighters,
   ui = {
     showDeckCount = true,
+    buttonW = 120,
+    buttonH = 32,
+    deckPopupW = 320,
+    deckPopupH = 240,
+    arrowHeadSize = 16,
+    arrowThickness = 3,
+  },
+  colors = {
+    button = {0.2, 0.2, 0.6, 0.85},
+    buttonHover = {0.35, 0.35, 0.8, 1},
+    passButton = {0.85, 0.85, 0.85, 1},
+    passButtonHover = {0.95, 0.95, 0.95, 1},
+    arrow = {1, 1, 0, 1},
+    attackArrow = {0.9, 0.2, 0.2, 0.8},
+    deckPopupBg = {0, 0, 0, 0.85},
+    deckPopupBorder = {1, 1, 1, 1},
   },
   layout = {
     designWidth = 1000,

@@ -1,21 +1,21 @@
-local Button = {}
-Button.__index = Button
+local Class = require "libs.hump.class"
+local Config = require "src.config"
 
-function Button:new(args)
-    local btn = setmetatable({}, self)
-    btn.x = args.x or 0
-    btn.y = args.y or 0
-    btn.w = args.w or 120
-    btn.h = args.h or 32
-    btn.label = args.label or "Button"
-    btn.onClick = args.onClick or function() end
-    btn.enabled = args.enabled ~= false
-    btn.visible = args.visible ~= false
-    btn.color = args.color or {0.2, 0.2, 0.6, 0.85}
-    btn.hoveredColor = args.hoveredColor or {0.35, 0.35, 0.8, 1}
-    btn.textColor = args.textColor or {1, 1, 1, 1}
-    btn.id = args.id
-    return btn
+local Button = Class()
+
+function Button:init(args)
+    self.x = args.x or 0
+    self.y = args.y or 0
+    self.w = args.w or Config.ui.buttonW
+    self.h = args.h or Config.ui.buttonH
+    self.label = args.label or "Button"
+    self.onClick = args.onClick or function() end
+    self.enabled = args.enabled ~= false
+    self.visible = args.visible ~= false
+    self.color = args.color or Config.colors.button
+    self.hoveredColor = args.hoveredColor or Config.colors.buttonHover
+    self.textColor = args.textColor or {1, 1, 1, 1}
+    self.id = args.id
 end
 
 function Button:draw()

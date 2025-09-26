@@ -29,15 +29,18 @@ local function update(dt)
     end
 end
 
+local Config = require "src.config"
 local function drawDeckSummaryPopup()
     if not deckSummaryPopup then return end
     local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
-    local w, h = 320, 240
+    local w = Config.ui.deckPopupW
+    local h = Config.ui.deckPopupH
     local x, y = (screenW - w) / 2, (screenH - h) / 2
-    love.graphics.setColor(0, 0, 0, 0.85)
+    love.graphics.setColor(Config.colors.deckPopupBg)
     love.graphics.rectangle("fill", x, y, w, h, 12, 12)
-    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.setColor(Config.colors.deckPopupBorder)
     love.graphics.rectangle("line", x, y, w, h, 12, 12)
+    love.graphics.setColor(1, 1, 1, 1)
     love.graphics.printf("Deck Contents:", x, y + 18, w, "center")
     love.graphics.printf(deckSummaryPopup.text, x + 16, y + 48, w - 32, "left")
 end
@@ -113,7 +116,7 @@ local Button = require "src.ui.button"
 local function drawPassButton(state)
     local bx, by, bw, bh = state:getPassButtonRect()
     if not state._passButton then
-        state._passButton = Button:new{
+        state._passButton = Button{
             x = bx, y = by, w = bw, h = bh,
             label = "Pass",
             color = {0.85, 0.85, 0.85, 1},
@@ -158,7 +161,7 @@ local function drawPostBoard(state)
     for i, player in ipairs(state.players or {}) do
         local btnX = (i == 1) and 24 or (screenW - btnW - 24)
         if not state._deckButtons[i] then
-            state._deckButtons[i] = Button:new{
+            state._deckButtons[i] = Button{
                 x = btnX, y = btnY, w = btnW, h = btnH,
                 label = string.format("View P%d Deck", i),
                 color = {0.2, 0.2, 0.6, 0.85},

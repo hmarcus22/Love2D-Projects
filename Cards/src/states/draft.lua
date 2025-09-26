@@ -112,8 +112,17 @@ function draft:draw()
     Viewport.apply()
     love.graphics.setColor(1, 1, 1)
     local screenW = Viewport.getWidth()
+    local screenH = Viewport.getHeight()
     love.graphics.printf("Draft Phase", 0, 40, screenW, "center")
 
+    self:drawPrompt(screenW)
+    self:drawChoices()
+    self:drawPlayerDecks(screenW, screenH)
+    self:drawAutoDraftButton(screenW, screenH)
+    Viewport.unapply()
+end
+
+function draft:drawPrompt(screenW)
     local prompt = string.format("Player %d choose a card", self.currentPlayer)
     local current = self.players and self.players[self.currentPlayer]
     if current and current.getFighter then
@@ -124,9 +133,10 @@ function draft:draw()
         end
     end
     love.graphics.printf(prompt, 0, 80, screenW, "center")
+end
 
+function draft:drawChoices()
     self:updateChoicePositions()
-
     local highlightPlayer = self.players and self.players[self.currentPlayer]
     local CardRenderer = require "src.card_renderer"
     for _, c in ipairs(self.choices) do
@@ -139,15 +149,14 @@ function draft:draw()
             love.graphics.setColor(1, 1, 1, 1)
         end
     end
+end
 
-    local screenH = Viewport.getHeight()
+function draft:drawPlayerDecks(screenW, screenH)
     local miniCardW = 50
     local miniCardH = 70
     local miniSpacing = 60
-
     for i, p in ipairs(self.players) do
         local rowY = screenH - (i * 90)
-
         love.graphics.setColor(1, 1, 1)
         local fighter = p.getFighter and p:getFighter()
         local fighterLabel = fighter and (fighter.shortName or fighter.name)
@@ -156,11 +165,9 @@ function draft:draw()
             header = header .. string.format(" - %s", fighterLabel)
         end
         love.graphics.printf(header .. ":", 0, rowY - 30, screenW, "center")
-
         local count = math.max(1, #p.deck)
         local totalWidth = miniCardW + miniSpacing * math.max(0, count - 1)
         local startX = math.floor((screenW - totalWidth) / 2)
-
         if #p.deck == 0 then
             love.graphics.setColor(1, 1, 1, 0.4)
             love.graphics.rectangle("line", startX, rowY, miniCardW, miniCardH, 6, 6)
@@ -169,23 +176,22 @@ function draft:draw()
             for j, c in ipairs(p.deck) do
                 local cx = startX + (j - 1) * miniSpacing
                 local cy = rowY
-
                 love.graphics.setColor(1, 1, 1)
                 love.graphics.rectangle("fill", cx, cy, miniCardW, miniCardH, 6, 6)
                 love.graphics.setColor(0, 0, 0)
                 love.graphics.rectangle("line", cx, cy, miniCardW, miniCardH, 6, 6)
-
                 love.graphics.printf(c.name, cx + 2, cy + 25, miniCardW - 4, "center")
             end
         end
     end
+end
 
-    -- Draw Auto Draft button
+function draft:drawAutoDraftButton(screenW, screenH)
     local btnW, btnH = 180, 36
     local btnX = (screenW - btnW) / 2
     local btnY = screenH - 48
     if not self._autoDraftButton then
-        self._autoDraftButton = Button:new{
+        self._autoDraftButton = Button{
             x = btnX, y = btnY, w = btnW, h = btnH,
             label = "Auto Draft (A)",
             color = {0.2, 0.5, 0.2, 0.85},
@@ -201,8 +207,7 @@ function draft:draw()
         self._autoDraftButton.y = btnY
     end
     self._autoDraftButton:draw()
-
-    Viewport.unapply()
+end
 function draft:autoDraftDecks()
     -- Fill both decks with random cards from the draft pool
     for _, p in ipairs(self.players) do
@@ -212,7 +217,6 @@ function draft:autoDraftDecks()
         end
     end
     Gamestate.switch(game, self.players)
-end
 end
 function draft:mousepressed(x, y, button)
     if button ~= 1 then return end

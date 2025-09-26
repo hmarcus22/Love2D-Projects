@@ -21,6 +21,7 @@ local function summarizeModifierEffects(mods)
     return direction, attack, block, heal
 end
 
+local Arrow = require "src.ui.arrow"
 local function drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
     local direction, attack, block, heal = summarizeModifierEffects(mods)
     if (attack ~= 0) or (block ~= 0) or (heal ~= 0) or direction then
@@ -29,14 +30,16 @@ local function drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
     end
 
     if direction then
-        love.graphics.setColor(0.9, 0.2, 0.2, 0.8)
-        local triX = slotX + (direction < 0 and math.floor(cardW * 0.1) or (cardW - math.floor(cardW * 0.1)))
-        local triY = slotY + math.floor(cardH * 0.08)
-        if direction < 0 then
-            love.graphics.polygon("fill", triX, triY, triX + 10, triY - 6, triX + 10, triY + 6)
-        else
-            love.graphics.polygon("fill", triX, triY, triX - 10, triY - 6, triX - 10, triY + 6)
-        end
+        local startX = slotX + cardW / 2
+        local startY = slotY + cardH / 2
+        local endX = slotX + cardW / 2 + direction * (cardW * 0.45)
+        local endY = slotY + cardH / 2
+        local arrow = Arrow({startX, startY}, {endX, endY}, {
+            color = {0.9, 0.2, 0.2, 0.8},
+            thickness = 3,
+            headSize = 14
+        })
+        arrow:draw()
     end
 
     local function drawBadge(x, y, bg, text)
@@ -141,19 +144,12 @@ local function drawAttackIndicators(state, layout, playerIndex, slotIndex, slotX
         local ex = targetCenterX - dx / dist * insetEnd
         local ey = targetCenterY - dy / dist * insetEnd
 
-        love.graphics.setColor(1, 1, 0.2, 0.85)
-        love.graphics.setLineWidth(3)
-        love.graphics.line(sx, sy, ex, ey)
-        love.graphics.setLineWidth(1)
-
-        local angle = math.atan2(dy, dx)
-        local headLen = 10
-        local headAngle = 0.4
-        local hx1 = ex - headLen * math.cos(angle - headAngle)
-        local hy1 = ey - headLen * math.sin(angle - headAngle)
-        local hx2 = ex - headLen * math.cos(angle + headAngle)
-        local hy2 = ey - headLen * math.sin(angle + headAngle)
-        love.graphics.polygon("fill", ex, ey, hx1, hy1, hx2, hy2)
+        local arrow = Arrow({sx, sy}, {ex, ey}, {
+            color = {1, 1, 0.2, 0.85},
+            thickness = 3,
+            headSize = 10
+        })
+        arrow:draw()
         love.graphics.setColor(1, 1, 1, 1)
     end
 end

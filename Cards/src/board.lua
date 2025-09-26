@@ -1,4 +1,5 @@
 local Class = require "libs.hump.class"
+local Config = require "src.config"
 
 local Board = Class{}
 
@@ -7,12 +8,14 @@ function Board:init(players)
     self.maxSlots = 3
     self.slots = {}
 
+    local cardW = Config.layout.cardW
+    local slotSpacing = Config.layout.slotSpacing
     -- create slots per player
     for i, p in ipairs(players) do
         local y = (p.y > 200) and (p.y - 180) or (p.y + 180)
         self.slots[i] = {}
         for j = 1, self.maxSlots do
-            table.insert(self.slots[i], { x = 300 + (j-1)*110, y = y, card = nil })
+            table.insert(self.slots[i], { x = 300 + (j-1)*slotSpacing, y = y, card = nil })
         end
     end
 end

@@ -39,8 +39,13 @@ function ResolveRenderer.drawOverlay(state, layout, screenW)
             local ay = sy + cardH / 2
             local bx2 = tx + cardW / 2
             local by2 = ty + cardH / 2
-            love.graphics.setLineWidth(2)
-            love.graphics.line(ax, ay, bx2, by2)
+            local Arrow = require "src.ui.arrow"
+            local arrow = Arrow({ax, ay}, {bx2, by2}, {
+                color = {0.9, 0.2, 0.2, 0.8},
+                thickness = 2,
+                headSize = 12
+            })
+            arrow:draw()
             love.graphics.setColor(0.9, 0.2, 0.2, 0.3)
             love.graphics.rectangle("fill", tx, ty, cardW, cardH, 8, 8)
         end
