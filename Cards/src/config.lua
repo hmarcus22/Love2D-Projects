@@ -47,7 +47,7 @@ return {
   },
   fighters = fighters,
   ui = {
-    showDeckCount = true,
+    showDeckCount = false,
     buttonW = 120,
     buttonH = 32,
     deckPopupW = 320,

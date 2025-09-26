@@ -224,7 +224,7 @@ end
 
 local function drawDraggingCard(state)
     if state.draggingCard then
-        print(string.format("[DEBUG] drawDraggingCard: '%s' at (%.1f, %.1f)", state.draggingCard.name or "?", state.draggingCard.x, state.draggingCard.y))
+    -- Debug print removed
         CardRenderer.draw(state.draggingCard)
     end
 end

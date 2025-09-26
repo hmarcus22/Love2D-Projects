@@ -166,7 +166,7 @@ function Input:update(gs, dt)
         gs.draggingCard.x = mx - (gs.draggingCard.offsetX or 0)
         gs.draggingCard.y = my - (gs.draggingCard.offsetY or 0)
         gs.draggingCard.faceUp = true -- Always show card face while dragging
-        print(string.format("[DEBUG] Dragging card '%s' at (%.1f, %.1f)", gs.draggingCard.name or "?", gs.draggingCard.x, gs.draggingCard.y))
+    -- Debug print removed
     end
 end
 

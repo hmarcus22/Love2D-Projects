@@ -5,7 +5,7 @@ local Player = require "src.player"
 local Viewport = require "src.viewport"
 local Config = require "src.config"
 local Layout = require "src.game_layout"
-local Initialiser = require "src.game_initialiser"
+local PlayerManager = require "src.player_manager"
 local BoardRenderer = require "src.renderers.board_renderer"
 local HudRenderer = require "src.renderers.hud_renderer"
 local ResolveRenderer = require "src.renderers.resolve_renderer"
@@ -79,11 +79,11 @@ GameState.getBoardMetrics = Layout.getBoardMetrics
 GameState.getBoardY = Layout.getBoardY
 GameState.refreshLayoutPositions = Layout.refreshPositions
 
-GameState.initPlayers = Initialiser.initPlayers
-GameState.initTurnOrder = Initialiser.initTurnOrder
-GameState.initRoundState = Initialiser.initRoundState
+GameState.initPlayers = PlayerManager.initPlayers
+GameState.initTurnOrder = PlayerManager.initTurnOrder
+GameState.initRoundState = PlayerManager.initRoundState
 GameState.initUiState = Initialiser.initUiState
-GameState.initAttachments = Initialiser.initAttachments
+GameState.initAttachments = PlayerManager.initAttachments
 GameState.initResolveState = Initialiser.initResolveState
 GameState.applyInitialEnergy = Initialiser.applyInitialEnergy
 GameState.dealStartingHandsFromPlayerDecks = Initialiser.dealStartingHandsFromPlayerDecks
@@ -266,6 +266,31 @@ end
 
 function GameState:update(dt)
     -- Add per-frame game update logic here if needed
+    if self.phase == "resolve" and self.resolveQueue and self.resolveIndex then
+        -- Set current step for visual indication
+        if self.resolveIndex < #self.resolveQueue then
+            self.resolveCurrentStep = self.resolveQueue[self.resolveIndex + 1]
+        else
+            self.resolveCurrentStep = nil
+        end
+        self.resolveTimer = (self.resolveTimer or 0) + (dt or 0)
+        local stepDuration = self.resolveStepDuration or 0.5
+        while self.resolveIndex < #self.resolveQueue and self.resolveTimer >= stepDuration do
+            self.resolveTimer = self.resolveTimer - stepDuration
+            self.resolveIndex = self.resolveIndex + 1
+            local step = self.resolveQueue[self.resolveIndex]
+            if step then
+                print(string.format("[DEBUG] Performing resolve step %d/%d: %s slot %d", self.resolveIndex, #self.resolveQueue, step.kind, step.slot))
+                self:performResolveStep(step)
+            end
+            -- Update current step after performing
+            if self.resolveIndex < #self.resolveQueue then
+                self.resolveCurrentStep = self.resolveQueue[self.resolveIndex + 1]
+            else
+                self.resolveCurrentStep = nil
+            end
+        end
+    end
 end
 
 function GameState:updateCardVisibility()
@@ -605,6 +630,27 @@ function GameState:resolveCleanupStep(slotIndex)
         end
     end
 
+    local function startNewRound()
+        print("[DEBUG] startNewRound called: roundIndex=" .. tostring(self.roundIndex) .. " phase=" .. tostring(self.phase))
+        -- Reset health for next round
+        for _, player in ipairs(self.players or {}) do
+            player.health = player.maxHealth or 20
+        end
+        -- Fully re-initialize round state so play can continue
+    self:initRoundState()
+    self:initUiState(true)
+    self:initAttachments()
+    self:initResolveState()
+    -- self:applyInitialEnergy() removed; energy now increments per round
+    if self.dealStartingHandsFromPlayerDecks then
+            self:dealStartingHandsFromPlayerDecks()
+        end
+        self:updateCardVisibility()
+        self:refreshLayoutPositions()
+        self.phase = "play" -- Ensure game returns to play phase after round reset
+        print("[DEBUG] startNewRound finished: roundIndex=" .. tostring(self.roundIndex) .. " phase=" .. tostring(self.phase))
+    end
+
     if roundLoser then
         local winner = (roundLoser == 1) and 2 or 1
         self.roundWins[winner] = (self.roundWins[winner] or 0) + 1
@@ -621,12 +667,12 @@ function GameState:resolveCleanupStep(slotIndex)
                     self.logger:log_event("match_win", { winner = winner })
                 end
             else
-                -- Reset health for next round
-                for _, player in ipairs(self.players or {}) do
-                    player.health = player.maxHealth or 20
-                end
+                startNewRound()
             end
         end)
+    else
+        -- No round winner, but resolve finished: start new round anyway
+        startNewRound()
     end
 end
 

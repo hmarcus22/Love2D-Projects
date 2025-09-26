@@ -4,7 +4,7 @@ local CardRenderer = {}
 -- Draw a card (face up or down)
 function CardRenderer.draw(card)
     local x, y, w, h = card.x, card.y, card.w, card.h
-    print(string.format("[DEBUG] CardRenderer.draw: '%s' at (%.1f, %.1f) w=%.1f h=%.1f faceUp=%s", card.name or "?", x, y, w or 0, h or 0, tostring(card.faceUp)))
+    -- Debug print removed
     -- Draw card background
     love.graphics.setColor(1, 1, 1)
     love.graphics.rectangle("fill", x, y, w, h, 8, 8)
