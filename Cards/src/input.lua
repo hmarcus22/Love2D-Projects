@@ -64,13 +64,10 @@ function Input:mousepressed(gs, x, y, button)
         return
     end
 
-    -- Click Pass button
-    if gs.phase == "play" then
-        local bx, by, bw, bh = gs:getPassButtonRect()
-        if x >= bx and x <= bx + bw and y >= by and y <= by + bh then
-            gs:passTurn()
-            return
-        end
+    -- Click Pass button using Button object for accurate hitbox
+    if gs.phase == "play" and gs._passButton and gs._passButton:isHovered(x, y) then
+        gs._passButton:click(x, y)
+        return
     end
 
     -- Pick up a hand card (top-down)
@@ -81,8 +78,12 @@ function Input:mousepressed(gs, x, y, button)
             c.dragging = true
             c.offsetX = x - c.x
             c.offsetY = y - c.y
-            -- free its hand slot temporarily so the outline shows
-            current.slots[i].card = nil
+            c.faceUp = true -- Always show card face while dragging
+            local cardW, cardH = gs:getCardDimensions()
+            c.w = cardW or 100
+            c.h = cardH or 150
+            -- Do NOT remove the card from its slot while dragging
+            -- current.slots[i].card = nil
             break
         end
     end
@@ -128,7 +129,8 @@ function Input:mousereleased(gs, x, y, button)
                 -- normal card: must be dropped on an empty slot of current player
                 local idx = hoveredBoardSlot(gs, gs.currentPlayer, x, y)
                 if idx and (not current.boardSlots[idx].card) then
-                    gs:playCardFromHand(card, idx)
+                    local ok = gs:playCardFromHand(card, idx)
+                    if not ok and card.owner then card.owner:snapCard(card, gs) end
                 else
                     if card.owner then card.owner:snapCard(card, gs) end
                 end
@@ -152,6 +154,19 @@ function Input:keypressed(gs, key)
         gs:advanceTurn()
     elseif key == "return" or key == "kpenter" then
         gs:passTurn()
+    end
+end
+
+function Input:update(gs, dt)
+    -- Animate dragging card to follow mouse
+    if gs.draggingCard then
+        local mx, my = love.mouse.getPosition()
+        local Viewport = require "src.viewport"
+        mx, my = Viewport.toVirtual(mx, my)
+        gs.draggingCard.x = mx - (gs.draggingCard.offsetX or 0)
+        gs.draggingCard.y = my - (gs.draggingCard.offsetY or 0)
+        gs.draggingCard.faceUp = true -- Always show card face while dragging
+        print(string.format("[DEBUG] Dragging card '%s' at (%.1f, %.1f)", gs.draggingCard.name or "?", gs.draggingCard.x, gs.draggingCard.y))
     end
 end
 

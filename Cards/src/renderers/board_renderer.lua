@@ -84,7 +84,7 @@ local function getRetargetOffset(state, playerIndex, slotIndex)
     return 0
 end
 
-local function collectAttackTargets(state, playerIndex, slotIndex)
+function BoardRenderer.collectAttackTargets(state, playerIndex, slotIndex)
     local targets = {}
     local players = state.players or {}
     local player = players[playerIndex]
@@ -214,12 +214,17 @@ function BoardRenderer.draw(state, layout)
             local attackTargets = nil
 
             if slot.card then
-                slot.card.x = slotX
-                slot.card.y = slotY
+                if slot.card.dragging and slot.card.dragX and slot.card.dragY then
+                    slot.card.x = slot.card.dragX
+                    slot.card.y = slot.card.dragY
+                else
+                    slot.card.x = slotX
+                    slot.card.y = slotY
+                end
                 local CardRenderer = require "src.card_renderer"
                 CardRenderer.draw(slot.card)
 
-                attackTargets = collectAttackTargets(state, playerIndex, slotIndex)
+                attackTargets = BoardRenderer.collectAttackTargets(state, playerIndex, slotIndex)
 
                 local statVariance = slot.card.statVariance
                 if statVariance then

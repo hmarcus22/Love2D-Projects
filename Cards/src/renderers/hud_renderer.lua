@@ -1,4 +1,5 @@
 local deckSummaryPopup = nil
+local roundOverPopup = nil
 
 local function getDeckSummary(deck)
     local counts = {}
@@ -22,14 +23,43 @@ local function showDeckSummary(player)
     }
 end
 
+local function showRoundOver(winner, score, onNext)
+    local text = string.format("Round Over!\nPlayer %d wins the round!\nScore: %d-%d", winner, score[1], score[2])
+    roundOverPopup = {
+        text = text,
+        timer = 2.5,
+        onNext = onNext
+    }
+end
+
 local function update(dt)
     if deckSummaryPopup then
         deckSummaryPopup.timer = deckSummaryPopup.timer - dt
         if deckSummaryPopup.timer <= 0 then deckSummaryPopup = nil end
     end
+    if roundOverPopup then
+        roundOverPopup.timer = roundOverPopup.timer - dt
+        if roundOverPopup.timer <= 0 then
+            roundOverPopup = nil
+            if roundOverPopup and roundOverPopup.onNext then roundOverPopup.onNext() end
+        end
+    end
 end
 
 local Config = require "src.config"
+        -- Show round over popup if present
+        if roundOverPopup then
+            local w, h = 340, 120
+            local x, y = (screenW - w) / 2, 120
+            love.graphics.setColor(0, 0, 0, 0.85)
+            love.graphics.rectangle("fill", x, y, w, h, 16, 16)
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.setLineWidth(3)
+            love.graphics.rectangle("line", x, y, w, h, 16, 16)
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(1, 1, 0)
+            love.graphics.printf(roundOverPopup.text, x, y + 32, w, "center")
+        end
 local function drawDeckSummaryPopup()
     if not deckSummaryPopup then return end
     local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
@@ -53,17 +83,58 @@ local function drawTurnBanner(state, screenW)
 
     local p1 = state.players[1]
     local p2 = state.players[2]
+    local roundWins = state.roundWins or { [1] = 0, [2] = 0 }
+    local btnW, btnH = Config.ui.deckButtonW or 120, Config.ui.deckButtonH or 32
+    local btnY = 8
+    local infoY = math.max(32, btnY + btnH + 24)
+    local infoSpacing = 32
+    local barW, barH = 120, 18
     if p1 then
-        love.graphics.printf(
-            string.format("P1 HP: %d  Block: %d  Energy: %d", p1.health or 0, p1.block or 0, p1.energy or 0),
-            0, 50, screenW, "center"
-        )
+        -- Health bar
+        local hp = p1.health or 0
+        local maxHp = p1.maxHealth or 20
+        local previewHp = hp
+        if state.phase == "play" then
+            -- Preview health after resolve
+            previewHp = hp - (state:previewIncomingDamage(1) or 0) + (state:previewIncomingHeal(1) or 0)
+            previewHp = math.max(0, math.min(maxHp, previewHp))
+        end
+        local x, y = 24, infoY
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.rectangle("fill", x, y, barW, barH, 6, 6)
+        love.graphics.setColor(0.8, 0.1, 0.1)
+        love.graphics.rectangle("fill", x, y, barW * (hp / maxHp), barH, 6, 6)
+        love.graphics.setColor(1, 0.8, 0.2)
+        love.graphics.rectangle("fill", x, y, barW * (previewHp / maxHp), barH, 6, 6)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf(string.format("HP: %d/%d", hp, maxHp), x, y, barW, "center")
+        love.graphics.setColor(1, 1, 0)
+        love.graphics.printf(string.format("Rounds Won: %d", roundWins[1] or 0), x, y + infoSpacing, barW, "center")
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf(string.format("Energy: %d", p1.energy or 0), x, y + infoSpacing + 18, barW, "center")
     end
     if p2 then
-        love.graphics.printf(
-            string.format("P2 HP: %d  Block: %d  Energy: %d", p2.health or 0, p2.block or 0, p2.energy or 0),
-            0, 70, screenW, "center"
-        )
+        local hp = p2.health or 0
+        local maxHp = p2.maxHealth or 20
+        local previewHp = hp
+        if state.phase == "play" then
+            previewHp = hp - (state:previewIncomingDamage(2) or 0) + (state:previewIncomingHeal(2) or 0)
+            previewHp = math.max(0, math.min(maxHp, previewHp))
+        end
+        local x = screenW - barW - 56
+        local y = infoY
+        love.graphics.setColor(0.2, 0.2, 0.2)
+        love.graphics.rectangle("fill", x, y, barW, barH, 6, 6)
+        love.graphics.setColor(0.8, 0.1, 0.1)
+        love.graphics.rectangle("fill", x, y, barW * (hp / maxHp), barH, 6, 6)
+        love.graphics.setColor(1, 0.8, 0.2)
+        love.graphics.rectangle("fill", x, y, barW * (previewHp / maxHp), barH, 6, 6)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf(string.format("HP: %d/%d", hp, maxHp), x, y, barW, "center")
+        love.graphics.setColor(1, 1, 0)
+        love.graphics.printf(string.format("Rounds Won: %d", roundWins[2] or 0), x, y + infoSpacing, barW, "center")
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf(string.format("Energy: %d", p2.energy or 0), x, y + infoSpacing + 18, barW, "center")
     end
 end
 
@@ -115,6 +186,14 @@ end
 local Button = require "src.ui.button"
 local function drawPassButton(state)
     local bx, by, bw, bh = state:getPassButtonRect()
+    -- Move Pass button to the left of current player's deck button, using layout sideGap
+    local deckX, deckY, deckW, deckH = state:getDeckRect()
+    local layout = require('src.game_layout').getLayout(state)
+    bx = deckX - bw - (layout.sideGap or 30)
+    if bx < (layout.sideGap or 30) then
+        bx = layout.sideGap or 30
+    end
+    by = deckY
     if not state._passButton then
         state._passButton = Button{
             x = bx, y = by, w = bw, h = bh,
@@ -126,6 +205,7 @@ local function drawPassButton(state)
             visible = true,
             id = "pass_btn",
             onClick = function()
+                print("[DEBUG] Pass button clicked. Phase:", state.phase)
                 if state.phase == "play" then
                     state:passTurn()
                 end
@@ -144,6 +224,7 @@ end
 
 local function drawDraggingCard(state)
     if state.draggingCard then
+        print(string.format("[DEBUG] drawDraggingCard: '%s' at (%.1f, %.1f)", state.draggingCard.name or "?", state.draggingCard.x, state.draggingCard.y))
         CardRenderer.draw(state.draggingCard)
     end
 end
@@ -179,8 +260,8 @@ local function drawPostBoard(state)
     end
     love.graphics.setColor(1, 1, 1, 1)
     drawPassButton(state)
-    drawDraggingCard(state)
     drawDeckSummaryPopup()
+    drawDraggingCard(state)
 end
 
 local HudRenderer = {
@@ -194,6 +275,7 @@ local HudRenderer = {
     drawDeckArea = drawDeckArea,
     drawPassButton = drawPassButton,
     drawDraggingCard = drawDraggingCard,
+    showRoundOver = showRoundOver,
 }
 
 return HudRenderer

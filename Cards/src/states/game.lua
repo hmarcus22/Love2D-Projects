@@ -3,6 +3,7 @@ local GameState = require "src.gamestate"
 local Input = require "src.input"
 local Viewport = require "src.viewport"
 local pause = require "src.states.pause"
+local replay_match = require "src.replay"
 
 local game = {}
 
@@ -87,6 +88,7 @@ end
 
 function game:update(dt)
     self.gs:update(dt)
+    Input:update(self.gs, dt)
     local HudRenderer = require "src.renderers.hud_renderer"
     if HudRenderer.update then HudRenderer.update(dt) end
 end
@@ -120,6 +122,15 @@ function game:mousereleased(x, y, button)
 end
 
 function game:keypressed(key)
+    if key == "r" then
+        -- Start replay from log file
+        replaying = true
+        if type(replay_log_path) ~= "string" or replay_log_path == "" then
+            replay_log_path = "match_log.json"
+        end
+        replay_match(replay_log_path)
+        return
+    end
     if key == "escape" then
         Gamestate.push(pause)
     else

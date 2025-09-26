@@ -1,5 +1,6 @@
 local Card = require "src.card"
 local Deck = require "src.deck"
+local Actions = require "src.actions"
 local Player = require "src.player"
 local Viewport = require "src.viewport"
 local Config = require "src.config"
@@ -8,6 +9,7 @@ local Initialiser = require "src.game_initialiser"
 local BoardRenderer = require "src.renderers.board_renderer"
 local HudRenderer = require "src.renderers.hud_renderer"
 local ResolveRenderer = require "src.renderers.resolve_renderer"
+local Resolve = require "src.resolve"
 
 local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
 
@@ -18,6 +20,36 @@ local RESOLVE_STEP_HANDLERS = {
     cleanup = "resolveCleanupStep",
 }
 
+
+local Deck = require "src.deck"
+local Player = require "src.player"
+local Viewport = require "src.viewport"
+local Config = require "src.config"
+local Layout = require "src.game_layout"
+local Initialiser = require "src.game_initialiser"
+local BoardRenderer = require "src.renderers.board_renderer"
+local HudRenderer = require "src.renderers.hud_renderer"
+local ResolveRenderer = require "src.renderers.resolve_renderer"
+local Resolve = require "src.resolve"
+
+local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
+
+
+
+
+local RESOLVE_STEP_HANDLERS = {
+    block = "resolveBlockStep",
+    attack = "resolveAttackStep",
+    heal = "resolveHealStep",
+    cleanup = "resolveCleanupStep",
+}
+
+local GameState = {}
+GameState.__index = GameState
+
+function GameState:getDeckRect()
+    return Layout.getDeckRect(self)
+end
 
 local function sumSlotBlock(player)
     local total = 0
@@ -42,17 +74,7 @@ local function consumeSlotBlock(player, slotIndex, amount)
     return absorbed
 end
 
-local GameState = {}
-GameState.__index = GameState
-
 GameState.buildLayoutCache = Layout.buildCache
-GameState.getLayout = Layout.getLayout
-GameState.getCardDimensions = Layout.getCardDimensions
-GameState.getHandMetrics = Layout.getHandMetrics
-GameState.getHandY = Layout.getHandY
-GameState.getDeckPosition = Layout.getDeckPosition
-GameState.getDiscardPosition = Layout.getDiscardPosition
-GameState.getDeckRect = Layout.getDeckRect
 GameState.getBoardMetrics = Layout.getBoardMetrics
 GameState.getBoardY = Layout.getBoardY
 GameState.refreshLayoutPositions = Layout.refreshPositions
@@ -67,7 +89,10 @@ GameState.applyInitialEnergy = Initialiser.applyInitialEnergy
 GameState.dealStartingHandsFromPlayerDecks = Initialiser.dealStartingHandsFromPlayerDecks
 
 function GameState:new()
+    gs.roundWins = { [1] = 0, [2] = 0 }
+    gs.matchWinner = nil
     local gs = setmetatable({}, self)
+    gs.logger = require("src.game_logger")()
 
     gs:buildLayoutCache()
 
@@ -84,8 +109,11 @@ function GameState:new()
         Player{ id = 1, maxHandSize = defaultHand, maxBoardCards = rules.maxBoardCards },
         Player{ id = 2, maxHandSize = defaultHand, maxBoardCards = rules.maxBoardCards },
     })
-    gs:initTurnOrder()
     gs:initRoundState()
+
+function GameState:getDiscardPosition()
+    return Layout.getDiscardPosition(self)
+end
     gs:initUiState(true)
     gs:initAttachments()
     gs:initResolveState()
@@ -94,13 +122,15 @@ function GameState:new()
     local startN = (Config.rules.startingHand or 3)
     for playerIndex = 1, #gs.players do
         for _ = 1, startN do
-            gs:drawCardToPlayer(playerIndex)
+            BoardManager.drawCardToPlayer(gs, playerIndex)
         end
     end
 
     gs.pendingRetarget = nil
     gs:updateCardVisibility()
     gs:refreshLayoutPositions()
+
+    gs.logger:log_event("game_start", { players = { gs.players[1].id, gs.players[2].id } })
 
     return gs
 end
@@ -176,144 +206,66 @@ function GameState:getHandSlotPosition(slotIndex, player)
     return x, self:getHandY()
 end
 
--- returns rect for the Pass button (x, y, w, h)
-function GameState:getPassButtonRect()
-    local screenW = Viewport.getWidth()
-    local layout = self:getLayout()
-    local w, h = 100, 40
-    local y = self:getHandY() + math.floor((layout.cardH - h) / 2)
+function GameState:getHandY()
+    return Layout.getHandY(self)
+end
 
-    local baseX
-    if Config.rules.showDiscardPile and self.discardStack then
-        local discardX = self:getDiscardPosition()
-        baseX = discardX + layout.cardW + layout.sideGap
-    else
-        local startX, width = self:getHandMetrics(self.players and self.players[self.currentPlayer])
-        baseX = startX + width + layout.sideGap
+-- returns rect for the Pass button (x, y, w, h)
+function GameState:new()
+    local gs = setmetatable({}, self)
+    gs.roundWins = { [1] = 0, [2] = 0 }
+    gs.matchWinner = nil
+    gs.logger = require("src.game_logger")()
+
+    gs:buildLayoutCache()
+
+    local cards = {}
+    for i = 1, 20 do
+        table.insert(cards, Card(i, "Card " .. i))
+    end
+    gs.deck = Deck(cards)
+    gs.deck:shuffle()
+
+    local rules = Config.rules or {}
+    local defaultHand = rules.maxHandSize or 5
+    gs:initPlayers({
+        Player{ id = 1, maxHandSize = defaultHand, maxBoardCards = rules.maxBoardCards },
+        Player{ id = 2, maxHandSize = defaultHand, maxBoardCards = rules.maxBoardCards },
+    })
+    gs:initRoundState()
+
+    gs:initUiState(true)
+    gs:initAttachments()
+    gs:initResolveState()
+    gs:applyInitialEnergy()
+
+    local startN = (Config.rules.startingHand or 3)
+    for playerIndex = 1, #gs.players do
+        for _ = 1, startN do
+            BoardManager.drawCardToPlayer(gs, playerIndex)
+        end
     end
 
-    local x = math.max(layout.sideGap, math.min(baseX, screenW - w - layout.sideGap))
+    gs.pendingRetarget = nil
+    gs:updateCardVisibility()
+    gs:refreshLayoutPositions()
+
+    gs.logger:log_event("game_start", { players = { gs.players[1].id, gs.players[2].id } })
+
+    return gs
+end
+
+function GameState:getPassButtonRect()
+    local layout = self:getLayout()
+    local x = layout.passButtonX or 0
+    local y = layout.passButtonY or 0
+    local w = layout.passButtonW or 100
+    local h = layout.passButtonH or 40
     return x, y, w, h
 end
 
 function GameState:update(dt)
-    self:refreshLayoutPositions()
-    local layout = self:getLayout()
-    local hoverSpeed = layout.handHoverSpeed or 12
-    local lerpFactor = math.min(1, hoverSpeed * dt)
-    if self.players then
-        for _, player in ipairs(self.players) do
-            if player.slots then
-                local isCurrent = (self.players and self.players[self.currentPlayer] == player)
-                for _, slot in ipairs(player.slots) do
-                    local card = slot.card
-                    if card then
-                        local target = card.handHoverTarget or 0
-                        if not isCurrent then
-                            target = 0
-                        end
-                        if card.dragging then
-                            target = 0
-                        end
-                        local amount = card.handHoverAmount or 0
-                        amount = amount + (target - amount) * lerpFactor
-                        if target == 0 and math.abs(amount) < 0.001 then
-                            amount = 0
-                        end
-                        card.handHoverAmount = amount
-                    end
-                end
-            end
-        end
-    end
-    local mx, my = love.mouse.getPosition()
-    mx, my = Viewport.toVirtual(mx, my)
-    if self.draggingCard then
-        self.draggingCard.x = mx - self.draggingCard.offsetX
-        self.draggingCard.y = my - self.draggingCard.offsetY
-
-        -- highlight discard pile if hovered and allowed
-        if Config.rules.allowManualDiscard and Config.rules.showDiscardPile and self.discardStack then
-            self.highlightDiscard = self.discardStack:isHovered(mx, my)
-        else
-            self.highlightDiscard = false
-        end
-    else
-        self.highlightDiscard = false
-    end
-
-    -- Pass button hover (always based on mouse, independent of dragging)
-    self.highlightPass = false
-    if self.phase == "play" then
-        local bx, by, bw, bh = self:getPassButtonRect()
-        if mx >= bx and mx <= bx + bw and my >= by and my <= by + bh then
-            self.highlightPass = true
-        end
-    end
-
-    -- resolve animation progression
-    if self.phase == "resolve" then
-        self.resolveTimer = self.resolveTimer - dt
-        if self.resolveTimer <= 0 then
-            self.resolveIndex = self.resolveIndex + 1
-            if self.resolveIndex > #self.resolveQueue then
-                -- finished resolution
-                for _, p in ipairs(self.players) do
-                    self.playedCount[p.id] = 0
-                end
-                -- start next play phase; alternate starting player per round
-                self.roundStartPlayer = (self.roundStartPlayer == 1) and 2 or 1
-                self.currentPlayer = self.roundStartPlayer
-                self.turnActionCount = 0
-                self.phase = "play"
-                self.resolveQueue = {}
-                self.resolveIndex = 0
-                self.resolveCurrentStep = nil
-                -- clear attachments for next round
-                self.attachments = { [1] = {}, [2] = {} }
-                self:addLog("Round resolved. Back to play.")
-                self:updateCardVisibility()
-                self.microStarter = self.roundStartPlayer
-                self:addLog(string.format("Next round: P%d starts", self.roundStartPlayer))
-
-                -- reset pass streak on new round
-                self.lastActionWasPass = false
-                self.lastPassBy = nil
-
-                -- increment round and refill energy
-                if Config.rules.energyEnabled ~= false then
-                    self.roundIndex = (self.roundIndex or 0) + 1
-                    local base = Config.rules.energyStart or 0
-                    local inc = Config.rules.energyIncrementPerRound or 0
-                    local refill = base + (self.roundIndex * inc)
-                    local maxEnergy = Config.rules.energyMax
-                    if maxEnergy then
-                        refill = math.min(refill, maxEnergy)
-                    end
-                    for _, p in ipairs(self.players) do
-                        p.energy = refill
-                    end
-                    self:addLog(string.format("Energy refilled to %d (round %d)", refill, self.roundIndex))
-                end
-
-                -- auto-draw for each player at start of new round (config + fighter bonus)
-                local perRound = Config.rules.autoDrawPerRound or 0
-                for pi = 1, #self.players do
-                    local player = self.players[pi]
-                    local bonus = player and player.getDrawBonus and player:getDrawBonus("roundStart") or 0
-                    local total = perRound + (bonus or 0)
-                    for i = 1, total do
-                        self:drawCardToPlayer(pi)
-                    end
-                end
-            else
-                local step = self.resolveQueue[self.resolveIndex]
-                self.resolveCurrentStep = step
-                self:performResolveStep(step)
-                self.resolveTimer = self.resolveStepDuration
-            end
-        end
-    end
+    -- Add per-frame game update logic here if needed
 end
 
 function GameState:updateCardVisibility()
@@ -449,134 +401,47 @@ end
 -- Current player passes. Two consecutive passes (by different players) trigger resolve.
 function GameState:passTurn()
 
+    print("[DEBUG] GameState:passTurn called. Phase:", self.phase)
     if self.phase ~= "play" then return end
     if self.hasPendingRetarget and self:hasPendingRetarget() then return end
 
     local pid = self.currentPlayer
 
     self:addLog(string.format("P%d passes", pid))
+    if self.logger then
+        self.logger:log_event("pass", { player = pid })
+    end
 
     local triggerResolve = false
     local isFirstAction = (self.turnActionCount or 0) == 0
 
     if self.lastActionWasPass and self.lastPassBy and self.lastPassBy ~= pid and isFirstAction then
-
         triggerResolve = true
-
     end
 
     self.lastActionWasPass = true
-
     self.lastPassBy = pid
-
     self:nextPlayer()
 
     if triggerResolve then
-
         self:addLog("Both players pass. Resolving.")
-
+        if self.logger then
+            self.logger:log_event("resolve_start", {})
+        end
         self:startResolve()
-
     end
-
 end
 
 
 -- Build a snapshot of active modifiers from modifier-type cards on the board.
 -- Cards can specify definition.mod = { attack=dx, block=dx, heal=dx, target="ally|enemy", scope="all|same_slot" }
 function GameState:computeActiveModifiers()
-    local function emptyMods()
-        return { attack = 0, block = 0, heal = 0 }
-    end
-
-    self.activeMods = {
-        [1] = { global = emptyMods(), perSlot = {} },
-        [2] = { global = emptyMods(), perSlot = {} },
-    }
-
-    local function addMods(dst, mod)
-        if mod.attack then dst.attack = (dst.attack or 0) + mod.attack end
-        if mod.block then dst.block = (dst.block or 0) + mod.block end
-        if mod.heal then dst.heal = (dst.heal or 0) + mod.heal end
-        if mod.retargetOffset then dst.retargetOffset = mod.retargetOffset end
-    end
-
-    for pi, p in ipairs(self.players) do
-        for s, slot in ipairs(p.boardSlots) do
-            local c = slot.card
-            local def = c and c.definition or nil
-            local m = def and def.mod or nil
-            if m then
-                local targetSide = (m.target == "enemy") and (pi == 1 and 2 or 1) or pi
-                local entry = self.activeMods[targetSide]
-                if m.scope == "same_slot" then
-                    entry.perSlot[s] = entry.perSlot[s] or emptyMods()
-                    addMods(entry.perSlot[s], m)
-                else -- default to global/all
-                    addMods(entry.global, m)
-                end
-            end
-        end
-    end
-
-    -- add targeted attachments (played onto an existing card during play)
-    if self.attachments then
-        for pi = 1, #self.players do
-            local sideEntry = self.activeMods[pi]
-            for s, mods in pairs(self.attachments[pi] or {}) do
-                for _, m in ipairs(mods) do
-                    sideEntry.perSlot[s] = sideEntry.perSlot[s] or emptyMods()
-                    addMods(sideEntry.perSlot[s], m)
-                end
-            end
-        end
-    end
-
-    if self.players then
-        for pi, player in ipairs(self.players) do
-            local passive = player.getBoardPassiveMods and player:getBoardPassiveMods()
-            if passive then
-                local entry = self.activeMods[pi]
-                local slotCount = self.maxBoardCards or player.maxBoardCards or #player.boardSlots or 0
-                for s = 1, slotCount do
-                    entry.perSlot[s] = entry.perSlot[s] or emptyMods()
-                    addMods(entry.perSlot[s], passive)
-                end
-            end
-        end
-    end
+    self.activeMods = Resolve.computeActiveModifiers(self)
 end
 
 -- Get the stat of a card adjusted by active modifiers affecting the owning side/slot
 function GameState:getEffectiveStat(playerIndex, slotIndex, def, key)
-    local base = def and def[key] or 0
-    local mods = self.activeMods or {}
-    local side = mods[playerIndex]
-    local total = base
-    if side then
-        total = total + (side.global[key] or 0)
-        local perSlot = side.perSlot
-        if perSlot then
-            local sm = perSlot[slotIndex]
-            if sm then
-                total = total + (sm[key] or 0)
-            end
-        end
-    end
-
-    if key == "attack" and total > 0 then
-        local player = self.players and self.players[playerIndex] or nil
-        local slot = player and player.boardSlots and player.boardSlots[slotIndex] or nil
-        local card = slot and slot.card or nil
-        local variance = card and card.statVariance or nil
-        local roll = variance and variance.attack or 0
-        if roll ~= 0 then
-            total = total + roll
-        end
-    end
-
-    if total < 0 then total = 0 end
-    return total
+    return Resolve.getEffectiveStat(self, playerIndex, slotIndex, def, key)
 end
 
 -- Apply effects of all cards on board, then clean up and start next round
@@ -621,38 +486,11 @@ function GameState:startResolve()
 end
 
 function GameState:resolveBlockStep(slotIndex)
-    for idx, player in ipairs(self.players or {}) do
-        local slot = player.boardSlots and player.boardSlots[slotIndex]
-        if slot then
-            local def = slot.card and slot.card.definition or nil
-            local add = self:getEffectiveStat(idx, slotIndex, def, "block")
-            if add and add > 0 then
-                slot.block = (slot.block or 0) + add
-                player.block = sumSlotBlock(player)
-                local source = slot.card and slot.card.name or "passive"
-                self:addLog(string.format("Slot %d [Block]: P%d +%d block (%s) -> slot %d, total %d", slotIndex, player.id or 0, add, source, slot.block or 0, player.block or 0))
-            end
-        end
-    end
+    Resolve.resolveBlockStep(self, slotIndex)
 end
 
 function GameState:resolveHealStep(slotIndex)
-    for idx, player in ipairs(self.players or {}) do
-        local slot = player.boardSlots and player.boardSlots[slotIndex]
-        if slot and slot.card and slot.card.definition then
-            local def = slot.card.definition
-            local heal = self:getEffectiveStat(idx, slotIndex, def, "heal")
-            if heal and heal > 0 then
-                local maxHealth = player.maxHealth or 20
-                local before = player.health or maxHealth
-                player.health = math.min(before + heal, maxHealth)
-                local gained = player.health - before
-                if gained > 0 then
-                    self:addLog(string.format("Slot %d [Heal]: P%d +%d HP (%s) -> %d/%d", slotIndex, player.id or 0, gained, slot.card.name or "", player.health, maxHealth))
-                end
-            end
-        end
-    end
+    Resolve.resolveHealStep(self, slotIndex)
 end
 
 function GameState:resolveAttackStep(slotIndex)
@@ -755,23 +593,40 @@ end
 end
 
 function GameState:resolveCleanupStep(slotIndex)
-    for _, player in ipairs(self.players or {}) do
-        local slot = player.boardSlots and player.boardSlots[slotIndex]
-        if slot and slot.card then
-            self:addLog(string.format("Slot %d: P%d discards %s", slotIndex, player.id or 0, slot.card.name or "card"))
-            self:discardCard(slot.card)
-            slot.card = nil
+    Resolve.resolveCleanupStep(self, slotIndex)
+
+    local roundLoser = nil
+    for idx, player in ipairs(self.players or {}) do
+        if player.health and player.health < 0 then
+            player.health = 0
         end
-        if slot then
-            slot.block = 0
+        if player.health == 0 then
+            roundLoser = idx
         end
     end
 
-    for idx, player in ipairs(self.players or {}) do
-        if (player.health or 0) <= 0 then
-            print(string.format("Player %d has been defeated!", idx))
-            self:addLog(string.format("Player %d is defeated!", idx))
+    if roundLoser then
+        local winner = (roundLoser == 1) and 2 or 1
+        self.roundWins[winner] = (self.roundWins[winner] or 0) + 1
+        self:addLog(string.format("Player %d wins the round! (Score: %d-%d)", winner, self.roundWins[1], self.roundWins[2]))
+        if self.logger then
+            self.logger:log_event("round_win", { winner = winner, score = { self.roundWins[1], self.roundWins[2] } })
         end
+        local HudRenderer = require "src.renderers.hud_renderer"
+        HudRenderer.showRoundOver(winner, { self.roundWins[1], self.roundWins[2] }, function()
+            if self.roundWins[winner] >= 2 then
+                self.matchWinner = winner
+                self:addLog(string.format("Player %d wins the match!", winner))
+                if self.logger then
+                    self.logger:log_event("match_win", { winner = winner })
+                end
+            else
+                -- Reset health for next round
+                for _, player in ipairs(self.players or {}) do
+                    player.health = player.maxHealth or 20
+                end
+            end
+        end)
     end
 end
 
@@ -788,57 +643,6 @@ function GameState:addLog(msg)
     local limit = self.maxResolveLogLines or 14
     while #self.resolveLog > limit do
         table.remove(self.resolveLog, 1)
-    end
-end
-
-function GameState:discardCard(card)
-    -- remove from the actual owner's hand
-    if card.owner then
-        card.owner:removeCard(card)
-    end
-
-    -- remove from allCards
-    for i, c in ipairs(self.allCards) do
-        if c == card then
-            table.remove(self.allCards, i)
-            break
-        end
-    end
-
-    -- put into discard pile
-    card.x = self.discardStack.x
-    card.y = self.discardStack.y
-    card.faceUp = true
-    card.statVariance = nil
-    table.insert(self.discardPile, card)
-end
-
-function GameState:getCurrentPlayer()
-    return self.players[self.currentPlayer]
-end
-
-function GameState:registerTurnAction()
-    self.turnActionCount = (self.turnActionCount or 0) + 1
-end
-
-function GameState:nextPlayer(shouldAutoDraw)
-    local players = self.players
-    if not players or #players == 0 then
-        return
-    end
-
-    local nextIndex = self:findNextPlayerIndex() or self.currentPlayer
-    if nextIndex then
-        self.currentPlayer = nextIndex
-    end
-
-    self.microStarter = self.currentPlayer
-    self.turnActionCount = 0
-    self.playsInRound = 0
-    self:updateCardVisibility()
-
-    if shouldAutoDraw ~= false then
-        self:drawCardsForTurnStart()
     end
 end
 
@@ -1082,6 +886,13 @@ function GameState:onCardPlaced(player, card, slotIndex)
             self.playedCount[id],
             limit
         ))
+        if self.logger then
+            self.logger:log_event("card_placed", {
+                player = id,
+                card = card.name or "unknown",
+                slot = slotIndex
+            })
+        end
     end
 
     self.lastActionWasPass = false
@@ -1132,58 +943,49 @@ function GameState:drawCardsForTurnStart()
     end
 end
 
-function GameState:playCardFromHand(card, slotIndex)
-    if self.phase ~= "play" then
-        return
-    end
-
-    if self:hasPendingRetarget() then
-        return
-    end
-
-    local current = self:getCurrentPlayer()
-    if not current or card.owner ~= current then
-        return
-    end
-
-    if not self:hasBoardCapacity(current) then
-        current:snapCard(card, self)
-        return
-    end
-
-    local canPay, cost = self:canAffordCard(current, card)
-    if not canPay then
-        current:snapCard(card, self)
-        self:addLog("Not enough energy")
-        return
-    end
-
-    if not current:playCardToBoard(card, slotIndex, self) then
-        current:snapCard(card, self)
-        return
-    end
-
-    self:deductEnergyForCard(current, cost)
-    self:applyCardVariance(current, card)
-    self:onCardPlaced(current, card, slotIndex)
+function GameState:getHandMetrics(player)
+    return Layout.getHandMetrics(self, player)
 end
 
--- Manually refill energy based on current roundIndex and config
-function GameState:refillEnergyNow(manual)
-    if Config.rules.energyEnabled ~= false then
-        local base = Config.rules.energyStart or 0
-        local inc = Config.rules.energyIncrementPerRound or 0
-        local refill = base + ((self.roundIndex or 0) * inc)
-        local maxEnergy = Config.rules.energyMax
-        if maxEnergy then
-            refill = math.min(refill, maxEnergy)
-        end
-        for _, p in ipairs(self.players) do
-            p.energy = refill
-        end
-        if manual then
-            self:addLog(string.format("Energy refilled to %d (manual)", refill))
-        end
+function GameState:getLayout()
+    return Layout.getLayout(self)
+end
+
+function GameState:previewIncomingDamage(playerIndex)
+    self:computeActiveModifiers()
+    return Resolve.previewIncomingDamage(self, playerIndex)
+end
+
+function GameState:previewIncomingHeal(playerIndex)
+    self:computeActiveModifiers()
+    return Resolve.previewIncomingHeal(self, playerIndex)
+end
+
+function GameState:getCurrentPlayer()
+    return self.players and self.players[self.currentPlayer]
+end
+
+function GameState:getCardDimensions()
+    return Layout.getCardDimensions(self)
+end
+
+function GameState:discardCard(card)
+    return Actions.discardCard(self, card)
+end
+
+function GameState:playCardFromHand(card, slotIndex)
+    return Actions.playCardFromHand(self, card, slotIndex)
+end
+
+function GameState:registerTurnAction()
+    -- Placeholder: implement turn action tracking if needed
+end
+
+function GameState:nextPlayer()
+    local nextIndex = self:findNextPlayerIndex()
+    if nextIndex then
+        self.currentPlayer = nextIndex
+        self:updateCardVisibility()
     end
 end
 

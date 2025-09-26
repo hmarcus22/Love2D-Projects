@@ -199,6 +199,27 @@ function Player:compactHand()
     end
 end
 
+function Player:compactHand(gs)
+    -- Remove gaps in hand slots and update card positions
+    local newSlots = {}
+    local idx = 1
+    for i, slot in ipairs(self.slots) do
+        if slot.card then
+            slot.card.slotIndex = idx
+            local x, y = gs:getHandSlotPosition(idx, self)
+            slot.card.x = x
+            slot.card.y = y
+            newSlots[idx] = { card = slot.card }
+            idx = idx + 1
+        end
+    end
+    -- Fill remaining slots
+    for i = idx, #self.slots do
+        newSlots[i] = { card = nil }
+    end
+    self.slots = newSlots
+end
+
 function Player:snapCard(card, gs)
     if not card.slotIndex then
         return
@@ -311,7 +332,7 @@ function Player:drawHand(isCurrent, gs)
         slot.x, slot.y = x, y
 
         local card = slot.card
-        if card then
+        if card and (not gs or card ~= gs.draggingCard) then
             local lift = liftAmount * (card.handHoverAmount or 0)
             card.x = x
             card.y = y - lift
@@ -331,7 +352,7 @@ function Player:drawHand(isCurrent, gs)
 
     for _, slot in ipairs(self.slots) do
         local card = slot.card
-        if card then
+        if card and card ~= gs.draggingCard then
             if gs and card == hoveredCard and not card.dragging then
                 card.handHoverTarget = 1
             else
@@ -345,7 +366,7 @@ function Player:drawHand(isCurrent, gs)
         end
     end
 
-    if hoveredCard and (not gs or hoveredCard ~= gs.draggingCard) then
+    if hoveredCard and (not gs or (hoveredCard ~= gs.draggingCard)) then
         local CardRenderer = require "src.card_renderer"
         CardRenderer.draw(hoveredCard)
     end

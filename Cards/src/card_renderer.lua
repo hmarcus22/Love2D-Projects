@@ -4,11 +4,20 @@ local CardRenderer = {}
 -- Draw a card (face up or down)
 function CardRenderer.draw(card)
     local x, y, w, h = card.x, card.y, card.w, card.h
+    print(string.format("[DEBUG] CardRenderer.draw: '%s' at (%.1f, %.1f) w=%.1f h=%.1f faceUp=%s", card.name or "?", x, y, w or 0, h or 0, tostring(card.faceUp)))
     -- Draw card background
     love.graphics.setColor(1, 1, 1)
     love.graphics.rectangle("fill", x, y, w, h, 8, 8)
-    love.graphics.setColor(0, 0, 0)
-    love.graphics.rectangle("line", x, y, w, h, 8, 8)
+    -- If dragging, draw a bright yellow border for visibility
+    if card.dragging then
+        love.graphics.setColor(1, 1, 0, 1)
+        love.graphics.setLineWidth(5)
+        love.graphics.rectangle("line", x, y, w, h, 8, 8)
+        love.graphics.setLineWidth(1)
+    else
+        love.graphics.setColor(0, 0, 0)
+        love.graphics.rectangle("line", x, y, w, h, 8, 8)
+    end
 
     if not card.faceUp then
         if CardRenderer.drawBackArt(card) then return end

@@ -1,4 +1,6 @@
--- require("lovedebug")
+--require("lovedebug")
+
+io.stdout:setvbuf("no")
 local Config = require "src.config"
 local Gamestate = require "libs.hump.gamestate"
 local Viewport = require "src.viewport"
@@ -40,4 +42,3 @@ end
 function love.resize(w, h)
     Viewport.resize(w, h)
 end
-
