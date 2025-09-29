@@ -70,15 +70,13 @@ function Actions.passTurn(self)
     end
 
     local triggerResolve = false
-    local isFirstAction = (self.turnActionCount or 0) == 0
 
-    if self.lastActionWasPass and self.lastPassBy and self.lastPassBy ~= pid and isFirstAction then
+    if self.lastActionWasPass and self.lastPassBy and self.lastPassBy ~= pid then
         triggerResolve = true
     end
 
     self.lastActionWasPass = true
     self.lastPassBy = pid
-    self:nextPlayer()
 
     if triggerResolve then
         self:addLog("Both players pass. Resolving.")
@@ -86,6 +84,8 @@ function Actions.passTurn(self)
             self.logger:log_event("resolve_start", {})
         end
         self:startResolve()
+    else
+        self:nextPlayer()
     end
 end
 

@@ -46,4 +46,8 @@ function GameLogger:loadFromFile(filename)
     return self.log
 end
 
+function GameLogger:log_event(action, params)
+    self:record(action, params)
+end
+
 return GameLogger
