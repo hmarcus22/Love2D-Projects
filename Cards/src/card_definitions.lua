@@ -1,168 +1,130 @@
-local defs = {
-    {
-        id = "counter",
-        name = "Counter",
-        description = "Block and retaliate if attacked this round.",
-        cost = 2,
-        block = 2,
-        effect = "retaliate_if_attacked",
-        tags = { "boxer", "brawler" },
-    },
-    {
-        id = "jab",
-        name = "Jab",
-        description = "Low damage, enables combos.",
-        cost = 1,
-        attack = 1,
-        tags = { "boxer" },
-    },
-    {
-        id = "uppercut",
-        name = "Uppercut",
-        description = "High damage, costs more energy. Can stun.",
-        cost = 2,
-        attack = 5,
-        effect = "stun",
-        tags = { "brute", "brawler" },
-    },
-    {
-        id = "guard",
-        name = "Guard",
-        description = "Gain 3 armor. Costs more energy.",
-        cost = 2,
-        block = 3,
-        tags = { "brute", "brawler" },
-    },
-    {
-        id = "roundhouse",
-        name = "Roundhouse",
-        description = "Hits all enemy slots for 2 damage.",
-        cost = 2,
-        attack = 2,
-        effect = "aoe_attack",
-        tags = { "karate", "brawler" },
-    },
-    {
-        id = "taunt",
-        name = "Taunt",
-        description = "Force opponent to attack you.",
-        cost = 1,
-        effect = "force_attack",
-        tags = { "brawler" },
-    },
+﻿local basicCards = {
     {
         id = "punch",
-        name = "Punch",
-        description = "Deal 2 damage.",
+        name = "Quick Jab",
+        description = "Deal 2 damage with a fast straight punch.",
         cost = 1,
         attack = 2,
-        tags = { "brute" },
-        art = "assets/cards/punch.png"
+        tags = { "boxer", "brawler", "brute" },
+        art = "assets/cards/punch.png",
     },
     {
         id = "kick",
-        name = "Kick",
-        description = "Deal 3 damage.",
+        name = "Snap Kick",
+        description = "Deal 3 damage with a sharp kick.",
         cost = 1,
         attack = 3,
-        tags = { "brute" },
-        art = "assets/cards/punch.png"
+        tags = { "karate", "ninja", "brawler" },
     },
-    -- Removed Heal (not thematic)
-    {
-        id = "block",
-        name = "Block",
-        description = "Gain 2 armor.",
-        cost = 1,
-        block = 2,
-        tags = { "brute" },
-    },
-    -- Removed Fireball (not thematic)
-    -- New thematic cards
     {
         id = "uppercut",
         name = "Uppercut",
-        description = "High damage, costs more energy. Can stun.",
+        description = "Heavy upward strike for big damage.",
         cost = 2,
         attack = 5,
-        effect = "stun",
-        tags = { "brute", "brawler" },
-    },
-    {
-        id = "guard",
-        name = "Guard",
-        description = "Gain 3 armor. Costs more energy.",
-        cost = 2,
-        block = 3,
-        tags = { "brute", "brawler" },
-    },
-    {
-        id = "jab",
-        name = "Jab",
-        description = "Low damage, enables combos.",
-        cost = 1,
-        attack = 1,
-        tags = { "boxer" },
+        tags = { "boxer", "brute" },
     },
     {
         id = "roundhouse",
         name = "Roundhouse",
-        description = "Hits all enemy slots for 2 damage.",
+        description = "Spin attack that hits every opposing slot for 2 damage.",
         cost = 2,
         attack = 2,
         effect = "aoe_attack",
         tags = { "karate", "brawler" },
     },
-    -- Modifier cards: adjust stats of other cards for this round
+    {
+        id = "counter",
+        name = "Counter",
+        description = "Gain 2 guard and strike back for 2 damage.",
+        cost = 2,
+        attack = 2,
+        block = 2,
+        tags = { "boxer", "tactician" },
+    },
+}
+
+local supportCards = {
+    {
+        id = "block",
+        name = "Guard Hands",
+        description = "Gain 2 guard for the round.",
+        cost = 1,
+        block = 2,
+        tags = { "boxer", "wrestler", "karate", "brute" },
+    },
+    {
+        id = "guard",
+        name = "Steel Guard",
+        description = "Gain 4 guard and brace for impact.",
+        cost = 2,
+        block = 4,
+        tags = { "wrestler", "brute" },
+    },
     {
         id = "feint",
         name = "Feint",
-        description = "Re-aim this card's attack to a neighboring opposing slot; drop left/center/right to choose.",
+        description = "Re-aim this card's attack to a neighbouring opposing slot.",
         cost = 1,
         mod = { target = "ally", scope = "target", retarget = true },
-        tags = { "tactician" },
+        tags = { "tactician", "ninja" },
+    },
+    {
+        id = "rally",
+        name = "Corner Rally",
+        description = "+1 attack to a target allied card this round.",
+        cost = 1,
+        mod = { attack = 1, target = "ally", scope = "target" },
+        tags = { "wildcard", "brawler" },
+    },
+    {
+        id = "banner",
+        name = "Corner Banner",
+        description = "+1 block to a target allied card this round.",
+        cost = 1,
+        mod = { block = 1, target = "ally", scope = "target" },
+        tags = { "wildcard", "coach" },
     },
     {
         id = "adrenaline_rush",
         name = "Adrenaline Rush",
-        description = "+1 attack to a target allied card this round. Get pumped!",
-        cost = 1,
-        mod = { attack = 1, target = "ally", scope = "target" },
-        tags = { "wildcard" },
-    },
-    {
-        id = "guard_up",
-        name = "Guard Up",
-        description = "+1 block to a target allied card this round. Brace yourself!",
-        cost = 1,
-        mod = { block = 1, target = "ally", scope = "target" },
-        tags = { "wildcard" },
-    },
-    {
-        id = "hex",
-        name = "Hex",
-        description = "-1 attack to a target enemy card this round.",
-        cost = 1,
-        mod = { attack = -1, target = "enemy", scope = "target" },
-        tags = { "tactician" },
-    },
-    {
-        id = "duelist",
-        name = "Duelist",
         description = "+2 attack to a target allied card this round.",
         cost = 1,
         mod = { attack = 2, target = "ally", scope = "target" },
-        tags = { "brute" },
-    }
+        tags = { "brawler", "coach" },
+    },
+    {
+        id = "taunt",
+        name = "Trash Talk",
+        description = "Lower every opposing card's attack by 1 this round.",
+        cost = 1,
+        mod = { attack = -1, target = "enemy" },
+        tags = { "brawler", "tactician" },
+    },
+    {
+        id = "hex",
+        name = "Cheap Shot",
+        description = "-1 attack to a target enemy card this round.",
+        cost = 1,
+        mod = { attack = -1, target = "enemy", scope = "target" },
+        tags = { "tactician", "ninja" },
+    },
+    {
+        id = "duelist",
+        name = "Focus Mitts",
+        description = "+2 attack to a target allied card this round.",
+        cost = 1,
+        mod = { attack = 2, target = "ally", scope = "target" },
+        tags = { "boxer", "karate" },
+    },
 }
 
--- Fighter-specific cards, combos, and ultimates
 local fighterCards = {
     -- Brute
     {
         id = "ground_pound",
         name = "Ground Pound",
-        description = "Combo: Play after Block for +3 attack.",
+        description = "Combo: Play after Guard Hands for +3 attack.",
         cost = 2,
         attack = 3,
         combo = { after = "block", bonus = { attack = 3 } },
@@ -171,7 +133,7 @@ local fighterCards = {
     {
         id = "iron_guard",
         name = "Iron Guard",
-        description = "Ultimate: Gain 5 block and reflect damage this round.",
+        description = "Ultimate: Gain 5 guard and reflect damage this round.",
         cost = 3,
         block = 5,
         ultimate = true,
@@ -181,7 +143,7 @@ local fighterCards = {
     {
         id = "counterplay",
         name = "Counterplay",
-        description = "Combo: Play after Feint for +2 attack and block.",
+        description = "Combo: Play after Feint for +2 attack and +2 guard.",
         cost = 2,
         attack = 2,
         block = 2,
@@ -201,7 +163,7 @@ local fighterCards = {
     {
         id = "wild_swing",
         name = "Wild Swing",
-        description = "Combo: Play after Rally for +2 attack, but -1 block next round.",
+        description = "Combo: Play after Corner Rally for +2 attack (but -1 block next round).",
         cost = 2,
         attack = 2,
         combo = { after = "rally", bonus = { attack = 2 }, penalty = { block = -1, nextRound = true } },
@@ -219,14 +181,12 @@ local fighterCards = {
     },
 }
 
-
--- Add missing fighter-specific cards
 local extraFighterCards = {
     -- Ninja
     {
         id = "shadow_step",
         name = "Shadow Step",
-        description = "Combo: Play after Dodge for free attack.",
+        description = "Combo: Play after Feint for a free attack.",
         cost = 2,
         attack = 3,
         combo = { after = "feint", bonus = { attack = 2 } },
@@ -244,7 +204,7 @@ local extraFighterCards = {
     {
         id = "assassinate",
         name = "Assassinate",
-        description = "Ultimate: KO if opponent below half HP.",
+        description = "Ultimate: KO if the opponent is below half HP.",
         cost = 3,
         ultimate = true,
         effect = "ko_below_half_hp",
@@ -254,7 +214,7 @@ local extraFighterCards = {
     {
         id = "jab_cross",
         name = "Jab-Cross",
-        description = "Combo: Play after Jab for bonus damage.",
+        description = "Combo: Play after Quick Jab for +2 damage.",
         cost = 2,
         attack = 4,
         combo = { after = "punch", bonus = { attack = 2 } },
@@ -263,16 +223,16 @@ local extraFighterCards = {
     {
         id = "counterpunch",
         name = "Counterpunch",
-        description = "Block and retaliate if attacked this round.",
+        description = "Block 2 and retaliate with 2 damage.",
         cost = 2,
+        attack = 2,
         block = 2,
-        effect = "retaliate_if_attacked",
         tags = { "boxer", "signature" },
     },
     {
         id = "haymaker",
         name = "Haymaker",
-        description = "Ultimate: High damage, can only be played after landing 2 punches in a round.",
+        description = "Ultimate: Huge swing that requires setting up punches.",
         cost = 3,
         attack = 7,
         ultimate = true,
@@ -283,7 +243,7 @@ local extraFighterCards = {
     {
         id = "suplex",
         name = "Suplex",
-        description = "Combo: Play after Grapple for extra block and damage.",
+        description = "Combo: Play after Guard Hands for extra damage and guard.",
         cost = 2,
         attack = 3,
         block = 2,
@@ -293,7 +253,7 @@ local extraFighterCards = {
     {
         id = "body_slam",
         name = "Body Slam",
-        description = "Knock opponent’s card off the board.",
+        description = "Knock the opposing card off the board.",
         cost = 2,
         attack = 2,
         effect = "knock_off_board",
@@ -302,7 +262,7 @@ local extraFighterCards = {
     {
         id = "powerbomb",
         name = "Powerbomb",
-        description = "Ultimate: Massive damage, stuns opponent next round.",
+        description = "Ultimate: Massive damage and stun next round.",
         cost = 3,
         attack = 6,
         ultimate = true,
@@ -313,7 +273,7 @@ local extraFighterCards = {
     {
         id = "focus_strike",
         name = "Focus Strike",
-        description = "Combo: Play after Block for bonus energy.",
+        description = "Combo: Play after Guard Hands for +2 attack.",
         cost = 2,
         attack = 3,
         combo = { after = "block", bonus = { attack = 2 } },
@@ -322,7 +282,7 @@ local extraFighterCards = {
     {
         id = "meditate",
         name = "Meditate",
-        description = "Restore health and energy.",
+        description = "Restore 3 health and recover energy.",
         cost = 1,
         heal = 3,
         effect = "restore_energy",
@@ -342,19 +302,11 @@ local extraFighterCards = {
     {
         id = "bottle_smash",
         name = "Bottle Smash",
-        description = "Deal 4 damage. If played after Rally, gain +2 attack.",
+        description = "Deal 4 damage. If played after Corner Rally, gain +2 attack.",
         cost = 2,
         attack = 4,
         combo = { after = "rally", bonus = { attack = 2 } },
         tags = { "brawler", "combo" },
-    },
-    {
-        id = "taunt",
-        name = "Taunt",
-        description = "Force opponent to attack you.",
-        cost = 1,
-        effect = "force_attack",
-        tags = { "brawler", "signature" },
     },
     {
         id = "rage_unleashed",
@@ -368,27 +320,17 @@ local extraFighterCards = {
     },
 }
 
-for _, card in ipairs(extraFighterCards) do
-    table.insert(defs, card)
+local defs = {}
+
+local function append(cards)
+    for _, card in ipairs(cards) do
+        defs[#defs + 1] = card
+    end
 end
 
-for _, card in ipairs(fighterCards) do
-    table.insert(defs, card)
-end
-
--- Update draft pool in config.lua (manual step required):
--- pool = {
---   { id = "punch", count = 10 },
---   { id = "kick", count = 8 },
---   { id = "block", count = 10 },
---   { id = "guard", count = 6 },
---   { id = "uppercut", count = 4 },
---   { id = "feint", count = 4 },
---   { id = "taunt", count = 3 },
---   { id = "guard_up", count = 3 },
---   { id = "adrenaline_rush", count = 3 },
---   { id = "counter", count = 3 },
---   { id = "roundhouse", count = 2 },
--- }
+append(basicCards)
+append(supportCards)
+append(fighterCards)
+append(extraFighterCards)
 
 return defs

@@ -1,4 +1,6 @@
 -- resolve.lua: Handles all resolution logic for the game
+local Config = require "src.config"
+
 local Resolve = {}
 
 function Resolve.startResolve(self)
@@ -34,13 +36,25 @@ function Resolve.resolveHealStep(self, slotIndex)
         if slot and slot.card and slot.card.definition then
             local def = slot.card.definition
             local heal = Resolve.getEffectiveStat(self, idx, slotIndex, def, "heal")
-            if heal and heal > 0 then
+                        if heal and heal > 0 then
                 local maxHealth = player.maxHealth or 20
                 local before = player.health or maxHealth
                 player.health = math.min(before + heal, maxHealth)
                 local gained = player.health - before
                 if gained > 0 then
                     self:addLog(string.format("Slot %d [Heal]: P%d +%d HP (%s) -> %d/%d", slotIndex, player.id or 0, gained, slot.card.name or "", player.health, maxHealth))
+                end
+                if def and def.effect == "restore_energy" then
+                    local rules = Config.rules or {}
+                    local bonus = rules.energyIncrementPerRound or 1
+                    if bonus < 1 then
+                        bonus = 1
+                    end
+                    player.energy = (player.energy or 0) + bonus
+                    if rules.energyMax then
+                        player.energy = math.min(player.energy, rules.energyMax)
+                    end
+                    self:addLog(string.format("Slot %d [Energy]: P%d +%d energy (%s)", slotIndex, player.id or 0, bonus, slot.card.name or ""))
                 end
             end
         end
@@ -151,10 +165,16 @@ function Resolve.getEffectiveStat(gs, playerIndex, slotIndex, def, key)
             end
         end
     end
+
+    local player = gs.players and gs.players[playerIndex] or nil
+    local slot = player and player.boardSlots and player.boardSlots[slotIndex] or nil
+    local card = slot and slot.card or nil
+
+    if card and card.comboVariance and card.comboVariance[key] then
+        total = total + card.comboVariance[key]
+    end
+
     if key == "attack" and total > 0 then
-        local player = gs.players and gs.players[playerIndex] or nil
-        local slot = player and player.boardSlots and player.boardSlots[slotIndex] or nil
-        local card = slot and slot.card or nil
         local variance = card and card.statVariance or nil
         local roll = variance and variance.attack or 0
         if roll ~= 0 then

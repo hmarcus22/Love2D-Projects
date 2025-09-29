@@ -1,23 +1,29 @@
-local Gamestate = require "libs.hump.gamestate"
+﻿local Gamestate = require "libs.hump.gamestate"
 local game = require "src.states.game"
 local Player = require "src.player"
 local factory = require "src.card_factory"
 local Viewport = require "src.viewport"
 local Config = require "src.config"
 
-local DEFAULT_DECK_SIZE = 14
+local DEFAULT_DECK_SIZE = 12
 local DEFAULT_DRAFT_POOL = {
-    { id = "punch", count = 10 },
-    { id = "kick", count = 6 },
-    { id = "heal", count = 5 },
-    { id = "block", count = 10 },
-    { id = "fireball", count = 4 },
+    { id = "punch", count = 12 },
+    { id = "kick", count = 8 },
+    { id = "block", count = 12 },
+    { id = "guard", count = 6 },
+    { id = "feint", count = 6 },
+    { id = "rally", count = 6 },
     { id = "banner", count = 4 },
+    { id = "adrenaline_rush", count = 4 },
+    { id = "taunt", count = 4 },
     { id = "hex", count = 4 },
-    { id = "rally", count = 3 },
     { id = "duelist", count = 3 },
-    { id = "feint", count = 3 },
+    { id = "counter", count = 4 },
+    { id = "uppercut", count = 4 },
+    { id = "roundhouse", count = 3 },
 }
+
+local CHOICES_PER_PICK = 3
 
 local Button = require "src.ui.button"
 local draft = {}
@@ -97,9 +103,8 @@ function draft:updateChoicePositions()
 end
 
 function draft:nextChoices()
-    if #self.choices > 0 then return end
-
-    for _ = 1, 3 do
+    local desired = CHOICES_PER_PICK or 3
+    while #self.choices < desired do
         local card = table.remove(self.draftPool)
         if not card then break end
         table.insert(self.choices, card)
@@ -259,6 +264,13 @@ function draft:keypressed(key)
 end
 
 return draft
+
+
+
+
+
+
+
 
 
 

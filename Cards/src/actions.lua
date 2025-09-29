@@ -18,6 +18,19 @@ function Actions.playCardFromHand(self, card, slotIndex)
         return false
     end
 
+    local definition = card.definition or {}
+    local effectId = definition.effect
+
+    if effectId == "require_2_punches" then
+        local punches = player.roundPunchCount or 0
+        if punches < 2 then
+            self:addLog("Haymaker requires two punches this round")
+            player:snapCard(card, self)
+            player:compactHand(self)
+            return false
+        end
+    end
+
     -- Energy cost check
     if Config.rules.energyEnabled ~= false then
         local cost = self:getEffectiveCardCost(player, card)
@@ -30,6 +43,9 @@ function Actions.playCardFromHand(self, card, slotIndex)
             return false
         end
         player.energy = energy - cost
+        if effectId == "double_attack_one_round" then
+            player.energy = 0
+        end
     end
 
     -- Place card on board

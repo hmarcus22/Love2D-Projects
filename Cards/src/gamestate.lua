@@ -88,6 +88,230 @@ GameState.initResolveState = Initialiser.initResolveState
 GameState.applyInitialEnergy = Initialiser.applyInitialEnergy
 GameState.dealStartingHandsFromPlayerDecks = Initialiser.dealStartingHandsFromPlayerDecks
 
+function GameState:resetRoundFlags()
+    local count = self.players and #self.players or 0
+    self.invulnerablePlayers = {}
+    self.specialAttackMultipliers = {}
+    self.skipTurnActive = {}
+    self.stunNextRound = self.stunNextRound or {}
+    for i = 1, count do
+        self.invulnerablePlayers[i] = false
+        self.specialAttackMultipliers[i] = {}
+        self.skipTurnActive[i] = false
+        local player = self.players and self.players[i] or nil
+        if player then
+            player.prevCardId = nil
+            player.lastCardId = nil
+            player.roundPunchCount = 0
+        end
+    end
+end
+
+function GameState:activateRoundStatuses()
+    local count = self.players and #self.players or 0
+    if count == 0 then return end
+    self.skipTurnActive = self.skipTurnActive or {}
+    for i = 1, count do
+        if self.stunNextRound and self.stunNextRound[i] then
+            self.skipTurnActive[i] = true
+            self.stunNextRound[i] = false
+            self:addLog(string.format("Player %d is stunned at the start of the round!", i))
+            if self.logger then
+                self.logger:log_event("stun_round_start", { player = i })
+            end
+        elseif self.skipTurnActive[i] == nil then
+            self.skipTurnActive[i] = false
+        end
+    end
+end
+
+function GameState:ensureCurrentPlayerReady()
+    local count = self.players and #self.players or 0
+    if count == 0 then return end
+    local iterations = 0
+    while self.skipTurnActive and self.skipTurnActive[self.currentPlayer] and iterations < count do
+        self.skipTurnActive[self.currentPlayer] = false
+        self:addLog(string.format("Player %d is stunned and skips a turn!", self.currentPlayer))
+        if self.logger then
+            self.logger:log_event("stun_skip_turn", { player = self.currentPlayer })
+        end
+        local nextIndex = self:findNextPlayerIndex()
+        if not nextIndex or nextIndex == self.currentPlayer then
+            break
+        end
+        self.currentPlayer = nextIndex
+        iterations = iterations + 1
+    end
+end
+
+function GameState:isPlayerInvulnerable(playerIndex)
+    return self.invulnerablePlayers and self.invulnerablePlayers[playerIndex]
+end
+
+function GameState:handleCardPlayed(player, card, slotIndex)
+    if not player or not card then
+        return
+    end
+    player.prevCardId = player.lastCardId
+    player.lastCardId = card.id
+    if card.id == "punch" then
+        player.roundPunchCount = (player.roundPunchCount or 0) + 1
+    end
+    self:recordSpecialEffectOnPlay(player, card, slotIndex)
+end
+
+function GameState:recordSpecialEffectOnPlay(player, card, slotIndex)
+    if not card or not card.definition or not player then
+        return
+    end
+    local effect = card.definition.effect
+    if effect == "double_attack_one_round" then
+        self.specialAttackMultipliers = self.specialAttackMultipliers or {}
+        self.specialAttackMultipliers[player.id] = self.specialAttackMultipliers[player.id] or {}
+        self.specialAttackMultipliers[player.id][slotIndex] = 2
+        self:addLog(string.format("P%d powers up %s for this round!", player.id or 0, card.name or "card"))
+    end
+end
+
+function GameState:swapEnemyBoard(defenderIdx)
+    local enemy = self.players and self.players[defenderIdx] or nil
+    if not enemy or not enemy.boardSlots then
+        return
+    end
+    local slots = enemy.boardSlots
+    local n = #slots
+    for i = 1, math.floor(n / 2) do
+        slots[i], slots[n - i + 1] = slots[n - i + 1], slots[i]
+    end
+    self:addLog(string.format("Ultimate: P%d's formation is flipped!", defenderIdx))
+    self:refreshLayoutPositions()
+end
+
+function GameState:performAoeAttack(attackerIdx, attackValue)
+    if attackValue <= 0 then
+        return
+    end
+    local enemyIdx = (attackerIdx == 1) and 2 or 1
+    local enemy = self.players and self.players[enemyIdx] or nil
+    if not enemy then
+        return
+    end
+    local hits = 0
+    if enemy.boardSlots then
+        for _, slot in ipairs(enemy.boardSlots) do
+            if slot.card then
+                hits = hits + 1
+            end
+        end
+    end
+    if hits == 0 then
+        hits = 1
+    end
+    local total = attackValue * hits
+    local before = enemy.health or enemy.maxHealth or 20
+    enemy.health = math.max(0, before - total)
+    self:addLog(string.format("Ultimate: P%d strikes every foe for %d (total %d)", attackerIdx, attackValue, total))
+end
+
+function GameState:knockOffBoard(playerIdx, slotIdx, sourceIdx)
+    local defender = self.players and self.players[playerIdx] or nil
+    if not defender or not defender.boardSlots or not slotIdx then
+        return false
+    end
+    local slot = defender.boardSlots[slotIdx]
+    if slot and slot.card then
+        local removed = slot.card
+        slot.card = nil
+        slot.block = 0
+        self:discardCard(removed)
+        self:addLog(string.format("Ultimate: P%d throws P%d's %s out of the ring!", sourceIdx or 0, playerIdx or 0, removed.name or "card"))
+        self:refreshLayoutPositions()
+        return true
+    end
+    return false
+end
+
+function GameState:queueStun(playerIdx, sourceIdx)
+    self.stunNextRound = self.stunNextRound or {}
+    if not self.stunNextRound[playerIdx] then
+        self.stunNextRound[playerIdx] = true
+        self:addLog(string.format("Ultimate: P%d stuns P%d for the next round!", sourceIdx or 0, playerIdx or 0))
+        if self.logger then
+            self.logger:log_event("stun_applied", { target = playerIdx, source = sourceIdx })
+        end
+    end
+end
+
+function GameState:attemptAssassinate(attackerIdx, defenderIdx)
+    local enemy = self.players and self.players[defenderIdx] or nil
+    if not enemy then
+        return false
+    end
+    local maxHealth = enemy.maxHealth or 20
+    local threshold = math.floor(maxHealth / 2)
+    local current = enemy.health or maxHealth
+    if current <= threshold then
+        enemy.health = 0
+        self:addLog(string.format("Ultimate: P%d executes P%d!", attackerIdx or 0, defenderIdx or 0))
+        if enemy.boardSlots then
+            for _, slot in ipairs(enemy.boardSlots) do
+                if slot.card then
+                    self:discardCard(slot.card)
+                    slot.card = nil
+                end
+                slot.block = 0
+            end
+        end
+        self:refreshLayoutPositions()
+        return true
+    end
+    self:addLog(string.format("Ultimate: P%d attempts Assassinate but the target withstands it.", attackerIdx or 0))
+    return false
+end
+
+function GameState:applyCardEffectsDuringAttack(attackerIdx, defenderIdx, originSlotIdx, targetSlotIdx, card, context)
+    if not card or not card.definition then
+        return
+    end
+    context = context or {}
+    local effect = card.definition.effect
+    if not effect then
+        return
+    end
+    card.effectsTriggered = card.effectsTriggered or {}
+    if effect == "double_attack_one_round" then
+        return
+    end
+    if effect == "avoid_all_attacks" then
+        if not self:isPlayerInvulnerable(attackerIdx) then
+            self.invulnerablePlayers[attackerIdx] = true
+            self:addLog(string.format("Ultimate: P%d cannot be targeted for the rest of the round!", attackerIdx))
+        end
+        card.effectsTriggered[effect] = true
+        return
+    end
+    if card.effectsTriggered[effect] then
+        return
+    end
+    if effect == "swap_enemies" then
+        self:swapEnemyBoard(defenderIdx)
+    elseif effect == "aoe_attack" then
+        local value = context.attack or card.definition.attack or 0
+        self:performAoeAttack(attackerIdx, value)
+    elseif effect == "ko_below_half_hp" then
+        if self:attemptAssassinate(attackerIdx, defenderIdx) then
+            context.skipDamage = true
+        end
+    elseif effect == "knock_off_board" then
+        if self:knockOffBoard(defenderIdx, targetSlotIdx, attackerIdx) then
+            context.ignoreBlock = true
+        end
+    elseif effect == "stun_next_round" then
+        self:queueStun(defenderIdx, attackerIdx)
+    end
+    card.effectsTriggered[effect] = true
+end
+
 function GameState:new()
     gs.roundWins = { [1] = 0, [2] = 0 }
     gs.matchWinner = nil
@@ -115,7 +339,11 @@ function GameState:getDiscardPosition()
     return Layout.getDiscardPosition(self)
 end
     gs:initUiState(true)
+    gs.hasSharedDeck = true
     gs:initAttachments()
+    gs:resetRoundFlags()
+    gs:activateRoundStatuses()
+    gs:ensureCurrentPlayerReady()
     gs:initResolveState()
     gs:applyInitialEnergy()
 
@@ -145,7 +373,11 @@ function GameState:newFromDraft(draftedPlayers)
     gs:initTurnOrder()
     gs:initRoundState()
     gs:initUiState(false)
+    gs.hasSharedDeck = false
     gs:initAttachments()
+    gs:resetRoundFlags()
+    gs:activateRoundStatuses()
+    gs:ensureCurrentPlayerReady()
     gs:initResolveState()
     gs:applyInitialEnergy()
     gs:dealStartingHandsFromPlayerDecks()
@@ -235,7 +467,11 @@ function GameState:new()
     gs:initRoundState()
 
     gs:initUiState(true)
+    gs.hasSharedDeck = true
     gs:initAttachments()
+    gs:resetRoundFlags()
+    gs:activateRoundStatuses()
+    gs:ensureCurrentPlayerReady()
     gs:initResolveState()
     gs:applyInitialEnergy()
 
@@ -520,54 +756,46 @@ end
 
 function GameState:resolveAttackStep(slotIndex)
     local players = self.players or {}
-    local p1, p2 = players[1], players[2]
+    local p1 = players[1]
+    local p2 = players[2]
 
-    local function atkAt(playerIdx, idx)
-        local player = players[playerIdx]
-        local slot = player and player.boardSlots and player.boardSlots[idx]
-        if slot and slot.card and slot.card.definition then
-            local card = slot.card
-            -- Combo logic: apply bonus if combo requirements met
-            if player.canPlayCombo and player:canPlayCombo(card) then
-                player:applyComboBonus(card)
-            end
-            -- Ultimate logic: apply effect if ultimate
-            if player.canPlayUltimate and player:canPlayUltimate(card) and card.effect then
-                self:applyUltimateEffect(playerIdx, idx, card)
-            end
-            return self:getEffectiveStat(playerIdx, idx, card.definition, "attack") or 0
+    local slot1 = p1 and p1.boardSlots and p1.boardSlots[slotIndex] or nil
+    local slot2 = p2 and p2.boardSlots and p2.boardSlots[slotIndex] or nil
+
+    local card1 = slot1 and slot1.card or nil
+    local card2 = slot2 and slot2.card or nil
+
+    local a1 = 0
+    if card1 and card1.definition then
+        if p1 and p1.applyComboBonus and p1:applyComboBonus(card1) then
+            local comboId = card1.definition.combo and card1.definition.combo.after or "combo"
+            self:addLog(string.format("Combo! %s follows up %s", card1.name or "Card", comboId))
         end
-        return 0
-    end
--- Apply ultimate card effects (simple implementation)
-function GameState:applyUltimateEffect(playerIdx, slotIdx, card)
-    if card.effect == "swap_enemies" then
-        -- Swap all enemy card positions
-        local enemyIdx = (playerIdx == 1) and 2 or 1
-        local enemy = self.players[enemyIdx]
-        if enemy and enemy.boardSlots then
-            local slots = enemy.boardSlots
-            for i = 1, math.floor(#slots / 2) do
-                slots[i], slots[#slots - i + 1] = slots[#slots - i + 1], slots[i]
-            end
-            self:addLog(string.format("Ultimate: P%d swaps all enemy cards!", playerIdx))
+        a1 = self:getEffectiveStat(1, slotIndex, card1.definition, "attack") or 0
+        local multiplier = 1
+        if self.specialAttackMultipliers and self.specialAttackMultipliers[1] and self.specialAttackMultipliers[1][slotIndex] then
+            multiplier = self.specialAttackMultipliers[1][slotIndex]
         end
-    elseif card.effect == "aoe_attack" then
-        -- Deal attack to all enemy cards
-        local enemyIdx = (playerIdx == 1) and 2 or 1
-        local enemy = self.players[enemyIdx]
-        if enemy and enemy.boardSlots then
-            for i, slot in ipairs(enemy.boardSlots) do
-                local damage = card.attack or 0
-                if damage > 0 then
-                    local before = enemy.health or enemy.maxHealth or 20
-                    enemy.health = before - damage
-                    self:addLog(string.format("Ultimate: P%d deals %d to P%d (slot %d)", playerIdx, damage, enemyIdx, i))
-                end
-            end
+        if multiplier ~= 1 then
+            a1 = math.floor(a1 * multiplier)
         end
     end
-end
+
+    local a2 = 0
+    if card2 and card2.definition then
+        if p2 and p2.applyComboBonus and p2:applyComboBonus(card2) then
+            local comboId = card2.definition.combo and card2.definition.combo.after or "combo"
+            self:addLog(string.format("Combo! %s follows up %s", card2.name or "Card", comboId))
+        end
+        a2 = self:getEffectiveStat(2, slotIndex, card2.definition, "attack") or 0
+        local multiplier = 1
+        if self.specialAttackMultipliers and self.specialAttackMultipliers[2] and self.specialAttackMultipliers[2][slotIndex] then
+            multiplier = self.specialAttackMultipliers[2][slotIndex]
+        end
+        if multiplier ~= 1 then
+            a2 = math.floor(a2 * multiplier)
+        end
+    end
 
     local function targetIndexFor(playerIdx, srcIdx)
         local mods = self.activeMods and self.activeMods[playerIdx] and self.activeMods[playerIdx].perSlot[srcIdx]
@@ -580,25 +808,57 @@ end
         return target
     end
 
-    local a1 = atkAt(1, slotIndex)
-    local a2 = atkAt(2, slotIndex)
-    if a1 <= 0 and a2 <= 0 then
-        return
-    end
-
     local t1 = targetIndexFor(1, slotIndex)
     local t2 = targetIndexFor(2, slotIndex)
 
+    local ctx1 = { attack = a1 }
+    local ctx2 = { attack = a2 }
+
+    if card1 then
+        self:applyCardEffectsDuringAttack(1, 2, slotIndex, t1, card1, ctx1)
+        a1 = ctx1.attack or a1
+    end
+    if card2 then
+        self:applyCardEffectsDuringAttack(2, 1, slotIndex, t2, card2, ctx2)
+        a2 = ctx2.attack or a2
+    end
+
+    if (not card1 or a1 <= 0) and (not card2 or a2 <= 0) and not (ctx1.skipDamage or ctx2.skipDamage) then
+        return
+    end
+
     local blockTargetP2 = (p2 and p2.boardSlots and p2.boardSlots[t1] and p2.boardSlots[t1].block) or 0
     local blockTargetP1 = (p1 and p1.boardSlots and p1.boardSlots[t2] and p1.boardSlots[t2].block) or 0
-    local absorb2 = math.min(blockTargetP2, a1)
-    local absorb1 = math.min(blockTargetP1, a2)
 
-    consumeSlotBlock(p2, t1, absorb2)
-    consumeSlotBlock(p1, t2, absorb1)
+    if ctx1.ignoreBlock then
+        blockTargetP2 = 0
+    end
+    if ctx2.ignoreBlock then
+        blockTargetP1 = 0
+    end
 
-    local remainder1 = a2 - absorb1
+    local invP2 = self:isPlayerInvulnerable(2)
+    local invP1 = self:isPlayerInvulnerable(1)
+
+    local absorb2 = invP2 and a1 or math.min(blockTargetP2, a1)
+    local absorb1 = invP1 and a2 or math.min(blockTargetP1, a2)
+
+    if not invP2 and absorb2 > 0 then
+        consumeSlotBlock(p2, t1, absorb2)
+    end
+    if not invP1 and absorb1 > 0 then
+        consumeSlotBlock(p1, t2, absorb1)
+    end
+
     local remainder2 = a1 - absorb2
+    local remainder1 = a2 - absorb1
+
+    if invP2 or ctx1.skipDamage then
+        remainder2 = 0
+    end
+    if invP1 or ctx2.skipDamage then
+        remainder1 = 0
+    end
 
     if remainder2 > 0 and p2 then
         p2.health = (p2.health or p2.maxHealth or 20) - remainder2
@@ -607,12 +867,28 @@ end
         p1.health = (p1.health or p1.maxHealth or 20) - remainder1
     end
 
-    if a1 > 0 then
-        local suffix = (t1 ~= slotIndex) and string.format(" -> slot %d (feint)", t1) or ""
+    if card1 and (a1 > 0 or ctx1.skipDamage or ctx1.ignoreBlock) then
+        local suffix = ""
+        if t1 ~= slotIndex then
+            suffix = suffix .. string.format(" -> slot %d (feint)", t1)
+        end
+        if invP2 then
+            suffix = suffix .. " (target avoided damage)"
+        elseif ctx1.skipDamage then
+            suffix = suffix .. " (finisher)"
+        end
         self:addLog(string.format("Slot %d: P1 attacks P2 for %d (block %d, dmg %d)%s", slotIndex, a1, absorb2, math.max(0, remainder2), suffix))
     end
-    if a2 > 0 then
-        local suffix = (t2 ~= slotIndex) and string.format(" -> slot %d (feint)", t2) or ""
+    if card2 and (a2 > 0 or ctx2.skipDamage or ctx2.ignoreBlock) then
+        local suffix = ""
+        if t2 ~= slotIndex then
+            suffix = suffix .. string.format(" -> slot %d (feint)", t2)
+        end
+        if invP1 then
+            suffix = suffix .. " (target avoided damage)"
+        elseif ctx2.skipDamage then
+            suffix = suffix .. " (finisher)"
+        end
         self:addLog(string.format("Slot %d: P2 attacks P1 for %d (block %d, dmg %d)%s", slotIndex, a2, absorb1, math.max(0, remainder1), suffix))
     end
 end
@@ -632,22 +908,25 @@ function GameState:resolveCleanupStep(slotIndex)
 
     local function startNewRound()
         print("[DEBUG] startNewRound called: roundIndex=" .. tostring(self.roundIndex) .. " phase=" .. tostring(self.phase))
-        -- Reset health for next round
         for _, player in ipairs(self.players or {}) do
             player.health = player.maxHealth or 20
         end
-        -- Fully re-initialize round state so play can continue
-    self:initRoundState()
-    self:initUiState(true)
-    self:initAttachments()
-    self:initResolveState()
-    -- self:applyInitialEnergy() removed; energy now increments per round
-    if self.dealStartingHandsFromPlayerDecks then
+        self:initRoundState()
+        local hasShared = self.hasSharedDeck
+        if hasShared == nil then hasShared = false end
+        self.hasSharedDeck = hasShared
+        self:initUiState(hasShared)
+        self:initAttachments()
+        self:resetRoundFlags()
+        self:activateRoundStatuses()
+        self:initResolveState()
+        if self.dealStartingHandsFromPlayerDecks then
             self:dealStartingHandsFromPlayerDecks()
         end
+        self.phase = "play"
+        self:ensureCurrentPlayerReady()
         self:updateCardVisibility()
         self:refreshLayoutPositions()
-        self.phase = "play" -- Ensure game returns to play phase after round reset
         print("[DEBUG] startNewRound finished: roundIndex=" .. tostring(self.roundIndex) .. " phase=" .. tostring(self.phase))
     end
 
@@ -922,6 +1201,7 @@ function GameState:onCardPlaced(player, card, slotIndex)
     end
 
     self:registerTurnAction()
+    self:handleCardPlayed(player, card, slotIndex)
 
     if id then
         local limit = self.maxBoardCards or player.maxBoardCards or #(player.boardSlots or {})
@@ -1024,15 +1304,18 @@ function GameState:playCardFromHand(card, slotIndex)
 end
 
 function GameState:registerTurnAction()
-    -- Placeholder: implement turn action tracking if needed
+    self.turnActionCount = (self.turnActionCount or 0) + 1
 end
 
 function GameState:nextPlayer()
     local nextIndex = self:findNextPlayerIndex()
-    if nextIndex then
-        self.currentPlayer = nextIndex
-        self:updateCardVisibility()
+    if not nextIndex then
+        return
     end
+
+    self.currentPlayer = nextIndex
+    self:ensureCurrentPlayerReady()
+    self:updateCardVisibility()
 end
 
 return GameState

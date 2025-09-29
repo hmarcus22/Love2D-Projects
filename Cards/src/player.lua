@@ -22,6 +22,9 @@ function Player:init(args)
     self.slots = {}
     self.deck = {}
     self.boardSlots = {}
+    self.prevCardId = nil
+    self.lastCardId = nil
+    self.roundPunchCount = 0
 
     self.fighterId = nil
     self.fighter = nil
@@ -64,20 +67,19 @@ function Player:setFighter(fighter)
         if resolved.ultimate then
             table.insert(self.deck, factory.createCard(resolved.ultimate))
         end
+        self.prevCardId = nil
+        self.lastCardId = nil
+        self.roundPunchCount = 0
     else
         self.fighterId = type(fighter) == "string" and fighter or nil
     end
 end
 -- Combo and ultimate logic
 function Player:canPlayCombo(card)
-    if not card.combo then return false end
-    local hand = self:getHand()
-    for _, prev in ipairs(hand) do
-        if prev.id == card.combo.after then
-            return true
-        end
+    if not card or not card.combo then
+        return false
     end
-    return false
+    return self.prevCardId ~= nil and self.prevCardId == card.combo.after
 end
 
 function Player:canPlayUltimate(card)
@@ -85,19 +87,27 @@ function Player:canPlayUltimate(card)
 end
 
 function Player:applyComboBonus(card)
-    if card.combo and self:canPlayCombo(card) then
-        if card.combo.bonus then
-            for k, v in pairs(card.combo.bonus) do
-                card[k] = (card[k] or 0) + v
-            end
-        end
-        -- Penalty logic (optional)
-        if card.combo.penalty then
-            for k, v in pairs(card.combo.penalty) do
-                -- Example: apply penalty next round (not implemented here)
+    if not card or not card.combo then
+        return false
+    end
+    if card.comboApplied or not self:canPlayCombo(card) then
+        return false
+    end
+
+    local applied = false
+    if card.combo.bonus then
+        card.comboVariance = card.comboVariance or {}
+        for k, v in pairs(card.combo.bonus) do
+            if type(v) == "number" then
+                card.comboVariance[k] = (card.comboVariance[k] or 0) + v
+                applied = true
             end
         end
     end
+    if applied then
+        card.comboApplied = true
+    end
+    return applied
 end
 
 function Player:getFighter()

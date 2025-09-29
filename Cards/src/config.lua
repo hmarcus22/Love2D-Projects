@@ -1,4 +1,4 @@
-local fighters = require "src.fighter_definitions"
+﻿local fighters = require "src.fighter_definitions"
 
 return {
   window = {
@@ -30,19 +30,22 @@ return {
     energyMax = 6,             -- cap the per-round energy refill
   },
   draft = {
-    deckSize = 14,
+    deckSize = 12,
     pool = {
-      { id = "punch", count = 10 },
+      { id = "punch", count = 12 },
       { id = "kick", count = 8 },
-      { id = "block", count = 10 },
+      { id = "block", count = 12 },
       { id = "guard", count = 6 },
+      { id = "feint", count = 6 },
+      { id = "rally", count = 6 },
+      { id = "banner", count = 4 },
+      { id = "adrenaline_rush", count = 4 },
+      { id = "taunt", count = 4 },
+      { id = "hex", count = 4 },
+      { id = "duelist", count = 3 },
+      { id = "counter", count = 4 },
       { id = "uppercut", count = 4 },
-      { id = "feint", count = 4 },
-      { id = "taunt", count = 3 },
-      { id = "guard_up", count = 3 },
-      { id = "adrenaline_rush", count = 3 },
-      { id = "counter", count = 3 },
-      { id = "roundhouse", count = 2 },
+      { id = "roundhouse", count = 3 },
     },
   },
   fighters = fighters,
@@ -84,3 +87,4 @@ return {
     sideGap = 30,
   }
 }
+
