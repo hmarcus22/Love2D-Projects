@@ -153,7 +153,12 @@ function BoardRenderer.draw(state, layout)
         local passiveBlock = passiveMods and passiveMods.block or 0
         for slotIndex, slot in ipairs(player.boardSlots) do
             local slotX, slotY = state:getBoardSlotPosition(playerIndex, slotIndex)
-            love.graphics.setColor(0.8, 0.8, 0.2, 0.35)
+            -- High-contrast slot outline (dark outer + light inner)
+            love.graphics.setColor(0, 0, 0, 0.55)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", slotX - 1, slotY - 1, cardW + 2, cardH + 2, 10, 10)
+            love.graphics.setColor(1, 1, 1, 0.85)
+            love.graphics.setLineWidth(1)
             love.graphics.rectangle("line", slotX, slotY, cardW, cardH, 8, 8)
 
             local isPending = pending ~= nil

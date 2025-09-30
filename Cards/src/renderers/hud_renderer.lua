@@ -158,10 +158,23 @@ local function drawPlayerPanel(state, player, index)
     local textY = y + 32
 
     if isCurrent then
-        love.graphics.setColor(1, 1, 0.2, 1)
-        love.graphics.printf("* YOUR TURN *", x + 12, textY, panelW - 24, "left")
+        -- High-visibility border highlight (overlay, no layout shift)
+        love.graphics.setColor(1, 1, 0.2, 0.9)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", x - 2, y - 2, panelW + 4, panelH + 4, 14, 14)
+        love.graphics.setLineWidth(1)
+
+        -- Corner badge
+        local bw, bh = 96, 18
+        local bx, by = x + panelW - bw - 12, y + 8
+        love.graphics.setColor(0, 0, 0, 0.8)
+        love.graphics.rectangle("fill", bx, by, bw, bh, 8, 8)
         love.graphics.setColor(1, 1, 1, 1)
-        textY = textY + 18
+        love.graphics.rectangle("line", bx, by, bw, bh, 8, 8)
+        love.graphics.setColor(1, 1, 0.2, 1)
+        love.graphics.printf("YOUR TURN", bx, by + 2, bw, "center")
+        love.graphics.setColor(1, 1, 1, 1)
+        -- Note: do not change textY; keep panel content aligned
     end
 
     local barY = textY
@@ -207,8 +220,7 @@ local function drawPlayerPanel(state, player, index)
 
     local handCount = countHandCards(player)
     local deckCount = #(player.deck or {})
-    local discardCount = #(player.discard or {})
-    love.graphics.printf(string.format("Hand: %d   Deck: %d   Discard: %d", handCount, deckCount, discardCount), x + 12, textY, panelW - 24, "left")
+    love.graphics.printf(string.format("Hand: %d   Deck: %d", handCount, deckCount), x + 12, textY, panelW - 24, "left")
     textY = textY + 18
 
     local boardCount = countBoardCards(player)
