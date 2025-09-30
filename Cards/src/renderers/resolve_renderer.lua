@@ -1,4 +1,5 @@
 local ResolveRenderer = {}
+local Viewport = require "src.viewport"
 
 function ResolveRenderer.drawOverlay(state, layout, screenW)
     if state.phase ~= "resolve" or not state.resolveCurrentStep then return end
@@ -56,27 +57,102 @@ function ResolveRenderer.drawOverlay(state, layout, screenW)
 end
 
 function ResolveRenderer.drawLog(state, screenW)
-    local panelW = 280
+    local panelW = 300
     local panelX = screenW - panelW - 16
-    local panelY = 80
+    -- Move below player 2 panel (y ≈ 16 + 158 + margin)
+    local panelY = 196
     local lineH = 16
     local titleH = 20
-    local visibleLines = math.min(#state.resolveLog, state.maxResolveLogLines or 14)
+    local maxLines = state.maxResolveLogLines or 14
+    local total = #state.resolveLog
+    local visibleLines = math.min(total, maxLines)
+    local maxOffset = math.max(0, total - maxLines)
+    local offset = math.max(0, math.min(math.floor(state.resolveLogScroll or 0), maxOffset))
     local panelH = titleH + visibleLines * lineH + 10
 
-    love.graphics.setColor(0, 0, 0, 0.35)
+    -- Panel
+    love.graphics.setColor(0, 0, 0, 0.55)
     love.graphics.rectangle("fill", panelX, panelY, panelW, panelH, 8, 8)
-    love.graphics.setColor(1, 1, 1, 0.85)
+    love.graphics.setColor(1, 1, 1, 0.9)
     love.graphics.rectangle("line", panelX, panelY, panelW, panelH, 8, 8)
-    love.graphics.print("Log", panelX + 8, panelY + 4)
+    love.graphics.print("Combat Log", panelX + 8, panelY + 4)
+    if maxOffset > 0 then
+        local startIdxPreview = math.max(1, total - maxLines + 1 - offset)
+        local pageBottom = startIdxPreview
+        local pageTop = math.min(total, startIdxPreview + visibleLines - 1)
+        local label = string.format("%d-%d/%d", pageBottom, pageTop, total)
+        love.graphics.printf(label, panelX, panelY + 4, panelW - 8, "right")
+    end
 
-    love.graphics.setColor(1, 1, 1, 1)
-    local startIdx = math.max(1, #state.resolveLog - (state.maxResolveLogLines or 14) + 1)
+    -- Lines (clipped to panel)
+    local startIdx = math.max(1, total - maxLines + 1 - offset)
     local y = panelY + titleH
-    for i = startIdx, #state.resolveLog do
-        love.graphics.printf(state.resolveLog[i], panelX + 8, y, panelW - 16, "left")
+
+    -- Set scissor in screen coordinates to clip log contents
+    local clipX, clipY = panelX + 4, panelY + titleH
+    local clipW, clipH = panelW - 8, panelH - titleH - 4
+    local sx = math.floor(Viewport.ox + clipX * Viewport.scale)
+    local sy = math.floor(Viewport.oy + clipY * Viewport.scale)
+    local sw = math.floor(clipW * Viewport.scale)
+    local sh = math.floor(clipH * Viewport.scale)
+    love.graphics.setScissor(sx, sy, sw, sh)
+
+    local function classify(s)
+        if not s then return 'sys' end
+        if s:find('%[Attack%]') or s:find('attacks') or s:find('hits') then return 'atk' end
+        if s:find('%[Block%]') or s:find('block') then return 'blk' end
+        if s:find('%[Heal%]') or s:find('energy') then return 'heal' end
+        if s:find('round') or s:find('pass') or s:find('Resolving') then return 'sys' end
+        return 'sys'
+    end
+
+    for i = startIdx, total do
+        local msg = state.resolveLog[i]
+        local kind = classify(msg)
+
+        -- Color by type
+        if kind == 'atk' then
+            love.graphics.setColor(0.95, 0.45, 0.4, 1)
+        elseif kind == 'blk' then
+            love.graphics.setColor(0.45, 0.65, 0.95, 1)
+        elseif kind == 'heal' then
+            love.graphics.setColor(0.45, 0.95, 0.45, 1)
+        else
+            love.graphics.setColor(1, 1, 1, 0.95)
+        end
+
+        -- Fade older entries within the visible window
+        local pos = i - startIdx + 1 -- 1..visibleLines
+        local age = visibleLines - pos -- 0 newest at bottom
+        local fade = 1.0
+        if age >= 6 then fade = 0.55 elseif age >= 3 then fade = 0.75 end
+        local r, g, b, _ = love.graphics.getColor()
+        love.graphics.setColor(r, g, b, fade)
+
+        -- Prevent embedded newlines from breaking layout; no wrapping
+        local oneLine = (msg or ""):gsub("\n", " ")
+        love.graphics.print(oneLine, panelX + 8, y)
         y = y + lineH
     end
+
+    -- Clear scissor
+    love.graphics.setScissor()
+
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+-- Expose log panel bounds for hover-aware scrolling
+function ResolveRenderer.getLogPanelRect(state, screenW)
+    local panelW = 300
+    local panelX = screenW - panelW - 16
+    local panelY = 196
+    local lineH = 16
+    local titleH = 20
+    local maxLines = state.maxResolveLogLines or 14
+    local total = #(state.resolveLog or {})
+    local visibleLines = math.min(total, maxLines)
+    local panelH = titleH + visibleLines * lineH + 10
+    return panelX, panelY, panelW, panelH
 end
 
 function ResolveRenderer.draw(state, layout, screenW)

@@ -157,4 +157,29 @@ function game:keypressed(key)
     end
 end
 
+function game:wheelmoved(dx, dy)
+    if not self.gs then return end
+    -- Only scroll when hovering the combat log panel
+    local mx, my = love.mouse.getPosition()
+    local Viewport = require "src.viewport"
+    mx, my = Viewport.toVirtual(mx, my)
+    local ResolveRenderer = require "src.renderers.resolve_renderer"
+    local panelX, panelY, panelW, panelH = ResolveRenderer.getLogPanelRect(self.gs, love.graphics.getWidth())
+    if not (mx >= panelX and mx <= panelX + panelW and my >= panelY and my <= panelY + panelH) then
+        return
+    end
+    -- Positive dy is wheel up in LÖVE; scroll up increases offset
+    local step = 3
+    local maxLines = self.gs.maxResolveLogLines or 14
+    local total = #(self.gs.resolveLog or {})
+    local maxOffset = math.max(0, total - maxLines)
+    local current = self.gs.resolveLogScroll or 0
+    if dy > 0 then
+        self.gs.resolveLogScroll = math.min(maxOffset, current + step)
+    elseif dy < 0 then
+        self.gs.resolveLogScroll = math.max(0, current - step)
+    end
+end
+
 return game
+

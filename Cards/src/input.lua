@@ -154,6 +154,28 @@ function Input:keypressed(gs, key)
         gs:advanceTurn()
     elseif key == "return" or key == "kpenter" then
         gs:passTurn()
+    elseif key == "pageup" then
+        local maxLines = gs.maxResolveLogLines or 14
+        local total = #(gs.resolveLog or {})
+        local maxOffset = math.max(0, total - maxLines)
+        gs.resolveLogScroll = math.min(maxOffset, math.max(0, (gs.resolveLogScroll or 0) + maxLines))
+    elseif key == "pagedown" then
+        gs.resolveLogScroll = math.max(0, (gs.resolveLogScroll or 0) - (gs.maxResolveLogLines or 14))
+    elseif key == "home" then
+        local maxLines = gs.maxResolveLogLines or 14
+        local total = #(gs.resolveLog or {})
+        gs.resolveLogScroll = math.max(0, total - maxLines)
+    elseif key == "end" then
+        gs.resolveLogScroll = 0
+    elseif key == "l" or key == "L" then
+        local order = { 'all', 'combat', 'heals', 'system' }
+        local cur = gs.resolveLogFilter or 'all'
+        local idx = 1
+        for i, v in ipairs(order) do
+            if v == cur then idx = i break end
+        end
+        gs.resolveLogFilter = order[(idx % #order) + 1]
+        gs.resolveLogScroll = 0
     end
 end
 
