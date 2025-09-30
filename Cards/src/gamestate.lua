@@ -6,43 +6,21 @@ local Viewport = require "src.viewport"
 local Config = require "src.config"
 local Layout = require "src.game_layout"
 local PlayerManager = require "src.player_manager"
-local BoardRenderer = require "src.renderers.board_renderer"
-local HudRenderer = require "src.renderers.hud_renderer"
-local ResolveRenderer = require "src.renderers.resolve_renderer"
-local Resolve = require "src.resolve"
-
-local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
-
-local RESOLVE_STEP_HANDLERS = {
-    block = "resolveBlockStep",
-    attack = "resolveAttackStep",
-    heal = "resolveHealStep",
-    cleanup = "resolveCleanupStep",
-}
-
-
-local Deck = require "src.deck"
-local Player = require "src.player"
-local Viewport = require "src.viewport"
-local Config = require "src.config"
-local Layout = require "src.game_layout"
 local Initialiser = require "src.game_initialiser"
 local BoardRenderer = require "src.renderers.board_renderer"
 local HudRenderer = require "src.renderers.hud_renderer"
 local ResolveRenderer = require "src.renderers.resolve_renderer"
 local Resolve = require "src.resolve"
-
-local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
-
-
-
-
+local BoardManager = require "src.board_manager"
+local CardRenderer = require "src.card_renderer"
 local RESOLVE_STEP_HANDLERS = {
     block = "resolveBlockStep",
     attack = "resolveAttackStep",
     heal = "resolveHealStep",
     cleanup = "resolveCleanupStep",
 }
+local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
+
 
 local GameState = {}
 GameState.__index = GameState
@@ -432,13 +410,37 @@ function GameState:draw()
 
     ResolveRenderer.draw(self, layout, screenW)
 
+    if self.draggingCard then
+        local card = self.draggingCard
+        if not card.w or not card.h then
+            local cw, ch = self:getCardDimensions()
+            card.w = card.w or cw
+            card.h = card.h or ch
+        end
+        CardRenderer.draw(card)
+    end
+
+    if HudRenderer.draw then
+        HudRenderer.draw(self, layout, screenW)
+    end
+
+
 end
 function GameState:getPassButtonRect()
     local layout = self:getLayout()
-    local x = layout.passButtonX or 0
-    local y = layout.passButtonY or 0
-    local w = layout.passButtonW or 100
-    local h = layout.passButtonH or 40
+    local w = layout.passButtonW or (Config.ui and Config.ui.buttonW) or 120
+    local h = layout.passButtonH or (Config.ui and Config.ui.buttonH) or 32
+    local x = layout.passButtonX
+    if not x then
+        x = math.floor((Viewport.getWidth() - w) / 2)
+    end
+    local y = layout.passButtonY
+    if not y then
+        local bottomMargin = layout.handBottomMargin or 20
+        local handBottom = (self:getHandY() or (Viewport.getHeight() - (layout.cardH or 150) - bottomMargin)) + (layout.cardH or 150)
+        local maxY = Viewport.getHeight() - h - math.max(12, bottomMargin * 0.5)
+        y = math.min(maxY, handBottom + 16)
+    end
     return x, y, w, h
 end
 
@@ -673,6 +675,42 @@ function GameState:onCardPlaced(player, card, slotIndex)
     self:maybeFinishPlayPhase()
 end
 
+function GameState:maybeFinishPlayPhase()
+    if self.phase ~= 'play' then
+        return
+    end
+
+    if self.hasPendingRetarget and self:hasPendingRetarget() then
+        return
+    end
+
+    local players = self.players or {}
+    if #players == 0 then
+        return
+    end
+
+    local allFilled = true
+    for _, player in ipairs(players) do
+        if self:hasBoardCapacity(player) then
+            allFilled = false
+            break
+        end
+    end
+
+    if not allFilled then
+        return
+    end
+
+    if self.addLog then
+        self:addLog('All slots filled. Resolving.')
+    end
+    if self.logger then
+        self.logger:log_event('resolve_start', { reason = 'board_full' })
+    end
+    if self.startResolve then
+        self:startResolve()
+    end
+end
 function GameState:findNextPlayerIndex()
     local players = self.players or {}
     local count = #players
@@ -741,6 +779,15 @@ function GameState:getLayout()
     return Layout.getLayout(self)
 end
 
+function GameState:computeActiveModifiers()
+    if Resolve and Resolve.computeActiveModifiers then
+        self.activeMods = Resolve.computeActiveModifiers(self)
+    else
+        self.activeMods = nil
+    end
+    return self.activeMods
+end
+
 function GameState:previewIncomingDamage(playerIndex)
     self:computeActiveModifiers()
     return Resolve.previewIncomingDamage(self, playerIndex)
@@ -772,6 +819,23 @@ function GameState:playCardFromHand(card, slotIndex)
     return Actions.playCardFromHand(self, card, slotIndex)
 end
 
+function GameState:passTurn()
+    return Actions.passTurn(self)
+end
+
+function GameState:advanceTurn()
+    return Actions.advanceTurn(self)
+end
+
+function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retargetOffset)
+    return Actions.playModifierOnSlot(self, card, targetPlayerIndex, slotIndex, retargetOffset)
+end
+
+function GameState:drawCardToPlayer(playerIndex)
+    return BoardManager.drawCardToPlayer(self, playerIndex)
+end
+
+
 function GameState:registerTurnAction()
     self.turnActionCount = (self.turnActionCount or 0) + 1
 end
@@ -791,3 +855,15 @@ function GameState:nextPlayer()
 end
 
 return GameState
+
+
+
+
+
+
+
+
+
+
+
+
