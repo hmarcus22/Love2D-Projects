@@ -175,3 +175,4 @@ function RoundManager.finishResolve(state)
 end
 
 return RoundManager
+

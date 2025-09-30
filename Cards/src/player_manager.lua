@@ -103,8 +103,4 @@ function PlayerManager.initAttachments(self)
     dprint("[DEBUG] PlayerManager.initAttachments after: attachments=", #self.attachments)
 end
 
-function PlayerManager.updateCardVisibility(self)
-    -- ...moved from GameState:updateCardVisibility...
-end
-
 return PlayerManager

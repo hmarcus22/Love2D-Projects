@@ -4,7 +4,6 @@ local Input = require "src.input"
 local Viewport = require "src.viewport"
 local pause = require "src.states.pause"
 local replay_match = require "src.replay"
-local menu  = require "src.states.menu"
 
 local game = {}
 
@@ -100,7 +99,8 @@ function game:update(dt)
     -- Transition back to menu when match ends
     if self.gs and self.gs.matchWinner and not self._matchHandled then
         self._matchHandled = true
-        Gamestate.switch(menu)
+        -- Lazy-require menu here to avoid circular requires
+        Gamestate.switch(require "src.states.menu")
         return
     end
 end

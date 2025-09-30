@@ -260,53 +260,6 @@ function Player:drawCard()
     return card
 end
 
-function Player:playCardToBoard(card, slotIndex, gs)
-    if card.slotIndex and self.slots[card.slotIndex] and self.slots[card.slotIndex].card == card then
-        self.slots[card.slotIndex].card = nil
-    end
-    card.slotIndex = nil
-
-    local boardSlot = self.boardSlots[slotIndex]
-    if not boardSlot or boardSlot.card then
-        return false
-    end
-
-    boardSlot.block = 0
-    boardSlot.card = card
-
-    local x, y = gs:getBoardSlotPosition(self.id, slotIndex)
-    card.x, card.y = x, y
-    card.zone = "board"
-    card.owner = self
-    card.faceUp = true
-
-    self:compactHand()
-    return true
-end
-
-function Player:drawBoard()
-    local color = self:getFighterColor()
-    local r, g, b = 0.8, 0.8, 0.2
-    if color then
-        r = color[1] or r
-        g = color[2] or g
-        b = color[3] or b
-    end
-
-    for _, slot in ipairs(self.boardSlots) do
-        love.graphics.setColor(r, g, b, 0.15)
-        love.graphics.rectangle("fill", slot.x, slot.y, 100, 150, 8, 8)
-        love.graphics.setColor(r, g, b, 0.5)
-        love.graphics.rectangle("line", slot.x, slot.y, 100, 150, 8, 8)
-        if slot.card then
-            love.graphics.setColor(1, 1, 1, 1)
-            local CardRenderer = require "src.card_renderer"
-            CardRenderer.draw(slot.card)
-        end
-    end
-
-    love.graphics.setColor(1, 1, 1, 1)
-end
 function Player:drawHand(isCurrent, gs)
     if not isCurrent then
         return

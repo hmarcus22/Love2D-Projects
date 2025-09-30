@@ -13,7 +13,7 @@ local ResolveRenderer = require "src.renderers.resolve_renderer"
 local Resolve = require "src.resolve"
 local BoardManager = require "src.board_manager"
 local CardRenderer = require "src.card_renderer"
-local RoundManager = require "src.state.round_manager"
+local RoundManager = require "src.logic.round_manager"
 local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
 
 
@@ -269,8 +269,12 @@ function GameState:applyCardEffectsDuringAttack(attackerIdx, defenderIdx, origin
     if effect == "swap_enemies" then
         self:swapEnemyBoard(defenderIdx)
     elseif effect == "aoe_attack" then
-        local value = context.attack or card.definition.attack or 0
-        self:performAoeAttack(attackerIdx, value)
+        -- Ultimate-style AOE: apply once and skip normal per-target damage
+        if card.definition and card.definition.ultimate then
+            local value = context.attack or card.definition.attack or 0
+            self:performAoeAttack(attackerIdx, value)
+            context.skipDamage = true
+        end
     elseif effect == "ko_below_half_hp" then
         if self:attemptAssassinate(attackerIdx, defenderIdx) then
             context.skipDamage = true

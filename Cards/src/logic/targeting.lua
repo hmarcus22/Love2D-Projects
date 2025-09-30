@@ -39,6 +39,14 @@ function Targeting.collectAttackTargets(state, playerIndex, slotIndex)
         maxSlots = #opponentSlots
     end
 
+    -- AOE: target every opposing slot once
+    if def.effect == "aoe_attack" then
+        for i = 1, maxSlots do
+            table.insert(targets, { player = opponentIndex, slot = i })
+        end
+        return targets
+    end
+
     local offset = getRetargetOffset(state, playerIndex, slotIndex)
     local targetSlot = slotIndex + offset
     if maxSlots > 0 then
