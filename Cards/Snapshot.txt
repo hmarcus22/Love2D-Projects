@@ -1,0 +1,14 @@
+Sounds good. I’ll pause here. Quick snapshot so it’s easy to resume later:
+
+Structure: Core rules moved under src/logic (actions, resolve, round_manager, player_manager, game_initialiser, targeting). DEV_NOTES.md added.
+Combat: AOE targeting and damage implemented; health persists; immediate effects on play for Smoke Bomb and Body Slam.
+Rounds: KO detection + popup; score increments once; match returns to menu; re-entrancy guard.
+Energy/Cost: Favored-tag discount with min cost=1 (no free 1-cost cards).
+UI: Current-turn badge/border; higher-contrast board slot outlines; HUD discard removed.
+Log: Moved below P2 panel, color-coded + faded, scrollable (wheel + PgUp/PgDn/Home/End), clipped to panel, no overlapping lines. Hover-only wheel scroll is enabled.
+Nice-to-do next (when we pick it up):
+
+Apply the log filter in renderer and show “All/Combat/Heals/System” label (toggle already wired to L).
+Minor polish: consistent abbreviations in log lines, optional AOEs collapsed per step.
+Quick pass on any lingering TODOs (e.g., cost auras, effect grouping).
+Ping me when you’re back and I’ll pick up from the log filter rendering.
