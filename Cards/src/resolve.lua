@@ -4,7 +4,61 @@ local Config = require "src.config"
 local Resolve = {}
 
 function Resolve.startResolve(self)
-    -- ...moved from GameState:startResolve...
+    self.phase = "resolve"
+    self.resolveQueue = {}
+    self.resolveIndex = 0
+    self.resolveTimer = 0
+    self.resolveCurrentStep = nil
+
+    if self.addLog then
+        self:addLog("Resolve phase begins")
+    end
+
+    local maxSlots = self.maxBoardCards or 0
+    for _, player in ipairs(self.players or {}) do
+        local count = player.boardSlots and #player.boardSlots or 0
+        if count > maxSlots then
+            maxSlots = count
+        end
+    end
+
+    if maxSlots <= 0 then
+        if self.finishResolvePhase then
+            self:finishResolvePhase()
+        end
+        return
+    end
+
+    local function slotHasCard(slotIndex)
+        for _, player in ipairs(self.players or {}) do
+            local slot = player.boardSlots and player.boardSlots[slotIndex]
+            if slot and slot.card then
+                return true
+            end
+        end
+        return false
+    end
+
+    for slotIndex = 1, maxSlots do
+        if slotHasCard(slotIndex) then
+            table.insert(self.resolveQueue, { kind = "block", slot = slotIndex })
+            table.insert(self.resolveQueue, { kind = "attack", slot = slotIndex })
+            table.insert(self.resolveQueue, { kind = "heal", slot = slotIndex })
+            table.insert(self.resolveQueue, { kind = "cleanup", slot = slotIndex })
+        end
+    end
+
+    if #self.resolveQueue == 0 then
+        if self.finishResolvePhase then
+            self:finishResolvePhase()
+        end
+        return
+    end
+
+    if self.computeActiveModifiers then
+        self:computeActiveModifiers()
+    end
+    self.resolveCurrentStep = self.resolveQueue[1]
 end
 
 function Resolve.resolveBlockStep(self, slotIndex)
@@ -27,7 +81,35 @@ function Resolve.resolveBlockStep(self, slotIndex)
 end
 
 function Resolve.resolveAttackStep(self, slotIndex)
-    -- ...moved from GameState:resolveAttackStep...
+    if not self.players then
+        return
+    end
+
+    for idx, player in ipairs(self.players) do
+        local slot = player.boardSlots and player.boardSlots[slotIndex]
+        if slot and slot.card then
+            local def = slot.card.definition or {}
+            local attack = Resolve.getEffectiveStat(self, idx, slotIndex, def, "attack")
+            if attack and attack > 0 then
+                local BoardRenderer = require "src.renderers.board_renderer"
+                local targets = BoardRenderer.collectAttackTargets(self, idx, slotIndex)
+                for _, target in ipairs(targets) do
+                    if self.addLog then
+                        local label = string.format(
+                            "Slot %d [Attack]: P%d %s targets P%d slot %d for %d",
+                            slotIndex,
+                            player.id or idx,
+                            slot.card.name or "attack",
+                            target.player or 0,
+                            target.slot or 0,
+                            attack
+                        )
+                        self:addLog(label)
+                    end
+                end
+            end
+        end
+    end
 end
 
 function Resolve.resolveHealStep(self, slotIndex)
@@ -83,7 +165,23 @@ function Resolve.resolveCleanupStep(self, slotIndex)
 end
 
 function Resolve.performResolveStep(self, step)
-    -- ...moved from GameState:performResolveStep...
+    if not step or not step.kind then
+        return
+    end
+
+    local handlers = {
+        block = Resolve.resolveBlockStep,
+        attack = Resolve.resolveAttackStep,
+        heal = Resolve.resolveHealStep,
+        cleanup = Resolve.resolveCleanupStep,
+    }
+
+    local handler = handlers[step.kind]
+    if handler then
+        handler(self, step.slot)
+    elseif self.addLog then
+        self:addLog(string.format("Unknown resolve step: %s", tostring(step.kind)))
+    end
 end
 
 function Resolve.computeActiveModifiers(gs)

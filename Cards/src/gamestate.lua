@@ -461,7 +461,7 @@ function GameState:update(dt)
             local step = self.resolveQueue[self.resolveIndex]
             if step then
                 print(string.format("[DEBUG] Performing resolve step %d/%d: %s slot %d", self.resolveIndex, #self.resolveQueue, step.kind, step.slot))
-                self:performResolveStep(step)
+                Resolve.performResolveStep(self, step)
             end
             -- Update current step after performing
             if self.resolveIndex < #self.resolveQueue then
@@ -469,6 +469,10 @@ function GameState:update(dt)
             else
                 self.resolveCurrentStep = nil
             end
+        end
+
+        if self.resolveIndex >= #self.resolveQueue then
+            self:finishResolvePhase()
         end
     end
 end
@@ -779,6 +783,99 @@ function GameState:getLayout()
     return Layout.getLayout(self)
 end
 
+function GameState:addLog(message)
+    if not message then
+        return
+    end
+
+    self.resolveLog = self.resolveLog or {}
+    table.insert(self.resolveLog, message)
+
+    local maxEntries = (self.maxResolveLogLines or 14) * 4
+    if maxEntries > 0 and #self.resolveLog > maxEntries then
+        local removeCount = #self.resolveLog - maxEntries
+        for _ = 1, removeCount do
+            table.remove(self.resolveLog, 1)
+        end
+    end
+
+    print(string.format("[LOG] %s", message))
+end
+
+function GameState:finishResolvePhase()
+    self.phase = "play"
+    self.resolveCurrentStep = nil
+    self.resolveQueue = {}
+    self.resolveIndex = 0
+    self.resolveTimer = 0
+    self.activeMods = nil
+
+    self.lastActionWasPass = false
+    self.lastPassBy = nil
+    self.turnActionCount = 0
+
+    if self.playedCount then
+        for id in pairs(self.playedCount) do
+            self.playedCount[id] = 0
+        end
+    end
+
+    if self.initAttachments then
+        self:initAttachments()
+    end
+
+    if self.resetRoundFlags then
+        self:resetRoundFlags()
+    end
+    if self.activateRoundStatuses then
+        self:activateRoundStatuses()
+    end
+
+    if Config.rules.autoDrawPerRound and Config.rules.autoDrawPerRound > 0 then
+        local amount = Config.rules.autoDrawPerRound
+        for idx = 1, #(self.players or {}) do
+            for _ = 1, amount do
+                self:drawCardToPlayer(idx)
+            end
+        end
+    end
+
+    local newRoundIndex = (self.roundIndex or 0) + 1
+    self.roundIndex = newRoundIndex
+
+    local rules = Config.rules or {}
+    if rules.energyEnabled ~= false then
+        local startE = rules.energyStart or 0
+        local incE = rules.energyIncrementPerRound or 0
+        local steps = math.max(0, newRoundIndex - 1)
+        local target = startE + steps * incE
+        local maxE = rules.energyMax
+        if maxE and maxE > 0 then
+            target = math.min(target, maxE)
+        end
+        if target < 0 then
+            target = 0
+        end
+        for _, player in ipairs(self.players or {}) do
+            player.energy = target
+        end
+    end
+
+    local playerCount = self.players and #self.players or 0
+    if playerCount > 0 then
+        local start = self.roundStartPlayer or 1
+        self.roundStartPlayer = (start % playerCount) + 1
+        self.microStarter = self.roundStartPlayer
+        self.currentPlayer = self.roundStartPlayer
+    end
+
+    self:ensureCurrentPlayerReady()
+    self:updateCardVisibility()
+    self:drawCardsForTurnStart()
+
+    self:addLog("Resolve phase complete")
+end
+
 function GameState:computeActiveModifiers()
     if Resolve and Resolve.computeActiveModifiers then
         self.activeMods = Resolve.computeActiveModifiers(self)
@@ -832,7 +929,26 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
 end
 
 function GameState:drawCardToPlayer(playerIndex)
-    return BoardManager.drawCardToPlayer(self, playerIndex)
+    if self.hasSharedDeck ~= false and self.deck then
+        return BoardManager.drawCardToPlayer(self, playerIndex)
+    end
+
+    local player = self.players and self.players[playerIndex]
+    if player and player.drawCard then
+        local card = player:drawCard()
+        if card and self.logger then
+            self.logger:log_event("draw", { player = player.id or playerIndex, card = card.name or card.id or "card" })
+        end
+        return card
+    end
+
+    return nil
+end
+
+function GameState:startResolve()
+    if Resolve and Resolve.startResolve then
+        return Resolve.startResolve(self)
+    end
 end
 
 
@@ -842,7 +958,6 @@ end
 
 function GameState:nextPlayer()
     self.turnActionCount = 0
-    self.lastActionWasPass = false
 
     local nextIndex = self:findNextPlayerIndex()
     if not nextIndex then
@@ -855,15 +970,3 @@ function GameState:nextPlayer()
 end
 
 return GameState
-
-
-
-
-
-
-
-
-
-
-
-
