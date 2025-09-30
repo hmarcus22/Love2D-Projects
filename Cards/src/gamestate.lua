@@ -455,7 +455,9 @@ function GameState:update(dt)
             self.resolveIndex = self.resolveIndex + 1
             local step = self.resolveQueue[self.resolveIndex]
             if step then
-                print(string.format("[DEBUG] Performing resolve step %d/%d: %s slot %d", self.resolveIndex, #self.resolveQueue, step.kind, step.slot))
+                if Config and Config.debug then
+                    print(string.format("[DEBUG] Performing resolve step %d/%d: %s slot %d", self.resolveIndex, #self.resolveQueue, step.kind, step.slot))
+                end
                 Resolve.performResolveStep(self, step)
             end
             -- Update current step after performing
@@ -487,66 +489,6 @@ function GameState:updateCardVisibility()
         end
     end
 end
-function GameState:canAffordCard(player, card)
-    if Config.rules.energyEnabled == false then
-        return true, 0
-    end
-
-    local cost = self:getEffectiveCardCost(player, card)
-    local energy = player and player.energy or 0
-    if cost <= energy then
-        return true, cost
-    end
-
-    return false, cost
-end
-
-function GameState:deductEnergyForCard(player, cost)
-    if Config.rules.energyEnabled == false or not player then
-        return
-    end
-
-    local amount = cost or 0
-    if amount > 0 then
-        player.energy = (player.energy or 0) - amount
-    end
-end
-
-function GameState:applyCardVariance(player, card)
-    local def = card and card.definition
-    if not def then
-        card.statVariance = nil
-        return
-    end
-
-    local fighter = player and player.getFighter and player:getFighter() or nil
-    local passives = fighter and fighter.passives or nil
-    local roll = self:rollVarianceForStat(player, card, def, passives, 'attack', 'attackVariance')
-    card.statVariance = roll and { attack = roll } or nil
-end
-
-function GameState:rollVarianceForStat(player, card, def, passives, statKey, passiveKey)
-    if not def then return nil end
-    local base = def[statKey]
-    if not base or base <= 0 then return nil end
-
-    local config = passives and passives[passiveKey] or nil
-    local amount = self:getVarianceAmount(config)
-    if amount <= 0 then return nil end
-
-    local rng = (love and love.math and love.math.random) or math.random
-    local roll = ((rng(2) == 1) and 1 or -1) * amount
-
-    local delta = roll > 0 and ('+' .. roll) or tostring(roll)
-    local cardName = card and (card.name or (card.definition and card.definition.name)) or 'card'
-    local playerId = player and player.id or 0
-    local msg = string.format("P%d %s variance %s on %s", playerId, statKey, delta, cardName)
-    self:addLog(msg)
-    print(msg)
-
-    return roll
-end
-
 function GameState:initiateRetargetSelection(owner, sourcePlayerIndex, slotIndex, attachment, cardName)
     local opponentIndex = (sourcePlayerIndex == 1 and 2) or 1
     if not (self.players and self.players[opponentIndex]) then
@@ -623,13 +565,6 @@ function GameState:selectRetargetSlot(playerIndex, slotIndex)
     return true
 end
 
-function GameState:getVarianceAmount(config)
-    if type(config) == 'table' then
-        return config.amount or config.value or config.delta or 0
-    end
-    return config or 0
-end
-
 
 function GameState:hasBoardCapacity(player)
     if not player then
@@ -653,13 +588,13 @@ function GameState:onCardPlaced(player, card, slotIndex)
 
     if id then
         local limit = self.maxBoardCards or player.maxBoardCards or #(player.boardSlots or {})
-        print(string.format(
+        if Config and Config.debug then print(string.format(
             "Player %d placed a card in slot %d. Played %d/%d cards.",
             id,
             slotIndex,
             self.playedCount[id],
             limit
-        ))
+        )) end
         if self.logger then
             self.logger:log_event("card_placed", {
                 player = id,

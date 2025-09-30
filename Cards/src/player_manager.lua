@@ -1,8 +1,15 @@
 -- player_manager.lua: Handles player setup, turn order, round state, attachments, visibility
 local PlayerManager = {}
+local Config = require("src.config")
+
+local function dprint(...)
+    if Config and Config.debug then
+        print(...)
+    end
+end
 
 function PlayerManager.initPlayers(self, players)
-    print("[DEBUG] PlayerManager.initPlayers called. self:", self)
+    dprint("[DEBUG] PlayerManager.initPlayers called. self:", self)
     self.players = players
     self.playedCount = {}
     for _, player in ipairs(players) do
@@ -11,19 +18,19 @@ function PlayerManager.initPlayers(self, players)
     end
     local first = players[1]
     self.maxBoardCards = (first and first.maxBoardCards) or (require("src.config").rules.maxBoardCards or 3)
-    print("[DEBUG] PlayerManager.initPlayers after: players=", #self.players, "maxBoardCards=", self.maxBoardCards)
+    dprint("[DEBUG] PlayerManager.initPlayers after: players=", #self.players, "maxBoardCards=", self.maxBoardCards)
 end
 
 function PlayerManager.initTurnOrder(self)
-    print("[DEBUG] PlayerManager.initTurnOrder called. self:", self)
+    dprint("[DEBUG] PlayerManager.initTurnOrder called. self:", self)
     self.roundStartPlayer = love.math.random(#self.players)
     self.microStarter = self.roundStartPlayer
     self.currentPlayer = self.roundStartPlayer
-    print("[DEBUG] PlayerManager.initTurnOrder after: roundStartPlayer=", self.roundStartPlayer, "currentPlayer=", self.currentPlayer)
+    dprint("[DEBUG] PlayerManager.initTurnOrder after: roundStartPlayer=", self.roundStartPlayer, "currentPlayer=", self.currentPlayer)
 end
 
 function PlayerManager.initRoundState(self)
-    print("[DEBUG] PlayerManager.initRoundState called. self:", self)
+    dprint("[DEBUG] PlayerManager.initRoundState called. self:", self)
     local Config = require("src.config")
     self.roundIndex = (self.roundIndex or 0) + 1
     self.phase = "play"
@@ -40,7 +47,7 @@ function PlayerManager.initRoundState(self)
     for _, player in ipairs(self.players or {}) do
     -- Increment energy per round, capped
     local newEnergy = energyStart + (self.roundIndex - 1) * energyInc
-    print(string.format("[DEBUG] Player %d roundIndex=%d newEnergy=%d", player.id, self.roundIndex, newEnergy))
+    dprint(string.format("[DEBUG] Player %d roundIndex=%d newEnergy=%d", player.id, self.roundIndex, newEnergy))
     player.energy = math.min(newEnergy, energyMax)
         player.block = 0
         player.discard = {}
@@ -62,7 +69,7 @@ function PlayerManager.initRoundState(self)
                 end
             end
         end
-        print(string.format("[DEBUG] Player %d after round reset: energy=%d, hand=%d, deck=%d", player.id, player.energy, #player.hand, #(player.deck or {})))
+        dprint(string.format("[DEBUG] Player %d after round reset: energy=%d, hand=%d, deck=%d", player.id, player.energy, #player.hand, #(player.deck or {})))
     end
 
     -- Reset turn order
@@ -83,17 +90,17 @@ function PlayerManager.initRoundState(self)
     if self.initAttachments then self:initAttachments() end
     if self.updateCardVisibility then self:updateCardVisibility() end
 
-    print("[DEBUG] PlayerManager.initRoundState after: roundIndex=", self.roundIndex, "phase=", self.phase, "turnActionCount=", self.turnActionCount)
+    dprint("[DEBUG] PlayerManager.initRoundState after: roundIndex=", self.roundIndex, "phase=", self.phase, "turnActionCount=", self.turnActionCount)
 end
 
 
 function PlayerManager.initAttachments(self)
-    print("[DEBUG] PlayerManager.initAttachments called. self:", self)
+    dprint("[DEBUG] PlayerManager.initAttachments called. self:", self)
     self.attachments = {}
     for index = 1, #self.players do
         self.attachments[index] = {}
     end
-    print("[DEBUG] PlayerManager.initAttachments after: attachments=", #self.attachments)
+    dprint("[DEBUG] PlayerManager.initAttachments after: attachments=", #self.attachments)
 end
 
 function PlayerManager.updateCardVisibility(self)

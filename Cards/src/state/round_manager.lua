@@ -48,7 +48,12 @@ local function autoDrawForPlayers(state, rules)
 end
 
 function RoundManager.finishResolve(state)
-    state.phase = "play"
+    -- Guard against re-entrancy (e.g., being called multiple frames)
+    if state._roundEndProcessing then
+        return
+    end
+    state._roundEndProcessing = true
+    -- Clear resolve state
     state.resolveCurrentStep = nil
     state.resolveQueue = {}
     state.resolveIndex = 0
@@ -59,48 +64,113 @@ function RoundManager.finishResolve(state)
     state.lastPassBy = nil
     state.turnActionCount = 0
 
-    resetPlayedCount(state)
-
-    if state.initAttachments then
-        state:initAttachments()
-    end
-
-    if state.resetRoundFlags then
-        state:resetRoundFlags()
-    end
-    if state.activateRoundStatuses then
-        state:activateRoundStatuses()
-    end
-
-    local rules = Config.rules or {}
-
-    autoDrawForPlayers(state, rules)
-
-    local newRoundIndex = (state.roundIndex or 0) + 1
-    state.roundIndex = newRoundIndex
-
-    refillEnergyForRound(state, rules, newRoundIndex)
-
-    local playerCount = state.players and #state.players or 0
-    if playerCount > 0 then
-        local start = state.roundStartPlayer or 1
-        state.roundStartPlayer = (start % playerCount) + 1
-        state.microStarter = state.roundStartPlayer
-        state.currentPlayer = state.roundStartPlayer
-    end
-
-    if state.ensureCurrentPlayerReady then
-        state:ensureCurrentPlayerReady()
-    end
-    if state.updateCardVisibility then
-        state:updateCardVisibility()
-    end
-    if state.drawCardsForTurnStart then
-        state:drawCardsForTurnStart()
-    end
-
     if state.addLog then
         state:addLog("Resolve phase complete")
+    end
+
+    -- Determine if a player has been KO'd (health <= 0)
+    local knockedOut = {}
+    for idx, p in ipairs(state.players or {}) do
+        local hp = p and p.health or 0
+        if hp <= 0 then
+            p.health = 0
+            table.insert(knockedOut, idx)
+        end
+    end
+
+    local function startNewRound(restoreHealth)
+        if restoreHealth then
+            for _, p in ipairs(state.players or {}) do
+                p.health = p.maxHealth or 20
+            end
+        end
+
+        resetPlayedCount(state)
+
+        if state.initAttachments then
+            state:initAttachments()
+        end
+
+        if state.resetRoundFlags then
+            state:resetRoundFlags()
+        end
+        if state.activateRoundStatuses then
+            state:activateRoundStatuses()
+        end
+
+        local rules = Config.rules or {}
+
+        -- Advance round index and refill energy for the new round
+        local newRoundIndex = (state.roundIndex or 0) + 1
+        state.roundIndex = newRoundIndex
+        refillEnergyForRound(state, rules, newRoundIndex)
+
+        -- Rotate starter and set current player
+        local playerCount = state.players and #state.players or 0
+        if playerCount > 0 then
+            local start = state.roundStartPlayer or 1
+            state.roundStartPlayer = (start % playerCount) + 1
+            state.microStarter = state.roundStartPlayer
+            state.currentPlayer = state.roundStartPlayer
+        end
+
+        if state.ensureCurrentPlayerReady then
+            state:ensureCurrentPlayerReady()
+        end
+        if state.updateCardVisibility then
+            state:updateCardVisibility()
+        end
+
+        -- Cards drawn between rounds and at turn start
+        autoDrawForPlayers(state, rules)
+        if state.drawCardsForTurnStart then
+            state:drawCardsForTurnStart()
+        end
+
+        -- Enter play phase once everything is ready
+        state.phase = "play"
+    end
+
+    -- Decide round outcome
+    if #knockedOut == 1 then
+        local loser = knockedOut[1]
+        local winner = (loser == 1) and 2 or 1
+        state.roundWins = state.roundWins or { [1] = 0, [2] = 0 }
+        state.roundWins[winner] = (state.roundWins[winner] or 0) + 1
+        local score = { state.roundWins[1] or 0, state.roundWins[2] or 0 }
+        if state.addLog then
+            state:addLog(string.format("Player %d wins the round! (Score: %d-%d)", winner, score[1], score[2]))
+        end
+        if state.logger then
+            state.logger:log_event("round_win", { winner = winner, score = score })
+        end
+
+        -- Pause between rounds while showing the popup
+        state.phase = "round_over"
+        local HudRenderer = require "src.renderers.hud_renderer"
+        HudRenderer.showRoundOver(winner, score, function()
+            if (state.roundWins[winner] or 0) >= 2 then
+                state.matchWinner = winner
+                if state.addLog then
+                    state:addLog(string.format("Player %d wins the match!", winner))
+                end
+                if state.logger then
+                    state.logger:log_event("match_win", { winner = winner })
+                end
+                -- Keep phase as-is; caller may transition out of game state.
+                state._roundEndProcessing = false
+            else
+                startNewRound(true)
+                state._roundEndProcessing = false
+            end
+        end)
+    else
+        if #knockedOut >= 2 and state.addLog then
+            state:addLog("Double KO! No round winner.")
+        end
+        -- No winner: start new round without restoring health
+        startNewRound(false)
+        state._roundEndProcessing = false
     end
 end
 

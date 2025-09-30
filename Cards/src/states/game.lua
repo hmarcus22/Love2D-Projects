@@ -4,6 +4,7 @@ local Input = require "src.input"
 local Viewport = require "src.viewport"
 local pause = require "src.states.pause"
 local replay_match = require "src.replay"
+local menu  = require "src.states.menu"
 
 local game = {}
 
@@ -94,6 +95,13 @@ function game:update(dt)
     local HudRenderer = require "src.renderers.hud_renderer"
     if HudRenderer.update then
         HudRenderer.update(dt)
+    end
+
+    -- Transition back to menu when match ends
+    if self.gs and self.gs.matchWinner and not self._matchHandled then
+        self._matchHandled = true
+        Gamestate.switch(menu)
+        return
     end
 end
 
