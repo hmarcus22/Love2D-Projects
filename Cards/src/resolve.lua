@@ -85,26 +85,81 @@ function Resolve.resolveAttackStep(self, slotIndex)
         return
     end
 
-    for idx, player in ipairs(self.players) do
-        local slot = player.boardSlots and player.boardSlots[slotIndex]
-        if slot and slot.card then
-            local def = slot.card.definition or {}
-            local attack = Resolve.getEffectiveStat(self, idx, slotIndex, def, "attack")
-            if attack and attack > 0 then
-                local BoardRenderer = require "src.renderers.board_renderer"
-                local targets = BoardRenderer.collectAttackTargets(self, idx, slotIndex)
+    local Targeting = require "src.logic.targeting"
+
+    for attackerIndex, attacker in ipairs(self.players) do
+        local srcSlot = attacker.boardSlots and attacker.boardSlots[slotIndex]
+        if srcSlot and srcSlot.card then
+            local def = srcSlot.card.definition or {}
+            local baseAttack = Resolve.getEffectiveStat(self, attackerIndex, slotIndex, def, "attack") or 0
+
+            -- Apply any special multipliers (e.g., double_attack_one_round)
+            local mult = 1
+            if self.specialAttackMultipliers then
+                local perPlayer = self.specialAttackMultipliers[attacker.id or attackerIndex]
+                if perPlayer and perPlayer[slotIndex] then
+                    mult = perPlayer[slotIndex]
+                end
+            end
+            local attack = math.floor(baseAttack * mult)
+
+            if attack > 0 then
+                local targets = Targeting.collectAttackTargets(self, attackerIndex, slotIndex)
                 for _, target in ipairs(targets) do
-                    if self.addLog then
-                        local label = string.format(
-                            "Slot %d [Attack]: P%d %s targets P%d slot %d for %d",
-                            slotIndex,
-                            player.id or idx,
-                            slot.card.name or "attack",
-                            target.player or 0,
-                            target.slot or 0,
-                            attack
-                        )
-                        self:addLog(label)
+                    local defenderIndex = target.player
+                    local defender = self.players and self.players[defenderIndex]
+                    if defender then
+                        local context = { attack = attack }
+                        if self.applyCardEffectsDuringAttack then
+                            self:applyCardEffectsDuringAttack(attackerIndex, defenderIndex, slotIndex, target.slot, srcSlot.card, context)
+                        end
+
+                        if not context.skipDamage then
+                            -- Invulnerability check
+                            if self.isPlayerInvulnerable and self:isPlayerInvulnerable(defenderIndex) then
+                                if self.addLog then
+                                    self:addLog(string.format(
+                                        "Slot %d [Attack]: P%d %s attacks P%d slot %d but target is invulnerable",
+                                        slotIndex,
+                                        attacker.id or attackerIndex,
+                                        srcSlot.card.name or "attack",
+                                        defender.id or defenderIndex,
+                                        target.slot or 0
+                                    ))
+                                end
+                            else
+                                -- Consume block then deal damage
+                                local defenderSlot = defender.boardSlots and defender.boardSlots[target.slot]
+                                local absorbed = 0
+                                if not context.ignoreBlock and defenderSlot then
+                                    local before = defenderSlot.block or 0
+                                    absorbed = math.min(before, attack)
+                                    if absorbed > 0 then
+                                        defenderSlot.block = before - absorbed
+                                    end
+                                end
+                                local damage = math.max(0, attack - absorbed)
+                                if damage > 0 then
+                                    defender.health = math.max(0, (defender.health or defender.maxHealth or 20) - damage)
+                                end
+
+                                if self.addLog then
+                                    local retargetSuffix = (target.slot ~= slotIndex) and string.format(" -> slot %d", target.slot) or ""
+                                    self:addLog(string.format(
+                                        "Slot %d [Attack]: P%d %s hits P%d slot %d for %d (block %d, dmg %d)%s",
+                                        slotIndex,
+                                        attacker.id or attackerIndex,
+                                        srcSlot.card.name or "attack",
+                                        defender.id or defenderIndex,
+                                        target.slot or 0,
+                                        attack,
+                                        absorbed,
+                                        damage,
+                                        retargetSuffix
+                                    ))
+                                end
+                            end
+                        end
                     end
                 end
             end
@@ -291,13 +346,13 @@ end
         local player = gs.players and gs.players[playerIndex]
         local damage = 0
         local opponent = gs.players and gs.players[opponentIndex]
-        local BoardRenderer = require "src.renderers.board_renderer"
+        local Targeting = require "src.logic.targeting"
         if opponent and opponent.boardSlots then
             for slotIdx, slot in ipairs(opponent.boardSlots) do
                 if slot.card and slot.card.definition then
                     local attack = Resolve.getEffectiveStat(gs, opponentIndex, slotIdx, slot.card.definition, "attack")
                     -- Use collectAttackTargets to find the actual target slot
-                    local targets = BoardRenderer.collectAttackTargets(gs, opponentIndex, slotIdx)
+                    local targets = Targeting.collectAttackTargets(gs, opponentIndex, slotIdx)
                     for _, target in ipairs(targets) do
                         if target.player == playerIndex and player and player.boardSlots and player.boardSlots[target.slot] then
                             -- Use getEffectiveStat to preview block value

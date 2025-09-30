@@ -1,5 +1,6 @@
 local BoardRenderer = {}
 local Viewport = require "src.viewport"
+local Targeting = require "src.logic.targeting"
 
 local function drawPassiveBadge(x, y, w, h, color, text)
     love.graphics.setColor(color[1], color[2], color[3], color[4] or 0.9)
@@ -71,53 +72,8 @@ local function drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-local function getRetargetOffset(state, playerIndex, slotIndex)
-    local perPlayer = state.attachments and state.attachments[playerIndex]
-    local attachments = perPlayer and perPlayer[slotIndex]
-    if attachments then
-        for _, mod in ipairs(attachments) do
-            if mod.retargetOffset ~= nil then
-                return mod.retargetOffset
-            end
-        end
-    end
-    return 0
-end
-
 function BoardRenderer.collectAttackTargets(state, playerIndex, slotIndex)
-    local targets = {}
-    local players = state.players or {}
-    local player = players[playerIndex]
-    local slot = player and player.boardSlots and player.boardSlots[slotIndex]
-    if not slot or not slot.card then
-        return targets
-    end
-
-    local def = slot.card.definition or {}
-    local baseAttack = def.attack or 0
-    if baseAttack <= 0 then
-        return targets
-    end
-
-    local offset = getRetargetOffset(state, playerIndex, slotIndex)
-    local opponentIndex = (playerIndex == 1) and 2 or 1
-    local opponent = players[opponentIndex]
-    local opponentSlots = opponent and opponent.boardSlots or {}
-    local maxSlots = state.maxBoardCards or #opponentSlots
-    if maxSlots == 0 then
-        maxSlots = #opponentSlots
-    end
-
-    local targetSlot = slotIndex + offset
-    if maxSlots > 0 then
-        if targetSlot < 1 then targetSlot = 1 end
-        if targetSlot > maxSlots then targetSlot = maxSlots end
-    else
-        targetSlot = slotIndex
-    end
-
-    table.insert(targets, { player = opponentIndex, slot = targetSlot })
-    return targets
+    return Targeting.collectAttackTargets(state, playerIndex, slotIndex)
 end
 
 local function drawAttackIndicators(state, layout, playerIndex, slotIndex, slotX, slotY, cardW, cardH, targets)

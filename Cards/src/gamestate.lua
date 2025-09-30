@@ -14,12 +14,6 @@ local Resolve = require "src.resolve"
 local BoardManager = require "src.board_manager"
 local CardRenderer = require "src.card_renderer"
 local RoundManager = require "src.state.round_manager"
-local RESOLVE_STEP_HANDLERS = {
-    block = "resolveBlockStep",
-    attack = "resolveAttackStep",
-    heal = "resolveHealStep",
-    cleanup = "resolveCleanupStep",
-}
 local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
 
 

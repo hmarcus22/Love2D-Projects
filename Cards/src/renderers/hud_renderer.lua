@@ -52,21 +52,23 @@ local function drawHealthBar(x, y, width, preview)
     love.graphics.setColor(0.1, 0.1, 0.1, 0.85)
     love.graphics.rectangle("fill", x, y, width, barHeight, 10, 10)
 
-    local expectedRatio = preview.expected / preview.maxHealth
-    love.graphics.setColor(0.25, 0.8, 0.3, 0.9)
-    love.graphics.rectangle("fill", x, y, width * expectedRatio, barHeight, 10, 10)
-
+    -- Draw current health as the base fill
     local currentRatio = preview.health / preview.maxHealth
-    if preview.expected < preview.health then
-        local lossWidth = width * (preview.health - preview.expected) / preview.maxHealth
-        local lossX = x + width * expectedRatio
-        love.graphics.setColor(0.9, 0.2, 0.2, 0.7)
-        love.graphics.rectangle("fill", lossX, y, lossWidth, barHeight, 10, 10)
-    elseif preview.expected > preview.health then
+    love.graphics.setColor(0.25, 0.8, 0.3, 0.9)
+    love.graphics.rectangle("fill", x, y, width * currentRatio, barHeight, 10, 10)
+
+    -- Overlay the delta to preview (blue for heal, red for damage)
+    local expectedRatio = preview.expected / preview.maxHealth
+    if preview.expected > preview.health then
         local healWidth = width * (preview.expected - preview.health) / preview.maxHealth
         local healX = x + width * currentRatio
         love.graphics.setColor(0.3, 0.6, 1.0, 0.65)
         love.graphics.rectangle("fill", healX, y, healWidth, barHeight, 10, 10)
+    elseif preview.expected < preview.health then
+        local lossWidth = width * (preview.health - preview.expected) / preview.maxHealth
+        local lossX = x + width * expectedRatio
+        love.graphics.setColor(0.9, 0.2, 0.2, 0.7)
+        love.graphics.rectangle("fill", lossX, y, lossWidth, barHeight, 10, 10)
     end
 
     love.graphics.setColor(1, 1, 1, 1)
