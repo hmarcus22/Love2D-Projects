@@ -39,6 +39,7 @@ function Actions.playCardFromHand(self, card, slotIndex)
 
     -- Energy cost check
     if Config.rules.energyEnabled ~= false then
+        local baseCost = definition.cost or 0
         local cost = self:getEffectiveCardCost(player, card)
         local energy = player.energy or 0
         if cost > energy then
@@ -48,9 +49,55 @@ function Actions.playCardFromHand(self, card, slotIndex)
             self:addLog("Not enough energy")
             return false
         end
+        local discount = baseCost - cost
+        if discount and discount > 0 then
+            local HudRenderer = require "src.renderers.hud_renderer"
+            HudRenderer.showToast(string.format("Favored: -%d energy", discount))
+        end
         player.energy = energy - cost
         if effectId == "double_attack_one_round" then
             player.energy = 0
+        end
+    end
+
+    -- Apply combo bonuses and attack variance before placing
+    do
+        local def = card.definition or {}
+        -- Combo: allow card-specific bonus if previous card matches
+        local comboApplied = false
+        if player and player.applyComboBonus then
+            comboApplied = player:applyComboBonus(card)
+        end
+        -- Fighter passive attack variance (e.g., Wildcard)
+        local fighter = player and player.getFighter and player:getFighter() or nil
+        local passives = fighter and fighter.passives or nil
+        local varCfg = passives and passives.attackVariance or nil
+        local amount = 0
+        if type(varCfg) == 'table' then
+            amount = varCfg.amount or varCfg.value or varCfg.delta or 0
+        else
+            amount = varCfg or 0
+        end
+        if (def.attack or 0) > 0 and amount and amount > 0 then
+            local rng = (love and love.math and love.math.random) or math.random
+            local sign = (rng(2) == 1) and 1 or -1
+            card.statVariance = { attack = sign * amount }
+        else
+            card.statVariance = nil
+        end
+
+        -- Toasts for UX feedback
+        local HudRenderer = require "src.renderers.hud_renderer"
+        if comboApplied and def and def.combo and def.combo.bonus then
+            local parts = {}
+            if def.combo.bonus.attack and def.combo.bonus.attack ~= 0 then
+                table.insert(parts, string.format("%+dA", def.combo.bonus.attack))
+            end
+            if def.combo.bonus.block and def.combo.bonus.block ~= 0 then
+                table.insert(parts, string.format("%+dB", def.combo.bonus.block))
+            end
+            local label = (#parts > 0) and ("Combo: " .. table.concat(parts, ", ")) or "Combo bonus!"
+            HudRenderer.showToast(label)
         end
     end
 

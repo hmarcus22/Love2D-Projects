@@ -4,6 +4,7 @@ local Button = require "src.ui.button"
 
 local deckSummaryPopup = nil
 local roundOverPopup = nil
+local toasts = {}
 
 local function countHandCards(player)
     local count = 0
@@ -216,7 +217,32 @@ local function drawPlayerPanel(state, player, index)
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-local function drawHud(state)
+local function showToast(text, duration)
+    if not text or text == "" then return end
+    local d = duration or 1.8
+    table.insert(toasts, { text = text, timer = d })
+    -- cap to a few messages
+    if #toasts > 4 then table.remove(toasts, 1) end
+end
+
+local function drawToasts(screenW)
+    if not toasts or #toasts == 0 then return end
+    local w = 320
+    local x = math.floor(((screenW or love.graphics.getWidth()) - w) / 2)
+    local y = 18
+    for _, t in ipairs(toasts) do
+        love.graphics.setColor(0, 0, 0, 0.75)
+        love.graphics.rectangle("fill", x, y, w, 28, 10, 10)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.rectangle("line", x, y, w, 28, 10, 10)
+        love.graphics.setColor(1, 1, 0.8, 1)
+        love.graphics.printf(t.text or "", x + 8, y + 6, w - 16, "center")
+        y = y + 34
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+local function drawHud(state, _, screenW)
     if not state or not state.players then return end
 
     for index, player in ipairs(state.players) do
@@ -224,6 +250,7 @@ local function drawHud(state)
     end
 
     drawPassButton(state)
+    drawToasts(screenW or love.graphics.getWidth())
 end
 
 local function getDeckSummary(deck)
@@ -273,6 +300,13 @@ local function update(dt)
             if cb then cb() end
         end
     end
+    if toasts and #toasts > 0 then
+        for i = #toasts, 1, -1 do
+            local t = toasts[i]
+            t.timer = (t.timer or 0) - dt
+            if t.timer <= 0 then table.remove(toasts, i) end
+        end
+    end
 end
 
 local function drawDeckSummaryPopup()
@@ -318,6 +352,7 @@ local HudRenderer = {
     drawRoundOverPopup = drawRoundOverPopup,
     showDeckSummary = showDeckSummary,
     showRoundOver = showRoundOver,
+    showToast = showToast,
 }
 
 return HudRenderer

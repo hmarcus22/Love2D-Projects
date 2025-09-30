@@ -77,12 +77,6 @@ function PlayerManager.initRoundState(self)
     self.microStarter = self.roundStartPlayer
     self.currentPlayer = self.roundStartPlayer
 
-    -- Clear board state
-    self.board = self.board or {}
-    for i = 1, #self.board do
-        self.board[i] = nil
-    end
-
     -- Clear resolve queue
     self.resolveQueue = {}
 

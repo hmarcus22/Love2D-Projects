@@ -773,8 +773,14 @@ function GameState:discardCard(card)
 end
 
 function GameState:getEffectiveCardCost(player, card)
-    local base = card and card.definition and card.definition.cost or 0
-    -- TODO: apply modifiers/auras here if needed
+    local base = card and card.definition and (card.definition.cost or 0) or 0
+    -- Favored tag discount (simple affinity system)
+    if player and player.isCardFavored and card and card.definition then
+        local ok = player:isCardFavored(card.definition)
+        if ok then base = base - 1 end
+    end
+    if base < 0 then base = 0 end
+    -- TODO: apply attachments/auras for cost if/when designed
     return base
 end
 function GameState:playCardFromHand(card, slotIndex)
