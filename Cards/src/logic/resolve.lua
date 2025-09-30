@@ -110,9 +110,8 @@ function Resolve.resolveAttackStep(self, slotIndex)
                     local defender = self.players and self.players[defenderIndex]
                     if defender then
                         local context = { attack = attack }
-                        if self.applyCardEffectsDuringAttack then
-                            self:applyCardEffectsDuringAttack(attackerIndex, defenderIndex, slotIndex, target.slot, srcSlot.card, context)
-                        end
+                        local Effects = require "src.logic.effects"
+                        Effects.apply(self, attackerIndex, defenderIndex, slotIndex, target.slot, srcSlot.card, context)
 
                         if not context.skipDamage then
                             -- Invulnerability check

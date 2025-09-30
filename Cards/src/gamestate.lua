@@ -241,52 +241,7 @@ function GameState:attemptAssassinate(attackerIdx, defenderIdx)
     return false
 end
 
-function GameState:applyCardEffectsDuringAttack(attackerIdx, defenderIdx, originSlotIdx, targetSlotIdx, card, context)
-    if not card or not card.definition then
-        return
-    end
-    context = context or {}
-    local effect = card.definition.effect
-    if not effect then
-        return
-    end
-    card.effectsTriggered = card.effectsTriggered or {}
-    if effect == "double_attack_one_round" then
-        return
-    end
-    if effect == "avoid_all_attacks" then
-        if not self:isPlayerInvulnerable(attackerIdx) then
-            self.invulnerablePlayers[attackerIdx] = true
-            self:addLog(string.format("Ultimate: P%d cannot be targeted for the rest of the round!", attackerIdx))
-        end
-        card.effectsTriggered[effect] = true
-        return
-    end
-    if card.effectsTriggered[effect] then
-        return
-    end
-    if effect == "swap_enemies" then
-        self:swapEnemyBoard(defenderIdx)
-    elseif effect == "aoe_attack" then
-        -- Ultimate-style AOE: apply once and skip normal per-target damage
-        if card.definition and card.definition.ultimate then
-            local value = context.attack or card.definition.attack or 0
-            self:performAoeAttack(attackerIdx, value)
-            context.skipDamage = true
-        end
-    elseif effect == "ko_below_half_hp" then
-        if self:attemptAssassinate(attackerIdx, defenderIdx) then
-            context.skipDamage = true
-        end
-    elseif effect == "knock_off_board" then
-        if self:knockOffBoard(defenderIdx, targetSlotIdx, attackerIdx) then
-            context.ignoreBlock = true
-        end
-    elseif effect == "stun_next_round" then
-        self:queueStun(defenderIdx, attackerIdx)
-    end
-    card.effectsTriggered[effect] = true
-end
+-- Effect hooks extracted to src/logic/effects.lua
 
 function GameState:new()
     local gs = setmetatable({}, self)
@@ -772,15 +727,23 @@ function GameState:discardCard(card)
 end
 
 function GameState:getEffectiveCardCost(player, card)
-    local base = card and card.definition and (card.definition.cost or 0) or 0
+    local def = card and card.definition or nil
+    local base = def and (def.cost or 0) or 0
+    local cost = base
+
     -- Favored tag discount (simple affinity system)
-    if player and player.isCardFavored and card and card.definition then
-        local ok = player:isCardFavored(card.definition)
-        if ok then base = base - 1 end
+    if player and player.isCardFavored and def then
+        if player:isCardFavored(def) then
+            cost = cost - 1
+        end
     end
-    if base < 0 then base = 0 end
+
+    -- Never below 0; and if the card has a positive base cost, enforce minimum 1
+    if cost < 0 then cost = 0 end
+    if base > 0 and cost < 1 then cost = 1 end
+
     -- TODO: apply attachments/auras for cost if/when designed
-    return base
+    return cost
 end
 function GameState:playCardFromHand(card, slotIndex)
     return Actions.playCardFromHand(self, card, slotIndex)
