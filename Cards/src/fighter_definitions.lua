@@ -126,6 +126,11 @@
     },
 }
 
+-- Remove unused fighters from catalog
+fighters.brute = nil
+fighters.tactician = nil
+fighters.wildcard = nil
+
 local order = {}
 for _, f in pairs(fighters) do
     if f.enabled then

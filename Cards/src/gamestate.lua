@@ -142,6 +142,28 @@ function GameState:recordSpecialEffectOnPlay(player, card, slotIndex)
         self.specialAttackMultipliers[player.id] = self.specialAttackMultipliers[player.id] or {}
         self.specialAttackMultipliers[player.id][slotIndex] = 2
         self:addLog(string.format("P%d powers up %s for this round!", player.id or 0, card.name or "card"))
+    elseif effect == "avoid_all_attacks" then
+        -- Immediate: smoke bomb style invulnerability for the rest of the round
+        if not self:isPlayerInvulnerable(player.id) then
+            self.invulnerablePlayers[player.id] = true
+            self:addLog(string.format("P%d uses %s and becomes untargetable this round!", player.id or 0, card.name or "smoke bomb"))
+        end
+        card.effectsTriggered = card.effectsTriggered or {}
+        card.effectsTriggered[effect] = true
+    elseif effect == "knock_off_board" then
+        -- Immediate: knock the opposing card off the board right away
+        local Targeting = require "src.logic.targeting"
+        local targets = Targeting.collectAttackTargets(self, player.id, slotIndex) or {}
+        local applied = false
+        for _, t in ipairs(targets) do
+            if self:knockOffBoard(t.player, t.slot, player.id) then
+                applied = true
+            end
+        end
+        if applied then
+            card.effectsTriggered = card.effectsTriggered or {}
+            card.effectsTriggered[effect] = true
+        end
     end
 end
 
