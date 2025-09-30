@@ -11,7 +11,6 @@ local BoardRenderer = require "src.renderers.board_renderer"
 local HudRenderer = require "src.renderers.hud_renderer"
 local ResolveRenderer = require "src.renderers.resolve_renderer"
 local Resolve = require "src.resolve"
-local BoardManager = require "src.board_manager"
 local CardRenderer = require "src.card_renderer"
 local RoundManager = require "src.logic.round_manager"
 local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
@@ -324,7 +323,7 @@ function GameState:new()
     local startN = (Config.rules.startingHand or 3)
     for playerIndex = 1, #gs.players do
         for _ = 1, startN do
-            BoardManager.drawCardToPlayer(gs, playerIndex)
+            gs:drawCardToPlayer(playerIndex)
         end
     end
 
@@ -800,10 +799,24 @@ function GameState:playModifierOnSlot(card, targetPlayerIndex, slotIndex, retarg
 end
 
 function GameState:drawCardToPlayer(playerIndex)
+    -- Shared deck path
     if self.hasSharedDeck ~= false and self.deck then
-        return BoardManager.drawCardToPlayer(self, playerIndex)
+        local player = self.players and self.players[playerIndex]
+        if not player then return nil end
+        local card = self.deck and self.deck:draw() or nil
+        if not card then return nil end
+        card.owner = player
+        table.insert(player.hand, card)
+        if self.addLog then
+            self:addLog(string.format("P%d draws %s", player.id or playerIndex, card.name or "card"))
+        end
+        if self.logger then
+            self.logger:log_event("draw", { player = player.id or playerIndex, card = card.name or "card" })
+        end
+        return card
     end
 
+    -- Per-player deck path
     local player = self.players and self.players[playerIndex]
     if player and player.drawCard then
         local card = player:drawCard()
