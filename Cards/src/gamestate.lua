@@ -13,6 +13,7 @@ local ResolveRenderer = require "src.renderers.resolve_renderer"
 local Resolve = require "src.resolve"
 local BoardManager = require "src.board_manager"
 local CardRenderer = require "src.card_renderer"
+local RoundManager = require "src.state.round_manager"
 local RESOLVE_STEP_HANDLERS = {
     block = "resolveBlockStep",
     attack = "resolveAttackStep",
@@ -803,77 +804,8 @@ function GameState:addLog(message)
 end
 
 function GameState:finishResolvePhase()
-    self.phase = "play"
-    self.resolveCurrentStep = nil
-    self.resolveQueue = {}
-    self.resolveIndex = 0
-    self.resolveTimer = 0
-    self.activeMods = nil
+    return RoundManager.finishResolve(self)
 
-    self.lastActionWasPass = false
-    self.lastPassBy = nil
-    self.turnActionCount = 0
-
-    if self.playedCount then
-        for id in pairs(self.playedCount) do
-            self.playedCount[id] = 0
-        end
-    end
-
-    if self.initAttachments then
-        self:initAttachments()
-    end
-
-    if self.resetRoundFlags then
-        self:resetRoundFlags()
-    end
-    if self.activateRoundStatuses then
-        self:activateRoundStatuses()
-    end
-
-    if Config.rules.autoDrawPerRound and Config.rules.autoDrawPerRound > 0 then
-        local amount = Config.rules.autoDrawPerRound
-        for idx = 1, #(self.players or {}) do
-            for _ = 1, amount do
-                self:drawCardToPlayer(idx)
-            end
-        end
-    end
-
-    local newRoundIndex = (self.roundIndex or 0) + 1
-    self.roundIndex = newRoundIndex
-
-    local rules = Config.rules or {}
-    if rules.energyEnabled ~= false then
-        local startE = rules.energyStart or 0
-        local incE = rules.energyIncrementPerRound or 0
-        local steps = math.max(0, newRoundIndex - 1)
-        local target = startE + steps * incE
-        local maxE = rules.energyMax
-        if maxE and maxE > 0 then
-            target = math.min(target, maxE)
-        end
-        if target < 0 then
-            target = 0
-        end
-        for _, player in ipairs(self.players or {}) do
-            player.energy = target
-        end
-    end
-
-    local playerCount = self.players and #self.players or 0
-    if playerCount > 0 then
-        local start = self.roundStartPlayer or 1
-        self.roundStartPlayer = (start % playerCount) + 1
-        self.microStarter = self.roundStartPlayer
-        self.currentPlayer = self.roundStartPlayer
-    end
-
-    self:ensureCurrentPlayerReady()
-    self:updateCardVisibility()
-    self:drawCardsForTurnStart()
-
-    self:addLog("Resolve phase complete")
 end
 
 function GameState:computeActiveModifiers()

@@ -1,4 +1,4 @@
-﻿local Config = require "src.config"
+local Config = require "src.config"
 local Viewport = require "src.viewport"
 local Button = require "src.ui.button"
 
@@ -156,7 +156,7 @@ local function drawPlayerPanel(state, player, index)
 
     if isCurrent then
         love.graphics.setColor(1, 1, 0.2, 1)
-        love.graphics.printf("► YOUR TURN", x + 12, textY, panelW - 24, "left")
+        love.graphics.printf("* YOUR TURN *", x + 12, textY, panelW - 24, "left")
         love.graphics.setColor(1, 1, 1, 1)
         textY = textY + 18
     end
@@ -319,6 +319,7 @@ local HudRenderer = {
 }
 
 return HudRenderer
+
 
 
 
