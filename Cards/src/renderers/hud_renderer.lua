@@ -152,11 +152,20 @@ local function drawPlayerPanel(state, player, index)
 
     local preview = computeHealthPreview(state, index, player)
     local barX = x + 12
-    local barY = y + 32
+    local textY = y + 32
+
+    if isCurrent then
+        love.graphics.setColor(1, 1, 0.2, 1)
+        love.graphics.printf("► YOUR TURN", x + 12, textY, panelW - 24, "left")
+        love.graphics.setColor(1, 1, 1, 1)
+        textY = textY + 18
+    end
+
+    local barY = textY
     drawHealthBar(barX, barY, panelW - 24, preview)
 
     local block = math.floor(player.block or 0)
-    local textY = barY + 28
+    textY = barY + 28
     local forecast
     if preview.damage > 0 or preview.heal > 0 then
         forecast = string.format("Forecast: -> %d (-%d +%d)", preview.expected, preview.damage, preview.heal)
@@ -310,5 +319,8 @@ local HudRenderer = {
 }
 
 return HudRenderer
+
+
+
 
 
