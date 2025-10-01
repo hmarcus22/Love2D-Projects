@@ -171,7 +171,8 @@ function game:wheelmoved(dx, dy)
     -- Positive dy is wheel up in LÖVE; scroll up increases offset
     local step = 3
     local maxLines = self.gs.maxResolveLogLines or 14
-    local total = #(self.gs.resolveLog or {})
+    local filtered = ResolveRenderer.getFilteredLog(self.gs)
+    local total = #filtered
     local maxOffset = math.max(0, total - maxLines)
     local current = self.gs.resolveLogScroll or 0
     if dy > 0 then

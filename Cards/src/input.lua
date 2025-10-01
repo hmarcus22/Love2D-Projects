@@ -155,20 +155,24 @@ function Input:keypressed(gs, key)
     elseif key == "return" or key == "kpenter" then
         gs:passTurn()
     elseif key == "pageup" then
+        local ResolveRenderer = require "src.renderers.resolve_renderer"
         local maxLines = gs.maxResolveLogLines or 14
-        local total = #(gs.resolveLog or {})
+        local filtered = ResolveRenderer.getFilteredLog(gs)
+        local total = #filtered
         local maxOffset = math.max(0, total - maxLines)
         gs.resolveLogScroll = math.min(maxOffset, math.max(0, (gs.resolveLogScroll or 0) + maxLines))
     elseif key == "pagedown" then
         gs.resolveLogScroll = math.max(0, (gs.resolveLogScroll or 0) - (gs.maxResolveLogLines or 14))
     elseif key == "home" then
+        local ResolveRenderer = require "src.renderers.resolve_renderer"
         local maxLines = gs.maxResolveLogLines or 14
-        local total = #(gs.resolveLog or {})
+        local filtered = ResolveRenderer.getFilteredLog(gs)
+        local total = #filtered
         gs.resolveLogScroll = math.max(0, total - maxLines)
     elseif key == "end" then
         gs.resolveLogScroll = 0
     elseif key == "l" or key == "L" then
-        local order = { 'all', 'combat', 'heals', 'system' }
+        local order = { 'all', 'combat', 'heals', 'energy', 'system' }
         local cur = gs.resolveLogFilter or 'all'
         local idx = 1
         for i, v in ipairs(order) do
