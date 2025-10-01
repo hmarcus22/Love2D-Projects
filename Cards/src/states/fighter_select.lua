@@ -159,31 +159,17 @@ local function drawButton(entry, hovered)
                 love.graphics.setLineWidth(1)
             end
 
-            -- For cover modes when not hovered, crop to the padded rect; on hover allow overlap
-            local useScissor = (mode ~= 'contain') and (not hovered)
-            if useScissor then
-                local sx = math.floor(Viewport.ox + imgX * Viewport.scale)
-                local sy = math.floor(Viewport.oy + imgY * Viewport.scale)
-                local sw = math.floor(imgW * Viewport.scale)
-                local sh = math.floor(imgH * Viewport.scale)
-                love.graphics.setScissor(sx, sy, sw, sh)
-            end
+            -- Draw portrait (no cropping)
             love.graphics.setColor(1, 1, 1, 1)
             love.graphics.draw(entry.portrait, drawDX, drawDY, 0, drawScale, drawScale)
-            if useScissor then love.graphics.setScissor() end
 
             -- Uniform frame color regardless of fighter (mid base, bright hover)
             local frameColor = {0.35, 0.35, 0.35, 0.96}
             local hoverColor = {0.98, 0.98, 0.98, 1.0}
             love.graphics.setLineWidth(3)
             love.graphics.setColor(frameColor)
-            -- Frame follows the visible image: cropped area when scissored, zoomed image otherwise
-            local fx, fy, fw, fh
-            if useScissor then
-                fx, fy, fw, fh = imgX - 2, imgY - 2, imgW + 4, imgH + 4
-            else
-                fx, fy, fw, fh = drawDX - 2, drawDY - 2, drawDW + 4, drawDH + 4
-            end
+            -- Frame follows the drawn image (including zoom)
+            local fx, fy, fw, fh = drawDX - 2, drawDY - 2, drawDW + 4, drawDH + 4
             love.graphics.rectangle("line", fx, fy, fw, fh, 12, 12)
             if hovered then
                 love.graphics.setColor(hoverColor)
