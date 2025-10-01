@@ -132,7 +132,7 @@ local function drawImageFit(img, x, y, w, h)
     return dx, dy, dw, dh
 end
 
-local function drawButton(entry, hovered)
+local function drawButton(entry, hovered, isFocus)
     local fighter = entry.fighter
     local color = (fighter and fighter.color) or { 0.7, 0.7, 0.7 }
     local r, g, b = color[1] or 1, color[2] or 1, color[3] or 1
@@ -174,6 +174,16 @@ local function drawButton(entry, hovered)
             local drawDW, drawDH = iw * drawScale, ih * drawScale
             local drawDX = imgX + (imgW - drawDW) / 2
             local drawDY = imgY + (imgH - drawDH) / 2 + (math.max(0, drawDH - imgH) * 0.5 * biasY)
+
+            -- Soft elevation shadow for focused card
+            if isFocus then
+                local shOff, shGrow = 6, 5
+                love.graphics.setColor(0, 0, 0, 0.18)
+                love.graphics.rectangle("fill", drawDX + shOff - shGrow, drawDY + shOff - shGrow, drawDW + shGrow * 2, drawDH + shGrow * 2, 14, 14)
+                love.graphics.setColor(0, 0, 0, 0.10)
+                local shOff2, shGrow2 = 3, 3
+                love.graphics.rectangle("fill", drawDX + shOff2 - shGrow2, drawDY + shOff2 - shGrow2, drawDW + shGrow2 * 2, drawDH + shGrow2 * 2, 12, 12)
+            end
 
             -- Hover halo using widened stroke (avoids filled shadow boxes)
             if hovered then
@@ -290,14 +300,19 @@ function fighter_select:draw()
         end
     end
 
-    -- Draw non-focused first, then focus last
-    for i, entry in ipairs(scaled) do
-        if i ~= focusIndex then
-            drawButton(entry, false)
-        end
+    -- Draw non-focused first with correct stacking: left side ascending, right side descending
+    local n = #scaled
+    for i = 1, focusIndex - 1 do
+        local entry = scaled[i]
+        if entry then drawButton(entry, false, false) end
     end
+    for i = n, focusIndex + 1, -1 do
+        local entry = scaled[i]
+        if entry then drawButton(entry, false, false) end
+    end
+    -- Focus last on top
     if scaled[focusIndex] then
-        drawButton(scaled[focusIndex], hoveredFocus)
+        drawButton(scaled[focusIndex], hoveredFocus, true)
     end
 
     -- Draw navigation arrows
