@@ -27,6 +27,10 @@ function fighter_select:enter()
     self.currentPlayer = 1
     self.selections = {}
     self.buttons = {}
+    self.focusIndex = self.focusIndex or 1
+    self.focusPos = self.focusPos or self.focusIndex
+    self._focusSpeed = 15 -- units per second for smoothing
+    self.portraitScaleMode = self.portraitScaleMode or 'cover_top'
     self.portraitScaleMode = self.portraitScaleMode or 'cover_top' -- contain | cover | cover_top
 
     local function candidatePortraits(f)
@@ -72,7 +76,8 @@ function fighter_select:enter()
 end
 
 function fighter_select:updateButtonPositions()
-    local cardW, cardH, spacing = defaultDimensions()
+    local cardW, cardH, _ = defaultDimensions()
+    local spacing = math.floor(cardW * 0.7)
     local count = #self.buttons
     if count == 0 then
         return
@@ -80,19 +85,39 @@ function fighter_select:updateButtonPositions()
 
     local screenW = Viewport.getWidth()
     local screenH = Viewport.getHeight()
-    local totalWidth = cardW + spacing * math.max(0, count - 1)
-    local startX = math.floor((screenW - totalWidth) / 2)
+    local centerX = math.floor(screenW / 2)
     local y = math.floor((screenH - cardH) / 2)
+    local focus = self.focusPos or self.focusIndex or 1
 
     for index, entry in ipairs(self.buttons) do
-        entry.x = startX + (index - 1) * spacing
+        local dx = (index - focus) * spacing
+        entry.x = centerX - math.floor(cardW / 2) + dx
         entry.y = y
         entry.w = cardW
         entry.h = cardH
     end
+
+    -- Navigation arrow hit areas (virtual coords)
+    local aw, ah = 42, 56
+    local ay = y + math.floor(cardH / 2 - ah / 2)
+    self._navLeft = { x = 24, y = ay, w = aw, h = ah }
+    self._navRight = { x = screenW - 24 - aw, y = ay, w = aw, h = ah }
 end
 
-function fighter_select:update()
+function fighter_select:update(dt)
+    -- Smoothly move focusPos toward focusIndex
+    local target = self.focusIndex or 1
+    local pos = self.focusPos or target
+    local diff = target - pos
+    if math.abs(diff) > 1e-3 then
+        local k = math.min(1, (dt or 0) * (self._focusSpeed or 10))
+        pos = pos + diff * k
+        -- Snap when very close
+        if math.abs(target - pos) < 1e-3 then pos = target end
+        self.focusPos = pos
+    else
+        self.focusPos = target
+    end
     self:updateButtonPositions()
 end
 
@@ -159,12 +184,14 @@ local function drawButton(entry, hovered)
                 love.graphics.setLineWidth(1)
             end
 
-            -- Draw portrait (no cropping)
-            love.graphics.setColor(1, 1, 1, 1)
+            -- Draw portrait (no cropping); dim if claimed
+            local isClaimed = entry.claimedBy ~= nil
+            local alpha = isClaimed and 0.55 or 1.0
+            love.graphics.setColor(1, 1, 1, alpha)
             love.graphics.draw(entry.portrait, drawDX, drawDY, 0, drawScale, drawScale)
 
             -- Uniform frame color regardless of fighter (mid base, bright hover)
-            local frameColor = {0.35, 0.35, 0.35, 0.96}
+            local frameColor = {0.35, 0.35, 0.35, (entry.claimedBy and 0.6 or 0.96)}
             local hoverColor = {0.98, 0.98, 0.98, 1.0}
             love.graphics.setLineWidth(3)
             love.graphics.setColor(frameColor)
@@ -188,6 +215,10 @@ local function drawButton(entry, hovered)
         -- Overlay strip for text legibility
         love.graphics.setColor(0, 0, 0, 0.45)
         love.graphics.rectangle("fill", entry.x + 2, textTop - 6, entry.w - 4, 24, 10, 10)
+        if entry.claimedBy then
+            love.graphics.setColor(0, 0, 0, 0.35)
+            love.graphics.rectangle("fill", entry.x, entry.y, entry.w, entry.h, 12, 12)
+        end
     end
 
     -- Text: omit if a portrait is present
@@ -230,21 +261,55 @@ function fighter_select:draw()
 
     local mx, my = love.mouse.getPosition()
     mx, my = Viewport.toVirtual(mx, my)
-    local hoveredIndex = nil
-    for i, entry in ipairs(self.buttons) do
-        local hovered = (mx >= entry.x and mx <= entry.x + entry.w and my >= entry.y and my <= entry.y + entry.h)
-        if hovered then hoveredIndex = i end
-    end
-    -- Draw non-hovered first
-    for i, entry in ipairs(self.buttons) do
-        if i ~= hoveredIndex then
-            local hovered = false
-            drawButton(entry, hovered)
+
+    local focusIndex = self.focusIndex or 1
+    local focusCenter = self.focusPos or focusIndex
+    local function scaleFor(i)
+        local d = math.abs(i - focusCenter)
+        if d <= 1 then
+            return 1.25 - 0.35 * d
+        elseif d <= 2 then
+            return 0.9 - 0.12 * (d - 1)
+        else
+            return math.max(0.68, 0.78 - 0.10 * (d - 2))
         end
     end
-    -- Draw hovered last so it appears above neighbors when zoomed
-    if hoveredIndex then
-        drawButton(self.buttons[hoveredIndex], true)
+
+    -- Compute scaled rects and detect hover on focused card only
+    local scaled = {}
+    local hoveredFocus = false
+    for i, e in ipairs(self.buttons) do
+        local s = scaleFor(i)
+        local sx = e.x + (e.w - e.w * s) / 2
+        local sy = e.y + (e.h - e.h * s) / 2
+        local sw = e.w * s
+        local sh = e.h * s
+        scaled[i] = { fighter = e.fighter, portrait = e.portrait, claimedBy = e.claimedBy, x = sx, y = sy, w = sw, h = sh }
+        if i == focusIndex and mx >= sx and mx <= sx + sw and my >= sy and my <= sy + sh then
+            hoveredFocus = true
+        end
+    end
+
+    -- Draw non-focused first, then focus last
+    for i, entry in ipairs(scaled) do
+        if i ~= focusIndex then
+            drawButton(entry, false)
+        end
+    end
+    if scaled[focusIndex] then
+        drawButton(scaled[focusIndex], hoveredFocus)
+    end
+
+    -- Draw navigation arrows
+    if self._navLeft and self._navRight then
+        love.graphics.setColor(0, 0, 0, 0.45)
+        love.graphics.rectangle("fill", self._navLeft.x, self._navLeft.y, self._navLeft.w, self._navLeft.h, 10, 10)
+        love.graphics.rectangle("fill", self._navRight.x, self._navRight.y, self._navRight.w, self._navRight.h, 10, 10)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.rectangle("line", self._navLeft.x, self._navLeft.y, self._navLeft.w, self._navLeft.h, 10, 10)
+        love.graphics.rectangle("line", self._navRight.x, self._navRight.y, self._navRight.w, self._navRight.h, 10, 10)
+        love.graphics.printf("<", self._navLeft.x, self._navLeft.y + 14, self._navLeft.w, "center")
+        love.graphics.printf(">", self._navRight.x, self._navRight.y + 14, self._navRight.w, "center")
     end
 
     Viewport.unapply()
@@ -260,8 +325,41 @@ function fighter_select:mousepressed(x, y, button)
     end
 
     local vx, vy = Viewport.toVirtual(x, y)
-    for _, entry in ipairs(self.buttons) do
-        if within(entry, vx, vy) then
+    -- Nav arrows
+    if self._navLeft and vx >= self._navLeft.x and vx <= self._navLeft.x + self._navLeft.w and vy >= self._navLeft.y and vy <= self._navLeft.y + self._navLeft.h then
+        self:focusPrev()
+        return
+    end
+    if self._navRight and vx >= self._navRight.x and vx <= self._navRight.x + self._navRight.w and vy >= self._navRight.y and vy <= self._navRight.y + self._navRight.h then
+        self:focusNext()
+        return
+    end
+
+    -- Click on tiles: focus if not focused, else claim
+    local focusIndex = self.focusIndex or 1
+    local focusCenter = self.focusPos or focusIndex
+    local function scaleFor(i)
+        local d = math.abs(i - focusCenter)
+        if d <= 1 then
+            return 1.25 - 0.35 * d
+        elseif d <= 2 then
+            return 0.9 - 0.12 * (d - 1)
+        else
+            return math.max(0.68, 0.78 - 0.10 * (d - 2))
+        end
+    end
+    for i, entry in ipairs(self.buttons) do
+        local s = scaleFor(i)
+        local sx = entry.x + (entry.w - entry.w * s) / 2
+        local sy = entry.y + (entry.h - entry.h * s) / 2
+        local sw = entry.w * s
+        local sh = entry.h * s
+        if vx >= sx and vx <= sx + sw and vy >= sy and vy <= sy + sh then
+            if i ~= focusIndex then
+                self.focusIndex = i
+                self:updateButtonPositions()
+                return
+            end
             if not entry.claimedBy then
                 self:claim(entry)
             end
@@ -277,6 +375,44 @@ function fighter_select:keypressed(key)
         local idx = 1
         for i, m in ipairs(order) do if m == cur then idx = i break end end
         self.portraitScaleMode = order[(idx % #order) + 1]
+    elseif key == 'left' or key == 'a' or key == 'h' then
+        self:focusPrev()
+    elseif key == 'right' or key == 'd' or key == 'l' then
+        self:focusNext()
+    elseif key == 'return' or key == 'kpenter' then
+        local i = self.focusIndex or 1
+        local entry = self.buttons[i]
+        if entry and not entry.claimedBy then
+            self:claim(entry)
+        end
+    end
+end
+
+function fighter_select:focusNext()
+    local n = #self.buttons
+    if n == 0 then return end
+    local start = (self.focusIndex or 1)
+    for step = 1, n do
+        local i = ((start - 1 + step) % n) + 1
+        if not self.buttons[i].claimedBy then
+            self.focusIndex = i
+            self:updateButtonPositions()
+            return
+        end
+    end
+end
+
+function fighter_select:focusPrev()
+    local n = #self.buttons
+    if n == 0 then return end
+    local start = (self.focusIndex or 1)
+    for step = 1, n do
+        local i = ((start - 1 - step) % n) + 1
+        if not self.buttons[i].claimedBy then
+            self.focusIndex = i
+            self:updateButtonPositions()
+            return
+        end
     end
 end
 
