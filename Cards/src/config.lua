@@ -35,6 +35,12 @@ return {
     topMargin = 100,
     -- Horizontal gap between draft choice cards (pixels added between card edges)
     cardGap = 18,
+    -- Vertical offset for the player deck rows below topMargin (smaller = closer to header text)
+    deckTopOffset = 240,
+    -- Horizontal gap between cards in each player's deck row
+    deckRowGap = 24,
+    -- Fraction of card width to overlap in deck rows (0 = no overlap)
+    deckOverlap = 0.95,
     pool = {
       { id = "punch", count = 12 },
       { id = "kick", count = 8 },

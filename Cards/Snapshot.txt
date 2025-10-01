@@ -1,14 +1,16 @@
-Sounds good. I’ll pause here. Quick snapshot so it’s easy to resume later:
+Sounds good. Quick summary of where we landed:
 
-Structure: Core rules moved under src/logic (actions, resolve, round_manager, player_manager, game_initialiser, targeting). DEV_NOTES.md added.
-Combat: AOE targeting and damage implemented; health persists; immediate effects on play for Smoke Bomb and Body Slam.
-Rounds: KO detection + popup; score increments once; match returns to menu; re-entrancy guard.
-Energy/Cost: Favored-tag discount with min cost=1 (no free 1-cost cards).
-UI: Current-turn badge/border; higher-contrast board slot outlines; HUD discard removed.
-Log: Moved below P2 panel, color-coded + faded, scrollable (wheel + PgUp/PgDn/Home/End), clipped to panel, no overlapping lines. Hover-only wheel scroll is enabled.
-Nice-to-do next (when we pick it up):
+Fighter select: portraits with cover scaling, hover pop + shadow, centered carousel with smooth focus slide; frames and stacking fixed.
+Combat log: filter toggles (All/Combat/Heals/Energy/System), header label, filtered scroll bounds.
+Cards: auto-load art with cover background, translucent name/stats/description panels for readability.
+Hand UI: larger cards, peeked hand with full reveal on hover, smooth lift/scale tween, soft shadow on hover.
+Board layout: non-overlapping rows with clamped bottom row; board positions adjusted via config.
+Draft phase: choice row near top with hover pop; deck rows left/right, full-size, with hover pop, configurable spacing/offset, and overlap; dedicated draft settings.
+Misc: removed duplicate ‘duelist’ card; various layout/config additions.
+Whenever you’re ready to pick it back up, we can:
 
-Apply the log filter in renderer and show “All/Combat/Heals/System” label (toggle already wired to L).
-Minor polish: consistent abbreviations in log lines, optional AOEs collapsed per step.
-Quick pass on any lingering TODOs (e.g., cost auras, effect grouping).
-Ping me when you’re back and I’ll pick up from the log filter rendering.
+Add wrap/scroll for long draft deck rows.
+Add a light glow outline on hand hover or board hover.
+Tune text panel opacities or add gradient overlays for card art.
+Add draft-specific hover speed/scale.
+Ping me when you want to continue.

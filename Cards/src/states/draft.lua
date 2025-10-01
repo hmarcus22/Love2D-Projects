@@ -28,6 +28,29 @@ local Button = require "src.ui.button"
 local draft = {}
 draft._autoDraftButton = nil
 
+-- Helpers to lay out player deck columns (left/right) during draft
+local function computeDeckRowRects(deck, side, layout, screenW, screenH, topMargin)
+    local rects = {}
+    local baseW = layout.cardW or 100
+    local baseH = layout.cardH or 150
+    local w = baseW
+    local h = baseH
+    local draftCfg = Config.draft or {}
+    local gapX = draftCfg.deckRowGap or 24
+    local overlap = draftCfg.deckOverlap or 0
+    if overlap < 0 then overlap = 0 elseif overlap > 0.9 then overlap = 0.9 end
+    local spacingX = math.max(1, math.floor(w * (1 - overlap)) + gapX)
+    local sideGap = layout.sideGap or 30
+    local startX = (side == 'left') and sideGap or (screenW - sideGap - w)
+    local deckTopOffset = draftCfg.deckTopOffset
+    local rowY = (topMargin or 60) + (deckTopOffset ~= nil and deckTopOffset or (baseH + 24))
+    for i, c in ipairs(deck or {}) do
+        local x = (side == 'left') and (startX + (i - 1) * spacingX) or (startX - (i - 1) * spacingX)
+        rects[i] = { x = x, y = rowY, w = w, h = h, card = c }
+    end
+    return rects
+end
+
 local function buildDraftPool()
     local draftConfig = Config.draft or {}
     local poolConfig = draftConfig.pool or DEFAULT_DRAFT_POOL
@@ -121,6 +144,25 @@ function draft:update(dt)
         local amt = c.handHoverAmount or 0
         c.handHoverAmount = amt + ((c.handHoverTarget or 0) - amt) * k
     end
+
+    -- Update hover tween for player deck columns
+    local layout = Config.layout or {}
+    local draftCfg = Config.draft or {}
+    local topMargin = draftCfg.topMargin or (layout.boardTopMargin or 60)
+    local leftRects = computeDeckRowRects(self.players[1].deck or {}, 'left', layout, Viewport.getWidth(), Viewport.getHeight(), topMargin)
+    local rightRects = computeDeckRowRects(self.players[2].deck or {}, 'right', layout, Viewport.getWidth(), Viewport.getHeight(), topMargin)
+    for _, r in ipairs(leftRects) do
+        local c = r.card
+        local hovered = mx >= r.x and mx <= r.x + r.w and my >= r.y and my <= r.y + r.h
+        c.handHoverTarget = hovered and 1 or 0
+        c.handHoverAmount = (c.handHoverAmount or 0) + ((c.handHoverTarget or 0) - (c.handHoverAmount or 0)) * k
+    end
+    for _, r in ipairs(rightRects) do
+        local c = r.card
+        local hovered = mx >= r.x and mx <= r.x + r.w and my >= r.y and my <= r.y + r.h
+        c.handHoverTarget = hovered and 1 or 0
+        c.handHoverAmount = (c.handHoverAmount or 0) + ((c.handHoverTarget or 0) - (c.handHoverAmount or 0)) * k
+    end
 end
 
 function draft:nextChoices()
@@ -210,38 +252,60 @@ function draft:drawChoices()
 end
 
 function draft:drawPlayerDecks(screenW, screenH)
-    local miniCardW = 50
-    local miniCardH = 70
-    local miniSpacing = 60
-    for i, p in ipairs(self.players) do
-        local rowY = screenH - (i * 90)
-        love.graphics.setColor(1, 1, 1)
+    local layout = Config.layout or {}
+    local draftCfg = Config.draft or {}
+    local topMargin = draftCfg.topMargin or (layout.boardTopMargin or 60)
+    local leftRects = computeDeckRowRects(self.players[1].deck or {}, 'left', layout, screenW, screenH, topMargin)
+    local rightRects = computeDeckRowRects(self.players[2].deck or {}, 'right', layout, screenW, screenH, topMargin)
+
+    local function drawColumn(rects, playerIndex)
+        local CardRenderer = require "src.card_renderer"
+        -- Header above column
+        local p = self.players[playerIndex]
         local fighter = p.getFighter and p:getFighter()
-        local fighterLabel = fighter and (fighter.shortName or fighter.name)
-        local header = string.format("Player %d deck (%d/%d)", i, #p.deck, self.targetDeckSize)
-        if fighterLabel and fighterLabel ~= "" then
-            header = header .. string.format(" - %s", fighterLabel)
-        end
-        love.graphics.printf(header .. ":", 0, rowY - 30, screenW, "center")
-        local count = math.max(1, #p.deck)
-        local totalWidth = miniCardW + miniSpacing * math.max(0, count - 1)
-        local startX = math.floor((screenW - totalWidth) / 2)
-        if #p.deck == 0 then
-            love.graphics.setColor(1, 1, 1, 0.4)
-            love.graphics.rectangle("line", startX, rowY, miniCardW, miniCardH, 6, 6)
-            love.graphics.setColor(1, 1, 1)
-        else
-            for j, c in ipairs(p.deck) do
-                local cx = startX + (j - 1) * miniSpacing
-                local cy = rowY
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.rectangle("fill", cx, cy, miniCardW, miniCardH, 6, 6)
-                love.graphics.setColor(0, 0, 0)
-                love.graphics.rectangle("line", cx, cy, miniCardW, miniCardH, 6, 6)
-                love.graphics.printf(c.name, cx + 2, cy + 25, miniCardW - 4, "center")
+        local fighterLabel = fighter and (fighter.shortName or fighter.name) or ""
+        local header = string.format("P%d deck (%d/%d)%s%s", playerIndex, #p.deck, self.targetDeckSize, fighterLabel ~= "" and " - " or "", fighterLabel)
+        local hx = rects[1] and rects[1].x or ((playerIndex == 1) and (layout.sideGap or 30) or (screenW - (layout.sideGap or 30) - 100))
+        local hy = (topMargin or 60) + 4
+        love.graphics.setColor(1, 1, 1, 1)
+        local align = (playerIndex == 1) and "left" or "right"
+        love.graphics.printf(header, hx - 20, hy, 200, align)
+
+        -- Draw cards: non-hovered first, hovered last
+        local hoverScale = (layout.handHoverScale or 0.06)
+        local function drawEntry(r)
+            local c = r.card
+            local amt = c.handHoverAmount or 0
+            local s = 1 + hoverScale * amt
+            local dw = math.floor(r.w * s)
+            local dh = math.floor(r.h * s)
+            local dx = r.x - math.floor((dw - r.w) / 2)
+            local dy = r.y - math.floor((dh - r.h) / 2)
+            -- Shadow when hovered
+            if amt > 0.01 then
+                love.graphics.setColor(0, 0, 0, 0.2)
+                love.graphics.rectangle("fill", dx + 8 - 6, dy + 8 - 6, dw + 12, dh + 12, 10, 10)
+                love.graphics.setColor(0, 0, 0, 0.12)
+                love.graphics.rectangle("fill", dx + 4 - 3, dy + 4 - 3, dw + 6, dh + 6, 8, 8)
+                love.graphics.setColor(1, 1, 1, 1)
             end
+            local ox, oy, ow, oh = c.x, c.y, c.w, c.h
+            c.x, c.y, c.w, c.h = dx, dy, dw, dh
+            CardRenderer.draw(c)
+            c.x, c.y, c.w, c.h = ox, oy, ow, oh
+        end
+        -- Pass 1: non-hovered
+        for _, r in ipairs(rects) do
+            if (r.card.handHoverAmount or 0) <= 0.01 then drawEntry(r) end
+        end
+        -- Pass 2: hovered
+        for _, r in ipairs(rects) do
+            if (r.card.handHoverAmount or 0) > 0.01 then drawEntry(r) end
         end
     end
+
+    drawColumn(leftRects, 1)
+    drawColumn(rightRects, 2)
 end
 
 function draft:drawAutoDraftButton(screenW, screenH)
