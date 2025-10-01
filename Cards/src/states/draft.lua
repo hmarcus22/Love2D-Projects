@@ -17,7 +17,6 @@ local DEFAULT_DRAFT_POOL = {
     { id = "adrenaline_rush", count = 4 },
     { id = "taunt", count = 4 },
     { id = "hex", count = 4 },
-    { id = "duelist", count = 3 },
     { id = "counter", count = 4 },
     { id = "uppercut", count = 4 },
     { id = "roundhouse", count = 3 },
@@ -87,18 +86,40 @@ function draft:updateChoicePositions()
     local layout = Config.layout or {}
     local cardW = layout.cardW or 100
     local cardH = layout.cardH or 150
-    local gap = (layout.sideGap or 30) * 2
+    local draftCfg = Config.draft or {}
+    local gap = (draftCfg.cardGap ~= nil) and draftCfg.cardGap or ((layout.sideGap or 30) * 2)
     local spacing = cardW + gap
     local count = #self.choices
     if count == 0 then return end
 
     local totalWidth = cardW + spacing * math.max(0, count - 1)
     local startX = math.floor((Viewport.getWidth() - totalWidth) / 2)
-    local choiceY = math.floor((Viewport.getHeight() - cardH) / 2)
+    -- Draft row uses its own top margin (falls back to boardTopMargin)
+    local topMargin = draftCfg.topMargin or (layout.boardTopMargin or 60)
+    local choiceY = topMargin + 12
 
     for i, c in ipairs(self.choices) do
         c.x = startX + (i - 1) * spacing
         c.y = choiceY
+        c.w = cardW
+        c.h = cardH
+    end
+end
+
+function draft:update(dt)
+    -- Update hover state and tween amounts for choices
+    self:updateChoicePositions()
+    local layout = Config.layout or {}
+    local speed = layout.handHoverSpeed or 12
+    local k = math.min(1, (dt or 0) * speed)
+    local mx, my = love.mouse.getPosition()
+    mx, my = Viewport.toVirtual(mx, my)
+    for _, c in ipairs(self.choices or {}) do
+        local hovered = mx >= c.x and mx <= c.x + (c.w or 100) and my >= c.y and my <= c.y + (c.h or 150)
+        c._hovered = hovered
+        c.handHoverTarget = hovered and 1 or 0
+        local amt = c.handHoverAmount or 0
+        c.handHoverAmount = amt + ((c.handHoverTarget or 0) - amt) * k
     end
 end
 
@@ -144,15 +165,47 @@ function draft:drawChoices()
     self:updateChoicePositions()
     local highlightPlayer = self.players and self.players[self.currentPlayer]
     local CardRenderer = require "src.card_renderer"
-    for _, c in ipairs(self.choices) do
+    -- Draw non-hovered first, then hovered last for top stacking
+    local hoverScale = (Config.layout and Config.layout.handHoverScale) or 0.06
+    local function drawChoice(c)
+        local amt = c.handHoverAmount or 0
+        local s = 1 + hoverScale * amt
+        local baseW, baseH = c.w or 100, c.h or 150
+        local dw = math.floor(baseW * s)
+        local dh = math.floor(baseH * s)
+        local dx = c.x - math.floor((dw - baseW) / 2)
+        local dy = c.y - math.floor((dh - baseH) / 2)
+
+        -- Shadow for hovered
+        if (c._hovered or (amt > 0.01)) then
+            love.graphics.setColor(0, 0, 0, 0.2)
+            love.graphics.rectangle("fill", dx + 8 - 6, dy + 8 - 6, dw + 12, dh + 12, 10, 10)
+            love.graphics.setColor(0, 0, 0, 0.12)
+            love.graphics.rectangle("fill", dx + 4 - 3, dy + 4 - 3, dw + 6, dh + 6, 8, 8)
+            love.graphics.setColor(1, 1, 1, 1)
+        end
+
+        -- Temporarily set card rect for rendering
+        local oldx, oldy, oldw, oldh = c.x, c.y, c.w, c.h
+        c.x, c.y, c.w, c.h = dx, dy, dw, dh
         CardRenderer.draw(c)
+        -- Favored highlight around the scaled rect
         if highlightPlayer and highlightPlayer.isCardFavored and highlightPlayer:isCardFavored(c.definition) then
             love.graphics.setColor(1, 1, 0.4, 0.9)
             love.graphics.setLineWidth(3)
-            love.graphics.rectangle("line", c.x - 6, c.y - 6, (c.w or 100) + 12, (c.h or 150) + 12, 12, 12)
+            love.graphics.rectangle("line", dx - 6, dy - 6, dw + 12, dh + 12, 12, 12)
             love.graphics.setLineWidth(1)
             love.graphics.setColor(1, 1, 1, 1)
         end
+        -- Restore
+        c.x, c.y, c.w, c.h = oldx, oldy, oldw, oldh
+    end
+
+    for _, c in ipairs(self.choices) do
+        if not c._hovered then drawChoice(c) end
+    end
+    for _, c in ipairs(self.choices) do
+        if c._hovered then drawChoice(c) end
     end
 end
 

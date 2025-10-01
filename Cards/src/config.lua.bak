@@ -1,4 +1,4 @@
-﻿local fighters = require "src.fighter_definitions"
+local fighters = require "src.fighter_definitions"
 
 return {
   window = {
@@ -31,10 +31,6 @@ return {
   },
   draft = {
     deckSize = 12,
-    -- Vertical position of the draft choice row (in virtual pixels from top)
-    topMargin = 100,
-    -- Horizontal gap between draft choice cards (pixels added between card edges)
-    cardGap = 18,
     pool = {
       { id = "punch", count = 12 },
       { id = "kick", count = 8 },
@@ -46,6 +42,7 @@ return {
       { id = "adrenaline_rush", count = 4 },
       { id = "taunt", count = 4 },
       { id = "hex", count = 4 },
+      { id = "duelist", count = 3 },
       { id = "counter", count = 4 },
       { id = "uppercut", count = 4 },
       { id = "roundhouse", count = 3 },

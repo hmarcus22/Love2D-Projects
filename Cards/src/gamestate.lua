@@ -421,6 +421,12 @@ end
 
 function GameState:update(dt)
     -- Add per-frame game update logic here if needed
+    -- Update hand hover tweening for players during play phase
+    if self.phase == 'play' and self.players then
+        for _, p in ipairs(self.players) do
+            if p.updateHandHover then p:updateHandHover(self, dt) end
+        end
+    end
     if self.phase == "resolve" and self.resolveQueue and self.resolveIndex then
         -- Set current step for visual indication
         if self.resolveIndex < #self.resolveQueue then

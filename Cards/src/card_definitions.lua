@@ -109,14 +109,7 @@ local supportCards = {
         mod = { attack = -1, target = "enemy", scope = "target" },
         tags = { "tactician", "ninja" },
     },
-    {
-        id = "duelist",
-        name = "Focus Mitts",
-        description = "+2 attack to a target allied card this round.",
-        cost = 1,
-        mod = { attack = 2, target = "ally", scope = "target" },
-        tags = { "boxer", "karate" },
-    },
+    -- removed duplicate of adrenaline_rush: duelist
 }
 
 local fighterCards = {

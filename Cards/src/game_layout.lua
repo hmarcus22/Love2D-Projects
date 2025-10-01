@@ -12,12 +12,14 @@ local function resolve()
         handBottomMargin = layout.handBottomMargin or 20,
         boardTopMargin = layout.boardTopMargin or 80,
         boardHandGap = layout.boardHandGap or 30,
+        boardRowMinGap = layout.boardRowMinGap or nil,
         sideGap = layout.sideGap or 30,
         handAreaWidth = layout.handAreaWidth,
         handReferenceCount = layout.handReferenceCount,
         handMinSpacingFactor = layout.handMinSpacingFactor,
         handHoverLift = layout.handHoverLift,
         handHoverSpeed = layout.handHoverSpeed,
+        handHoverScale = layout.handHoverScale,
     }
 end
 
@@ -142,10 +144,18 @@ end
 
 function Layout.getBoardY(state, playerIndex)
     local layout = Layout.getLayout(state)
+    local topY = layout.boardTopMargin or 0
     if playerIndex == state.currentPlayer then
-        return Layout.getHandY(state) - layout.cardH - layout.boardHandGap
+        local candidate = Layout.getHandY(state) - (layout.cardH or 0) - (layout.boardHandGap or 0)
+        -- Ensure rows never overlap: bottom row must sit at least one card height + gap below top row
+        local minGap = layout.boardRowMinGap or 16
+        local minBottomY = topY + (layout.cardH or 0) + minGap
+        if candidate < minBottomY then
+            return minBottomY
+        end
+        return candidate
     end
-    return layout.boardTopMargin
+    return topY
 end
 
 function Layout.refreshPositions(state)

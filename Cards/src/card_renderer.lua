@@ -1,13 +1,35 @@
 -- CardRenderer: decouples card rendering from card logic
 local CardRenderer = {}
 
+-- Draw art to cover the entire card area while preserving aspect ratio
+function CardRenderer.drawArtCover(image, x, y, w, h)
+    if not image then return false end
+    local imgW, imgH = image:getDimensions()
+    if (imgW or 0) <= 0 or (imgH or 0) <= 0 then return false end
+    local scale = math.max(w / imgW, h / imgH)
+    if scale <= 0 or scale == math.huge then return false end
+    local drawW = imgW * scale
+    local drawH = imgH * scale
+    local artX = x + (w - drawW) / 2
+    local artY = y + (h - drawH) / 2
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(image, artX, artY, 0, scale, scale)
+    return true
+end
+
 -- Draw a card (face up or down)
 function CardRenderer.draw(card)
     local x, y, w, h = card.x, card.y, card.w, card.h
     -- Debug print removed
-    -- Draw card background
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.rectangle("fill", x, y, w, h, 8, 8)
+    -- Draw card background (cover art when available)
+    local usedCover = false
+    if card.faceUp and card.art then
+        usedCover = CardRenderer.drawArtCover(card.art, x, y, w, h)
+    end
+    if not usedCover then
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.rectangle("fill", x, y, w, h, 8, 8)
+    end
     -- If dragging, draw a bright yellow border for visibility
     if card.dragging then
         love.graphics.setColor(1, 1, 0, 1)
@@ -26,6 +48,9 @@ function CardRenderer.draw(card)
         return
     end
 
+    -- Soft translucent header behind name for readability over art
+    love.graphics.setColor(1, 1, 1, 0.78)
+    love.graphics.rectangle("fill", x + 4, y + 4, w - 8, 26, 6, 6)
     love.graphics.setColor(0, 0, 0)
     love.graphics.printf(card.name, x, y + 8, w, "center")
     if not card.definition then return end
@@ -37,9 +62,28 @@ function CardRenderer.draw(card)
     end
     local descTop = y + h - 60
     local statY = y + 48
-    statY = CardRenderer.drawArt(card.art, x, y, w, h, descTop, statY)
+    -- Draw soft backdrops for stats block and description to improve legibility
+    local statsCount = 0
+    if card.definition.attack and card.definition.attack > 0 then statsCount = statsCount + 1 end
+    if card.definition.block and card.definition.block > 0 then statsCount = statsCount + 1 end
+    if card.definition.heal and card.definition.heal > 0 then statsCount = statsCount + 1 end
+    if statsCount > 0 then
+        local statsY = y + 44
+        local statsH = math.min((descTop - 6) - statsY, statsCount * 18 + 6)
+        if statsH and statsH > 4 then
+            love.graphics.setColor(1, 1, 1, 0.66)
+            love.graphics.rectangle("fill", x + 4, statsY, w - 8, statsH, 6, 6)
+        end
+    end
+    if not usedCover then
+        statY = CardRenderer.drawArt(card.art, x, y, w, h, descTop, statY)
+    end
     statY = CardRenderer.drawCardStats(card, statY, descTop)
     if card.definition.description then
+        local descY = descTop - 4
+        local descH = math.max(10, h - (descTop - y) - 8)
+        love.graphics.setColor(1, 1, 1, 0.78)
+        love.graphics.rectangle("fill", x + 4, descY, w - 8, descH, 6, 6)
         love.graphics.setColor(0.1, 0.1, 0.1)
         love.graphics.printf(card.definition.description, x + 5, descTop, w - 10, "center")
     end

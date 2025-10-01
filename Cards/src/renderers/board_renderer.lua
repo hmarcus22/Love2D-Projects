@@ -182,6 +182,9 @@ function BoardRenderer.draw(state, layout)
                     slot.card.x = slotX
                     slot.card.y = slotY
                 end
+                -- Ensure card size matches current layout for board slots
+                slot.card.w = cardW
+                slot.card.h = cardH
                 local CardRenderer = require "src.card_renderer"
                 CardRenderer.draw(slot.card)
 

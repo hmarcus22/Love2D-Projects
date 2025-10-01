@@ -299,6 +299,9 @@ function Player:drawHand(isCurrent, gs)
             local lift = liftAmount * (card.handHoverAmount or 0)
             card.x = x
             card.y = y - lift
+            -- Ensure hand cards adopt current layout size
+            card.w = cardW
+            card.h = cardH
         end
     end
 
@@ -322,19 +325,91 @@ function Player:drawHand(isCurrent, gs)
                 card.handHoverTarget = 0
             end
 
+            -- Draw non-hovered and hovered cards (except the topmost hovered, drawn later)
             if card ~= hoveredCard then
                 local CardRenderer = require "src.card_renderer"
+                local amount = card.handHoverAmount or 0
+                local hoverScale = (activeLayout.handHoverScale or 0.06)
+                local s = 1 + hoverScale * amount
+                local dw = math.floor(cardW * s)
+                local dh = math.floor(cardH * s)
+                local dx = card.x - math.floor((dw - cardW) / 2)
+                local dy = card.y - math.floor((dh - cardH) / 2)
+                card.w, card.h = dw, dh
+                card.x, card.y = dx, dy
                 CardRenderer.draw(card)
             end
         end
     end
 
     if hoveredCard and (not gs or (hoveredCard ~= gs.draggingCard)) then
+        -- Ensure fully visible when hand is peeked off-screen: add extra lift if needed
+        local vh = Viewport.getHeight()
+        local baseLayout = gs and gs:getLayout() or {}
+        local cardW = baseLayout.cardW or 100
+        local cardH = baseLayout.cardH or 150
+        local margin = 4
+        local hoverScale = (baseLayout.handHoverScale or 0.06)
+        local amount = hoveredCard.handHoverAmount or 0
+        local s = 1 + hoverScale * amount
+        local newW = math.floor(cardW * s)
+        local newH = math.floor(cardH * s)
+        local drawX = hoveredCard.x - math.floor((newW - cardW) / 2)
+        local drawY = hoveredCard.y - math.floor((newH - cardH) / 2)
+        local bottomEdge = drawY + newH
+        local hidden = math.max(0, bottomEdge - (vh - margin))
+        if hidden > 0 then
+            drawY = drawY - hidden
+        end
+        hoveredCard.x = drawX
+        hoveredCard.y = drawY
+        hoveredCard.w = newW
+        hoveredCard.h = newH
+
+        -- Soft shadow behind hovered card (drawn before the card)
+        do
+            local shOff1, shGrow1 = 8, 6
+            love.graphics.setColor(0, 0, 0, 0.2)
+            love.graphics.rectangle("fill",
+                drawX + shOff1 - shGrow1,
+                drawY + shOff1 - shGrow1,
+                newW + shGrow1 * 2,
+                newH + shGrow1 * 2,
+                10, 10)
+            local shOff2, shGrow2 = 4, 3
+            love.graphics.setColor(0, 0, 0, 0.12)
+            love.graphics.rectangle("fill",
+                drawX + shOff2 - shGrow2,
+                drawY + shOff2 - shGrow2,
+                newW + shGrow2 * 2,
+                newH + shGrow2 * 2,
+                8, 8)
+            love.graphics.setColor(1, 1, 1, 1)
+        end
+
         local CardRenderer = require "src.card_renderer"
         CardRenderer.draw(hoveredCard)
     end
 
     love.graphics.setColor(1, 1, 1, 1)
+end
+
+-- Smoothly tween hand hover amount toward target for each card
+function Player:updateHandHover(gs, dt)
+    if not gs or not self.slots then return end
+    local layout = gs:getLayout() or {}
+    local speed = layout.handHoverSpeed or 12
+    local k = math.min(1, (dt or 0) * speed)
+    if k <= 0 then return end
+    for _, slot in ipairs(self.slots) do
+        local card = slot.card
+        if card then
+            local target = card.handHoverTarget or 0
+            local amt = card.handHoverAmount or 0
+            amt = amt + (target - amt) * k
+            card.handHoverAmount = amt
+        end
+    end
 end
 
 return Player
