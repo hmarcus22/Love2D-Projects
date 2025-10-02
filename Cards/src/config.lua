@@ -1,6 +1,9 @@
-﻿local fighters = require "src.fighter_definitions"
+local fighters = require "src.fighter_definitions"
+local Deep = require "src.utils.deep"
+local Serialize = require "src.utils.serialize"
 
-return {
+-- Defaults (original values)
+local defaults = {
   window = {
     width = 1000,
     height = 600,
@@ -133,4 +136,82 @@ return {
     sideGap = 30,
   }
 }
+
+-- Limit which top-level keys we persist in overrides
+local PERSIST_KEYS = { window=true, rules=true, draft=true, ui=true, colors=true, layout=true }
+
+local function loadOverrides()
+  if not love or not love.filesystem then return {} end
+  local info = love.filesystem.getInfo("config_overrides.lua")
+  if not info then return {} end
+  local chunk, err = love.filesystem.load("config_overrides.lua")
+  if not chunk then
+    print("[Config] Failed to load overrides:", err)
+    return {}
+  end
+  local ok, data = pcall(chunk)
+  if not ok or type(data) ~= "table" then
+    print("[Config] Overrides file returned non-table")
+    return {}
+  end
+  return data
+end
+
+local baseDefaults = Deep.clone(defaults)
+local overrides = loadOverrides()
+Deep.merge(defaults, overrides)
+
+local Config = defaults
+
+-- Internal: set by dotted path on Config
+local function setByPath(path, value)
+  return Deep.set_by_path(Config, path, value)
+end
+
+local function getByPath(path)
+  return Deep.get_by_path(Config, path)
+end
+
+-- Save only diffs relative to original defaults
+function Config.saveOverrides()
+  if not love or not love.filesystem then return false end
+  local diff = Deep.diff(Config, baseDefaults, PERSIST_KEYS)
+  local body = "return " .. Serialize.to_lua(diff, 0) .. "\n"
+  local ok, err = love.filesystem.write("config_overrides.lua", body)
+  if not ok then
+    print("[Config] Failed to write overrides:", err)
+    return false
+  end
+  print("[Config] Overrides saved.")
+  return true
+end
+
+-- Reset a single path to default
+function Config.reset(path)
+  local def = Deep.get_by_path(baseDefaults, path)
+  if def ~= nil then
+    Deep.set_by_path(Config, path, Deep.clone(def))
+    return true
+  end
+  return false
+end
+
+-- Apply a batch of { [path]=value }
+function Config.applyOverrides(map)
+  if type(map) ~= "table" then return end
+  for p, v in pairs(map) do
+    setByPath(p, v)
+  end
+end
+
+-- Simple getters/setters
+function Config.set(path, value)
+  return setByPath(path, value)
+end
+
+function Config.get(path)
+  return getByPath(path)
+end
+
+return Config
 

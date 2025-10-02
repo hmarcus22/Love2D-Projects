@@ -89,6 +89,8 @@ end
 
 function game:update(dt)
     if not self.gs then return end
+    local Tuner = require "src.tuner_overlay"
+    Tuner.update(dt, 'game', self)
     self.gs:update(dt)
     Input:update(self.gs, dt)
     local HudRenderer = require "src.renderers.hud_renderer"
@@ -117,12 +119,18 @@ function game:draw()
     if HudRenderer.drawRoundOverPopup then
         HudRenderer.drawRoundOverPopup(love.graphics.getWidth())
     end
+    do
+        local Tuner = require "src.tuner_overlay"
+        Tuner.draw('game')
+    end
     Viewport.unapply()
 end
 
 function game:mousepressed(x, y, button)
     if not self.gs then return end
     local vx, vy = Viewport.toVirtual(x, y)
+    local Tuner = require "src.tuner_overlay"
+    if Tuner.mousepressed(vx, vy, button, 'game', self) then return end
     local HudRenderer = require "src.renderers.hud_renderer"
     local screenW = love.graphics.getWidth()
     local btnW, btnH = 120, 32
@@ -144,10 +152,14 @@ end
 function game:mousereleased(x, y, button)
     if not self.gs then return end
     local vx, vy = Viewport.toVirtual(x, y)
+    local Tuner = require "src.tuner_overlay"
+    if Tuner.mousereleased(vx, vy, button) then return end
     Input:mousereleased(self.gs, vx, vy, button)
 end
 
 function game:keypressed(key)
+    local Tuner = require "src.tuner_overlay"
+    if Tuner.keypressed(key, 'game', self) then return end
     if key == "escape" then
         Gamestate.push(pause)
         return
@@ -159,6 +171,8 @@ end
 
 function game:wheelmoved(dx, dy)
     if not self.gs then return end
+    local Tuner = require "src.tuner_overlay"
+    if Tuner.wheelmoved(dx, dy) then return end
     -- Only scroll when hovering the combat log panel
     local mx, my = love.mouse.getPosition()
     local Viewport = require "src.viewport"

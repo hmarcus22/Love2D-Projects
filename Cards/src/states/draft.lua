@@ -155,6 +155,8 @@ function draft:updateChoicePositions()
 end
 
 function draft:update(dt)
+    local Tuner = require "src.tuner_overlay"
+    Tuner.update(dt, 'draft', self)
     -- Update hover state and tween amounts for choices
     self:updateChoicePositions()
     local layout = Config.layout or {}
@@ -252,6 +254,10 @@ function draft:draw()
     self:drawChoices()
     self:drawPlayerDecks(screenW, screenH)
     self:drawAutoDraftButton(screenW, screenH)
+    do
+        local Tuner = require "src.tuner_overlay"
+        Tuner.draw('draft')
+    end
     Viewport.unapply()
 end
 
@@ -481,6 +487,8 @@ end
 function draft:mousepressed(x, y, button)
     if button ~= 1 then return end
     x, y = Viewport.toVirtual(x, y)
+    local Tuner = require "src.tuner_overlay"
+    if Tuner.mousepressed(x, y, button, 'draft', self) then return end
     self:updateChoicePositions()
 
     -- Check auto draft button
@@ -514,10 +522,22 @@ function draft:mousepressed(x, y, button)
         end
     end
 end
+function draft:mousereleased(x, y, button)
+    x, y = Viewport.toVirtual(x, y)
+    local Tuner = require "src.tuner_overlay"
+    if Tuner.mousereleased(x, y, button) then return end
+end
 function draft:keypressed(key)
+    local Tuner = require "src.tuner_overlay"
+    if Tuner.keypressed(key, 'draft', self) then return end
     if key == "a" then
         self:autoDraftDecks()
     end
+end
+
+function draft:wheelmoved(dx, dy)
+    local Tuner = require "src.tuner_overlay"
+    if Tuner.wheelmoved(dx, dy) then return end
 end
 
 return draft
