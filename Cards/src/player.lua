@@ -3,6 +3,7 @@ local Class = require "libs.hump.class"
 local Player = Class{}
 local Viewport = require "src.viewport"
 local FighterCatalog = require "src.fighter_definitions"
+local HoverUtils = require "src.ui.hover_utils"
 
 local DEBUG_PLAYER_LOG = false
 
@@ -307,11 +308,23 @@ function Player:drawHand(isCurrent, gs)
 
     local hoveredCard
     if gs and mx and my then
+        local useScaled = activeLayout.handHoverHitScaled == true
+        local hoverScale = (activeLayout.handHoverScale or 0.06)
         for idx = #self.slots, 1, -1 do
             local card = self.slots[idx].card
-            if card and not card.dragging and card:isHovered(mx, my) then
-                hoveredCard = card
-                break
+            if card and not card.dragging then
+                if useScaled then
+                    local amt = card.handHoverAmount or 0
+                    if HoverUtils.hitScaled(mx, my, card.x, card.y, cardW, cardH, amt, hoverScale) then
+                        hoveredCard = card
+                        break
+                    end
+                else
+                    if card:isHovered(mx, my) then
+                        hoveredCard = card
+                        break
+                    end
+                end
             end
         end
     end
@@ -325,16 +338,12 @@ function Player:drawHand(isCurrent, gs)
                 card.handHoverTarget = 0
             end
 
-            -- Draw non-hovered and hovered cards (except the topmost hovered, drawn later)
+            -- Draw non-hovered cards (topmost hovered is drawn later)
             if card ~= hoveredCard then
                 local CardRenderer = require "src.card_renderer"
                 local amount = card.handHoverAmount or 0
                 local hoverScale = (activeLayout.handHoverScale or 0.06)
-                local s = 1 + hoverScale * amount
-                local dw = math.floor(cardW * s)
-                local dh = math.floor(cardH * s)
-                local dx = card.x - math.floor((dw - cardW) / 2)
-                local dy = card.y - math.floor((dh - cardH) / 2)
+                local dx, dy, dw, dh = HoverUtils.scaledRect(card.x, card.y, cardW, cardH, amount, hoverScale)
                 card.w, card.h = dw, dh
                 card.x, card.y = dx, dy
                 CardRenderer.draw(card)
@@ -351,11 +360,7 @@ function Player:drawHand(isCurrent, gs)
         local margin = 4
         local hoverScale = (baseLayout.handHoverScale or 0.06)
         local amount = hoveredCard.handHoverAmount or 0
-        local s = 1 + hoverScale * amount
-        local newW = math.floor(cardW * s)
-        local newH = math.floor(cardH * s)
-        local drawX = hoveredCard.x - math.floor((newW - cardW) / 2)
-        local drawY = hoveredCard.y - math.floor((newH - cardH) / 2)
+        local drawX, drawY, newW, newH = HoverUtils.scaledRect(hoveredCard.x, hoveredCard.y, cardW, cardH, amount, hoverScale)
         local bottomEdge = drawY + newH
         local hidden = math.max(0, bottomEdge - (vh - margin))
         if hidden > 0 then
@@ -367,25 +372,7 @@ function Player:drawHand(isCurrent, gs)
         hoveredCard.h = newH
 
         -- Soft shadow behind hovered card (drawn before the card)
-        do
-            local shOff1, shGrow1 = 8, 6
-            love.graphics.setColor(0, 0, 0, 0.2)
-            love.graphics.rectangle("fill",
-                drawX + shOff1 - shGrow1,
-                drawY + shOff1 - shGrow1,
-                newW + shGrow1 * 2,
-                newH + shGrow1 * 2,
-                10, 10)
-            local shOff2, shGrow2 = 4, 3
-            love.graphics.setColor(0, 0, 0, 0.12)
-            love.graphics.rectangle("fill",
-                drawX + shOff2 - shGrow2,
-                drawY + shOff2 - shGrow2,
-                newW + shGrow2 * 2,
-                newH + shGrow2 * 2,
-                8, 8)
-            love.graphics.setColor(1, 1, 1, 1)
-        end
+        HoverUtils.drawShadow(drawX, drawY, newW, newH, amount)
 
         local CardRenderer = require "src.card_renderer"
         CardRenderer.draw(hoveredCard)
@@ -398,15 +385,15 @@ end
 function Player:updateHandHover(gs, dt)
     if not gs or not self.slots then return end
     local layout = gs:getLayout() or {}
-    local speed = layout.handHoverSpeed or 12
-    local k = math.min(1, (dt or 0) * speed)
-    if k <= 0 then return end
+    local inSpeed = layout.handHoverInSpeed or layout.handHoverSpeed or 12
+    local outSpeed = layout.handHoverOutSpeed or layout.handHoverSpeed or 12
+    if (inSpeed <= 0 and outSpeed <= 0) then return end
     for _, slot in ipairs(self.slots) do
         local card = slot.card
         if card then
             local target = card.handHoverTarget or 0
             local amt = card.handHoverAmount or 0
-            amt = amt + (target - amt) * k
+            amt = HoverUtils.stepAmount(amt, target, dt, inSpeed, outSpeed)
             card.handHoverAmount = amt
         end
     end

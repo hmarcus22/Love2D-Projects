@@ -41,6 +41,27 @@ return {
     deckRowGap = 24,
     -- Fraction of card width to overlap in deck rows (0 = no overlap)
     deckOverlap = 0.95,
+    -- Wrap long deck rows into multiple lines during draft
+    deckWrap = true,
+    deckWrapRowGap = 20,
+    -- Draft-specific hover tuning
+    hoverSpeed = 16,
+    hoverInSpeed = 16,
+    hoverOutSpeed = 24,
+    hoverScale = 0.22,
+    deckHoverScale = 0.18,
+    -- Background for draft screen
+    background = {
+      path = "assets/backgrounds/Draft.png",
+      fit = "cover", -- cover or stretch
+      -- tint = {1, 1, 1, 1}, -- optional tint/alpha (modulates the image)
+      -- Blur controls
+      blurAmount = 2,   -- 0 = off; try 2..6 for soft blur
+      blurPasses = 2,   -- number of horizontal+vertical pass pairs
+      -- Overlay fade drawn on top (use black + alpha for a soft fade)
+      overlayColor = {0, 0, 0},
+      overlayAlpha = 0.6,
+    },
     pool = {
       { id = "punch", count = 12 },
       { id = "kick", count = 8 },
@@ -91,7 +112,21 @@ return {
     handMinSpacingFactor = 0.35,
     handHoverLift = 56,
     handHoverSpeed = 14,
+    handHoverInSpeed = 14,
+    handHoverOutSpeed = 20,
     handHoverScale = 0.2,
+    -- Use the visually scaled hover size for hand hit-testing (hover/click)
+    handHoverHitScaled = false,
+    -- Hover glow styling (used across states)
+    hoverGlow = {
+      color = {1, 1, 0.8, 0.85},
+      width = 3,
+      extraWidth = 2,
+    },
+    -- Card text panel opacities
+    cardNamePanelAlpha = 0.78,
+    cardStatsPanelAlpha = 0.66,
+    cardDescPanelAlpha = 0.78,
     boardTopMargin = 36,
     boardHandGap = 64,
     boardRowMinGap = 20,

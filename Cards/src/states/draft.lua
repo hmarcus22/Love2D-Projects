@@ -25,6 +25,9 @@ local DEFAULT_DRAFT_POOL = {
 local CHOICES_PER_PICK = 3
 
 local Button = require "src.ui.button"
+local AssetCache = require "src.asset_cache"
+local Blur = require "src.shaders.blur"
+local HoverUtils = require "src.ui.hover_utils"
 local draft = {}
 draft._autoDraftButton = nil
 
@@ -38,15 +41,37 @@ local function computeDeckRowRects(deck, side, layout, screenW, screenH, topMarg
     local draftCfg = Config.draft or {}
     local gapX = draftCfg.deckRowGap or 24
     local overlap = draftCfg.deckOverlap or 0
-    if overlap < 0 then overlap = 0 elseif overlap > 0.9 then overlap = 0.9 end
+    if overlap < 0 then overlap = 0 elseif overlap > 0.95 then overlap = 0.95 end
     local spacingX = math.max(1, math.floor(w * (1 - overlap)) + gapX)
     local sideGap = layout.sideGap or 30
     local startX = (side == 'left') and sideGap or (screenW - sideGap - w)
+    local xMin = sideGap
+    local xMax = screenW - sideGap - w
     local deckTopOffset = draftCfg.deckTopOffset
     local rowY = (topMargin or 60) + (deckTopOffset ~= nil and deckTopOffset or (baseH + 24))
+    local wrapEnabled = draftCfg.deckWrap == true
+    local rowGap = draftCfg.deckWrapRowGap or 18
+
+    local x = startX
     for i, c in ipairs(deck or {}) do
-        local x = (side == 'left') and (startX + (i - 1) * spacingX) or (startX - (i - 1) * spacingX)
         rects[i] = { x = x, y = rowY, w = w, h = h, card = c }
+        if side == 'left' then
+            local nextX = x + spacingX
+            if wrapEnabled and nextX > xMax then
+                rowY = rowY + h + rowGap
+                x = startX
+            else
+                x = nextX
+            end
+        else -- right side
+            local nextX = x - spacingX
+            if wrapEnabled and nextX < xMin then
+                rowY = rowY + h + rowGap
+                x = startX
+            else
+                x = nextX
+            end
+        end
     end
     return rects
 end
@@ -133,16 +158,30 @@ function draft:update(dt)
     -- Update hover state and tween amounts for choices
     self:updateChoicePositions()
     local layout = Config.layout or {}
-    local speed = layout.handHoverSpeed or 12
-    local k = math.min(1, (dt or 0) * speed)
+    local draftCfg = Config.draft or {}
+    local inSpeed = (draftCfg.hoverInSpeed or draftCfg.hoverSpeed or layout.handHoverInSpeed or layout.handHoverSpeed or 12)
+    local outSpeed = (draftCfg.hoverOutSpeed or draftCfg.hoverSpeed or layout.handHoverOutSpeed or layout.handHoverSpeed or 12)
+    local kIn = math.min(1, (dt or 0) * inSpeed)
+    local kOut = math.min(1, (dt or 0) * outSpeed)
     local mx, my = love.mouse.getPosition()
     mx, my = Viewport.toVirtual(mx, my)
-    for _, c in ipairs(self.choices or {}) do
-        local hovered = mx >= c.x and mx <= c.x + (c.w or 100) and my >= c.y and my <= c.y + (c.h or 150)
-        c._hovered = hovered
-        c.handHoverTarget = hovered and 1 or 0
-        local amt = c.handHoverAmount or 0
-        c.handHoverAmount = amt + ((c.handHoverTarget or 0) - amt) * k
+    do
+        local useScaled = (draftCfg.hoverHitScaled == true)
+        local hoverScale = (draftCfg.hoverScale or (layout.handHoverScale or 0.06))
+        local topIdx = HoverUtils.topmostIndex(self.choices, function(c)
+            if useScaled then
+                return HoverUtils.hitScaled(mx, my, c.x, c.y, (c.w or 100), (c.h or 150), c.handHoverAmount or 0, hoverScale)
+            else
+                return HoverUtils.hit(mx, my, c.x, c.y, (c.w or 100), (c.h or 150))
+            end
+        end)
+        for i = 1, #self.choices do
+            local c = self.choices[i]
+            local hovered = (i == topIdx)
+            c._hovered = hovered
+            c.handHoverTarget = hovered and 1 or 0
+            c.handHoverAmount = HoverUtils.stepAmount(c.handHoverAmount or 0, c.handHoverTarget or 0, dt, inSpeed, outSpeed)
+        end
     end
 
     -- Update hover tween for player deck columns
@@ -151,17 +190,41 @@ function draft:update(dt)
     local topMargin = draftCfg.topMargin or (layout.boardTopMargin or 60)
     local leftRects = computeDeckRowRects(self.players[1].deck or {}, 'left', layout, Viewport.getWidth(), Viewport.getHeight(), topMargin)
     local rightRects = computeDeckRowRects(self.players[2].deck or {}, 'right', layout, Viewport.getWidth(), Viewport.getHeight(), topMargin)
-    for _, r in ipairs(leftRects) do
-        local c = r.card
-        local hovered = mx >= r.x and mx <= r.x + r.w and my >= r.y and my <= r.y + r.h
-        c.handHoverTarget = hovered and 1 or 0
-        c.handHoverAmount = (c.handHoverAmount or 0) + ((c.handHoverTarget or 0) - (c.handHoverAmount or 0)) * k
+    do
+        local useScaled = (draftCfg.hoverHitScaled == true)
+        local hoverScale = (draftCfg.deckHoverScale or draftCfg.hoverScale or (layout.handHoverScale or 0.06))
+        local leftTop = HoverUtils.topmostIndex(leftRects, function(r)
+            if useScaled then
+                return HoverUtils.hitScaled(mx, my, r.x, r.y, r.w, r.h, r.card.handHoverAmount or 0, hoverScale)
+            else
+                return HoverUtils.hit(mx, my, r.x, r.y, r.w, r.h)
+            end
+        end)
+        for i = 1, #leftRects do
+            local r = leftRects[i]
+            local c = r.card
+            local hovered = (i == leftTop)
+            c.handHoverTarget = hovered and 1 or 0
+            c.handHoverAmount = HoverUtils.stepAmount(c.handHoverAmount or 0, c.handHoverTarget or 0, dt, inSpeed, outSpeed)
+        end
     end
-    for _, r in ipairs(rightRects) do
-        local c = r.card
-        local hovered = mx >= r.x and mx <= r.x + r.w and my >= r.y and my <= r.y + r.h
-        c.handHoverTarget = hovered and 1 or 0
-        c.handHoverAmount = (c.handHoverAmount or 0) + ((c.handHoverTarget or 0) - (c.handHoverAmount or 0)) * k
+    do
+        local useScaled = (draftCfg.hoverHitScaled == true)
+        local hoverScale = (draftCfg.deckHoverScale or draftCfg.hoverScale or (layout.handHoverScale or 0.06))
+        local rightTop = HoverUtils.topmostIndex(rightRects, function(r)
+            if useScaled then
+                return HoverUtils.hitScaled(mx, my, r.x, r.y, r.w, r.h, r.card.handHoverAmount or 0, hoverScale)
+            else
+                return HoverUtils.hit(mx, my, r.x, r.y, r.w, r.h)
+            end
+        end)
+        for i = 1, #rightRects do
+            local r = rightRects[i]
+            local c = r.card
+            local hovered = (i == rightTop)
+            c.handHoverTarget = hovered and 1 or 0
+            c.handHoverAmount = HoverUtils.stepAmount(c.handHoverAmount or 0, c.handHoverTarget or 0, dt, inSpeed, outSpeed)
+        end
     end
 end
 
@@ -181,6 +244,8 @@ function draft:draw()
     love.graphics.setColor(1, 1, 1)
     local screenW = Viewport.getWidth()
     local screenH = Viewport.getHeight()
+    -- Background
+    self:drawBackground(screenW, screenH)
     love.graphics.printf("Draft Phase", 0, 40, screenW, "center")
 
     self:drawPrompt(screenW)
@@ -188,6 +253,100 @@ function draft:draw()
     self:drawPlayerDecks(screenW, screenH)
     self:drawAutoDraftButton(screenW, screenH)
     Viewport.unapply()
+end
+
+function draft:drawBackground(screenW, screenH)
+    local bgCfg = (Config.draft and Config.draft.background) or {}
+    local path = bgCfg.path or "assets/backgrounds/Draft.png"
+    if self._bgPath ~= path then
+        self._bgImage = AssetCache.image(path)
+        self._bgPath = path
+    end
+    local img = self._bgImage
+    if not img then return end
+    local imgW, imgH = img:getDimensions()
+    if (imgW or 0) <= 0 or (imgH or 0) <= 0 then return end
+    local mode = bgCfg.fit or "cover"
+    local tint = bgCfg.tint or {1, 1, 1, 1}
+
+    -- determine draw transform (cover or stretch)
+    local s, dx, dy, sx, sy
+    if mode == "stretch" then
+        sx = screenW / imgW
+        sy = screenH / imgH
+        dx, dy = 0, 0
+    else
+        s = math.max(screenW / imgW, screenH / imgH)
+        sx, sy = s, s
+        local drawW = imgW * s
+        local drawH = imgH * s
+        dx = (screenW - drawW) / 2
+        dy = (screenH - drawH) / 2
+    end
+
+    local blurAmount = bgCfg.blurAmount or bgCfg.blur or 0
+    local blurPasses = math.max(1, bgCfg.blurPasses or 1)
+
+    if blurAmount and blurAmount > 0 then
+        -- lazy init canvases sized to the virtual screen
+        if (not self._bgCanvasA) or self._bgCanvasW ~= screenW or self._bgCanvasH ~= screenH then
+            self._bgCanvasA = love.graphics.newCanvas(screenW, screenH)
+            self._bgCanvasB = love.graphics.newCanvas(screenW, screenH)
+            self._bgCanvasW, self._bgCanvasH = screenW, screenH
+        end
+        local cA, cB = self._bgCanvasA, self._bgCanvasB
+
+        -- draw base image into A
+        love.graphics.push('all')
+        love.graphics.setCanvas(cA)
+        love.graphics.clear(0,0,0,0)
+        love.graphics.setColor(tint[1], tint[2], tint[3], (tint[4] or 1))
+        love.graphics.draw(img, dx, dy, 0, sx, sy)
+        love.graphics.setColor(1,1,1,1)
+        love.graphics.pop()
+
+        -- blur passes: A -> B (horizontal), B -> A (vertical)
+        local shader = Blur.get()
+        for i = 1, blurPasses do
+            love.graphics.push('all')
+            love.graphics.setCanvas(cB)
+            love.graphics.clear(0,0,0,0)
+            love.graphics.setShader(shader)
+            shader:send("direction", {1.0, 0.0})
+            shader:send("radius", blurAmount)
+            love.graphics.draw(cA, 0, 0)
+            love.graphics.pop()
+
+            love.graphics.push('all')
+            love.graphics.setCanvas(cA)
+            love.graphics.clear(0,0,0,0)
+            love.graphics.setShader(shader)
+            shader:send("direction", {0.0, 1.0})
+            shader:send("radius", blurAmount)
+            love.graphics.draw(cB, 0, 0)
+            love.graphics.pop()
+        end
+        love.graphics.setShader()
+        love.graphics.setCanvas()
+
+        -- draw final to screen
+        love.graphics.setColor(1,1,1,1)
+        love.graphics.draw(cA, 0, 0)
+    else
+        -- no blur: draw directly
+        love.graphics.setColor(tint[1], tint[2], tint[3], (tint[4] or 1))
+        love.graphics.draw(img, dx, dy, 0, sx, sy)
+        love.graphics.setColor(1,1,1,1)
+    end
+
+    -- Optional overlay fade on top (e.g., black with alpha)
+    local overlayAlpha = bgCfg.overlayAlpha or 0
+    local overlayColor = bgCfg.overlayColor or {0,0,0}
+    if overlayAlpha and overlayAlpha > 0 then
+        love.graphics.setColor(overlayColor[1] or 0, overlayColor[2] or 0, overlayColor[3] or 0, overlayAlpha)
+        love.graphics.rectangle('fill', 0, 0, screenW, screenH)
+        love.graphics.setColor(1,1,1,1)
+    end
 end
 
 function draft:drawPrompt(screenW)
@@ -208,24 +367,14 @@ function draft:drawChoices()
     local highlightPlayer = self.players and self.players[self.currentPlayer]
     local CardRenderer = require "src.card_renderer"
     -- Draw non-hovered first, then hovered last for top stacking
-    local hoverScale = (Config.layout and Config.layout.handHoverScale) or 0.06
+    local hoverScale = (Config.draft and Config.draft.hoverScale) or (Config.layout and Config.layout.handHoverScale) or 0.06
     local function drawChoice(c)
         local amt = c.handHoverAmount or 0
-        local s = 1 + hoverScale * amt
         local baseW, baseH = c.w or 100, c.h or 150
-        local dw = math.floor(baseW * s)
-        local dh = math.floor(baseH * s)
-        local dx = c.x - math.floor((dw - baseW) / 2)
-        local dy = c.y - math.floor((dh - baseH) / 2)
+        local dx, dy, dw, dh = HoverUtils.scaledRect(c.x, c.y, baseW, baseH, amt, hoverScale)
 
         -- Shadow for hovered
-        if (c._hovered or (amt > 0.01)) then
-            love.graphics.setColor(0, 0, 0, 0.2)
-            love.graphics.rectangle("fill", dx + 8 - 6, dy + 8 - 6, dw + 12, dh + 12, 10, 10)
-            love.graphics.setColor(0, 0, 0, 0.12)
-            love.graphics.rectangle("fill", dx + 4 - 3, dy + 4 - 3, dw + 6, dh + 6, 8, 8)
-            love.graphics.setColor(1, 1, 1, 1)
-        end
+        if (c._hovered or (amt > 0.01)) then HoverUtils.drawShadow(dx, dy, dw, dh, amt) end
 
         -- Temporarily set card rect for rendering
         local oldx, oldy, oldw, oldh = c.x, c.y, c.w, c.h
@@ -272,28 +421,17 @@ function draft:drawPlayerDecks(screenW, screenH)
         love.graphics.printf(header, hx - 20, hy, 200, align)
 
         -- Draw cards: non-hovered first, hovered last
-        local hoverScale = (layout.handHoverScale or 0.06)
-        local function drawEntry(r)
-            local c = r.card
-            local amt = c.handHoverAmount or 0
-            local s = 1 + hoverScale * amt
-            local dw = math.floor(r.w * s)
-            local dh = math.floor(r.h * s)
-            local dx = r.x - math.floor((dw - r.w) / 2)
-            local dy = r.y - math.floor((dh - r.h) / 2)
-            -- Shadow when hovered
-            if amt > 0.01 then
-                love.graphics.setColor(0, 0, 0, 0.2)
-                love.graphics.rectangle("fill", dx + 8 - 6, dy + 8 - 6, dw + 12, dh + 12, 10, 10)
-                love.graphics.setColor(0, 0, 0, 0.12)
-                love.graphics.rectangle("fill", dx + 4 - 3, dy + 4 - 3, dw + 6, dh + 6, 8, 8)
-                love.graphics.setColor(1, 1, 1, 1)
-            end
-            local ox, oy, ow, oh = c.x, c.y, c.w, c.h
-            c.x, c.y, c.w, c.h = dx, dy, dw, dh
-            CardRenderer.draw(c)
-            c.x, c.y, c.w, c.h = ox, oy, ow, oh
-        end
+        local hoverScale = (draftCfg.deckHoverScale or draftCfg.hoverScale or (layout.handHoverScale or 0.06))
+    local function drawEntry(r)
+        local c = r.card
+        local amt = c.handHoverAmount or 0
+        local dx, dy, dw, dh = HoverUtils.scaledRect(r.x, r.y, r.w, r.h, amt, hoverScale)
+        if amt > 0.01 then HoverUtils.drawShadow(dx, dy, dw, dh, amt) end
+        local ox, oy, ow, oh = c.x, c.y, c.w, c.h
+        c.x, c.y, c.w, c.h = dx, dy, dw, dh
+        CardRenderer.draw(c)
+        c.x, c.y, c.w, c.h = ox, oy, ow, oh
+    end
         -- Pass 1: non-hovered
         for _, r in ipairs(rects) do
             if (r.card.handHoverAmount or 0) <= 0.01 then drawEntry(r) end
@@ -350,7 +488,9 @@ function draft:mousepressed(x, y, button)
         return
     end
 
-    for i, card in ipairs(self.choices) do
+    -- Select visually topmost choice under cursor by scanning from end
+    for i = #self.choices, 1, -1 do
+        local card = self.choices[i]
         if card:isHovered(x, y) then
             table.insert(self.players[self.currentPlayer].deck, card)
             table.remove(self.choices, i)

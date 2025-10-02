@@ -1,5 +1,6 @@
 local Input = {}
 local Config = require "src.config"
+local HoverUtils = require "src.ui.hover_utils"
 
 local function pointInRect(x, y, rx, ry, rw, rh)
     return x >= rx and x <= rx+rw and y >= ry and y <= ry+rh
@@ -71,20 +72,34 @@ function Input:mousepressed(gs, x, y, button)
     end
 
     -- Pick up a hand card (top-down)
-    for i = #current.slots, 1, -1 do
-        local c = current.slots[i].card
-        if c and c:isHovered(x, y) then
-            gs.draggingCard = c
-            c.dragging = true
-            c.offsetX = x - c.x
-            c.offsetY = y - c.y
-            c.faceUp = true -- Always show card face while dragging
-            local cardW, cardH = gs:getCardDimensions()
-            c.w = cardW or 100
-            c.h = cardH or 150
-            -- Do NOT remove the card from its slot while dragging
-            -- current.slots[i].card = nil
-            break
+    do
+        local layout = gs.getLayout and gs:getLayout() or {}
+        local useScaled = layout.handHoverHitScaled == true
+        local hoverScale = layout.handHoverScale or 0.06
+        local cardW, cardH = gs:getCardDimensions()
+        for i = #current.slots, 1, -1 do
+            local c = current.slots[i].card
+            if c then
+                local hit
+                if useScaled then
+                    local amt = c.handHoverAmount or 0
+                    hit = HoverUtils.hitScaled(x, y, c.x, c.y, cardW or (c.w or 100), cardH or (c.h or 150), amt, hoverScale)
+                else
+                    hit = c:isHovered(x, y)
+                end
+                if hit then
+                    gs.draggingCard = c
+                    c.dragging = true
+                    c.offsetX = x - c.x
+                    c.offsetY = y - c.y
+                    c.faceUp = true -- Always show card face while dragging
+                    c.w = (cardW or 100)
+                    c.h = (cardH or 150)
+                    -- Do NOT remove the card from its slot while dragging
+                    -- current.slots[i].card = nil
+                    break
+                end
+            end
         end
     end
 end

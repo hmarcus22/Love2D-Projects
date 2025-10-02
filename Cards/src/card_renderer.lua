@@ -1,5 +1,6 @@
 -- CardRenderer: decouples card rendering from card logic
 local CardRenderer = {}
+local Config = require "src.config"
 
 -- Draw art to cover the entire card area while preserving aspect ratio
 function CardRenderer.drawArtCover(image, x, y, w, h)
@@ -49,7 +50,9 @@ function CardRenderer.draw(card)
     end
 
     -- Soft translucent header behind name for readability over art
-    love.graphics.setColor(1, 1, 1, 0.78)
+    local layout = Config.layout or {}
+    local nameAlpha = (layout.cardNamePanelAlpha ~= nil) and layout.cardNamePanelAlpha or 0.78
+    love.graphics.setColor(1, 1, 1, nameAlpha)
     love.graphics.rectangle("fill", x + 4, y + 4, w - 8, 26, 6, 6)
     love.graphics.setColor(0, 0, 0)
     love.graphics.printf(card.name, x, y + 8, w, "center")
@@ -71,7 +74,8 @@ function CardRenderer.draw(card)
         local statsY = y + 44
         local statsH = math.min((descTop - 6) - statsY, statsCount * 18 + 6)
         if statsH and statsH > 4 then
-            love.graphics.setColor(1, 1, 1, 0.66)
+            local statsAlpha = (layout.cardStatsPanelAlpha ~= nil) and layout.cardStatsPanelAlpha or 0.66
+            love.graphics.setColor(1, 1, 1, statsAlpha)
             love.graphics.rectangle("fill", x + 4, statsY, w - 8, statsH, 6, 6)
         end
     end
@@ -82,10 +86,25 @@ function CardRenderer.draw(card)
     if card.definition.description then
         local descY = descTop - 4
         local descH = math.max(10, h - (descTop - y) - 8)
-        love.graphics.setColor(1, 1, 1, 0.78)
+        local descAlpha = (layout.cardDescPanelAlpha ~= nil) and layout.cardDescPanelAlpha or 0.78
+        love.graphics.setColor(1, 1, 1, descAlpha)
         love.graphics.rectangle("fill", x + 4, descY, w - 8, descH, 6, 6)
         love.graphics.setColor(0.1, 0.1, 0.1)
         love.graphics.printf(card.definition.description, x + 5, descTop, w - 10, "center")
+    end
+
+    -- Light glow outline on hover/peek (scales with hover amount)
+    local amt = card.handHoverAmount or 0
+    if amt and amt > 0.01 then
+        local glowCfg = (Config.layout and Config.layout.hoverGlow) or {}
+        local color = glowCfg.color or {1, 1, 0.8, 0.85}
+        local alpha = (color[4] or 0.85) * math.min(1, amt)
+        love.graphics.setColor(color[1], color[2], color[3], alpha)
+        local lw = (glowCfg.width or 3) + (amt * (glowCfg.extraWidth or 2))
+        love.graphics.setLineWidth(lw)
+        love.graphics.rectangle("line", x - 4, y - 4, w + 8, h + 8, 12, 12)
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(1, 1, 1, 1)
     end
 end
 
