@@ -24,14 +24,18 @@ local defs = {
   { path = 'draft.deckTopOffset',     label = 'Deck Top Offset',    type = 'number', min = 0,   max = 400, step = 1,    context = 'draft', category = 'Draft' },
   { path = 'draft.deckRowGap',        label = 'Deck Row Gap',       type = 'number', min = 0,   max = 80,  step = 1,    context = 'draft', category = 'Draft' },
   { path = 'draft.deckOverlap',       label = 'Deck Overlap',       type = 'number', min = 0,   max = 0.95,step = 0.01, context = 'draft', category = 'Draft' },
+  { path = 'draft.deckHoverScale',    label = 'Deck Hover Scale',   type = 'number', min = 0,   max = 0.6, step = 0.01, context = 'draft', category = 'Draft Hover' },
   { path = 'draft.deckWrap',          label = 'Deck Wrap',          type = 'boolean',                                context = 'draft', category = 'Draft' },
   { path = 'draft.deckWrapRowGap',    label = 'Wrap Row Gap',       type = 'number', min = 0,   max = 80,  step = 1,    context = 'draft', category = 'Draft' },
   { path = 'draft.hoverScale',        label = 'Choice Hover Scale', type = 'number', min = 0,   max = 0.6, step = 0.01, context = 'draft', category = 'Draft' },
   { path = 'draft.hoverInSpeed',      label = 'Hover In Speed',     type = 'number', min = 0,   max = 40,  step = 0.5,  context = 'draft', category = 'Draft' },
   { path = 'draft.hoverOutSpeed',     label = 'Hover Out Speed',    type = 'number', min = 0,   max = 40,  step = 0.5,  context = 'draft', category = 'Draft' },
+  { path = 'draft.hoverHitScaled',    label = 'Hover Hit Uses Scale', type = 'boolean',                          context = 'draft', category = 'Draft Hover' },
   { path = 'draft.background.blurAmount', label = 'BG Blur Amount', type = 'number', min = 0,   max = 8,   step = 1,    context = 'draft', category = 'Draft BG' },
   { path = 'draft.background.blurPasses', label = 'BG Blur Passes', type = 'number', min = 1,   max = 4,   step = 1,    context = 'draft', category = 'Draft BG' },
   { path = 'draft.background.overlayAlpha', label='BG Overlay Alpha', type='number', min=0,max=1,step=0.01, context='draft', category='Draft BG' },
+  { path = 'draft.background.tint',   label = 'BG Tint',            type = 'color',                                 context = 'draft', category = 'Draft BG' },
+  { path = 'draft.background.overlayColor', label = 'BG Overlay RGB', type = 'color',                              context = 'draft', category = 'Draft BG' },
 
   -- Rules (mostly for game)
   { path = 'rules.maxHandSize',       label = 'Max Hand Size',      type = 'number', min = 1,   max = 10,  step = 1,    context = 'game', category = 'Rules' },
@@ -45,7 +49,32 @@ local defs = {
   { path = 'rules.showDiscardPile',   label = 'Show Discard Pile',  type = 'boolean',                                context = 'game', category = 'Rules' },
   { path = 'rules.autoDrawPerRound',  label = 'Auto Draw per Round', type = 'number', min = 0, max = 5, step = 1,   context = 'game', category = 'Rules' },
   { path = 'rules.autoDrawOnTurnStart', label = 'Auto Draw on Turn', type = 'number', min=0, max=5, step=1,         context = 'game', category = 'Rules' },
+
+  -- Layout hand and hover behavior
+  { path = 'layout.handAreaWidth',    label = 'Hand Area Width',    type = 'number', min = 300, max = 900, step = 1,  context = 'all',  category = 'Layout Hand' },
+  { path = 'layout.handReferenceCount', label = 'Hand Ref Count',   type = 'number', min = 1,   max = 10,  step = 1,  context = 'all',  category = 'Layout Hand' },
+  { path = 'layout.handHoverInSpeed', label = 'Hand Hover In Speed', type='number', min=0, max=40, step=0.5,        context='all', category='Layout Hover' },
+  { path = 'layout.handHoverOutSpeed', label = 'Hand Hover Out Speed', type='number', min=0, max=40, step=0.5,      context='all', category='Layout Hover' },
+  { path = 'layout.handHoverLift',    label = 'Hand Hover Lift',    type = 'number', min = 0, max = 120, step = 1,   context = 'all', category = 'Layout Hover' },
+  { path = 'layout.handHoverHitScaled', label='Hand Hover Hit Scaled', type='boolean',                              context='all', category='Layout Hover' },
+
+  -- Layout glow and panels
+  { path = 'layout.hoverGlow.width',     label='Glow Width',        type='number', min=0, max=10, step=0.5,         context='all', category='Layout Glow' },
+  { path = 'layout.hoverGlow.extraWidth',label='Glow Extra Width',  type='number', min=0, max=10, step=0.5,         context='all', category='Layout Glow' },
+  { path = 'layout.cardNamePanelAlpha',  label='Name Panel Alpha',  type='number', min=0, max=1, step=0.01,         context='all', category='Layout Panels' },
+  { path = 'layout.cardStatsPanelAlpha', label='Stats Panel Alpha', type='number', min=0, max=1, step=0.01,         context='all', category='Layout Panels' },
+  { path = 'layout.cardDescPanelAlpha',  label='Desc Panel Alpha',  type='number', min=0, max=1, step=0.01,         context='all', category='Layout Panels' },
+
+  -- Colors
+  { path = 'colors.button',           label = 'Button',             type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'colors.buttonHover',      label = 'Button Hover',       type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'colors.passButton',       label = 'Pass Button',        type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'colors.passButtonHover',  label = 'Pass Hover',         type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'colors.arrow',            label = 'Arrow',              type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'colors.attackArrow',      label = 'Attack Arrow',       type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'colors.deckPopupBg',      label = 'Deck Popup BG',      type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'colors.deckPopupBorder',  label = 'Deck Popup Border',  type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'layout.hoverGlow.color',  label = 'Hover Glow',         type = 'color',                                 context = 'all',  category = 'Colors' },
 }
 
 return defs
-

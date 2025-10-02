@@ -69,11 +69,21 @@ local function build_controls(context)
       local val = Deep.get_by_path(Config, d.path)
       if d.type == 'number' then
         table.insert(controls, { kind='slider', def=d, value=val, x=innerX, y=y, w=innerW, h=rowH })
+        y = y + rowH
+        panelH = panelH + rowH
       elseif d.type == 'boolean' then
         table.insert(controls, { kind='checkbox', def=d, value=val and true or false, x=innerX, y=y, w=innerW, h=rowH })
+        y = y + rowH
+        panelH = panelH + rowH
+      elseif d.type == 'color' then
+        local col = {0,0,0,1}
+        if type(val) == 'table' then
+          col[1] = val[1] or 0; col[2] = val[2] or 0; col[3] = val[3] or 0; col[4] = val[4] ~= nil and val[4] or 1
+        end
+        table.insert(controls, { kind='color', def=d, value=col, x=innerX, y=y, w=innerW, h=rowH })
+        y = y + rowH
+        panelH = panelH + rowH
       end
-      y = y + rowH
-      panelH = panelH + rowH
     end
     panelH = panelH + 8
     y = y + 8
@@ -93,7 +103,16 @@ local function pointIn(x, y, r)
 end
 
 local function apply_change(def, value, owner, context)
-  Config.set(def.path, value)
+  -- Special handling: if changing overlayColor with RGBA, map A to overlayAlpha
+  if def.path == 'draft.background.overlayColor' and type(value) == 'table' then
+    local rgb = { value[1] or 0, value[2] or 0, value[3] or 0 }
+    Config.set(def.path, rgb)
+    if value[4] ~= nil then
+      Config.set('draft.background.overlayAlpha', clamp(value[4], 0, 1))
+    end
+  else
+    Config.set(def.path, value)
+  end
   -- Trigger minimal refresh for immediate feedback
   if context == 'game' and owner and owner.gs then
     if owner.gs.buildLayoutCache then owner.gs:buildLayoutCache() end
@@ -107,19 +126,51 @@ function Overlay.update(dt, context, owner)
   if not Overlay.open then return end
   Overlay.context = context or Overlay.context
   Overlay.controls = build_controls(Overlay.context)
-  -- Dragging active slider
-  if Overlay.active and Overlay.active.kind == 'slider' then
-    local mx, my = love.mouse.getPosition()
-    mx, my = Viewport.toVirtual(mx, my)
-    local c = Overlay.active
-    local trackX = c.x + 120
-    local trackW = c.w - 180
-    local t = clamp((mx - trackX) / trackW, 0, 1)
-    local v = c.def.min + t * (c.def.max - c.def.min)
-    v = round_to_step(v, c.def.step or 0)
-    if c.def.step and c.def.step >= 1 then v = math.floor(v + 0.0) end
-    c.value = v
-    apply_change(c.def, v, owner, Overlay.context)
+
+  -- Resolve active control against freshly built controls
+  local function find_control(defPath, kind)
+    for _, c in ipairs(Overlay.controls) do
+      if c.def and c.def.path == defPath and c.kind == kind then return c end
+    end
+    return nil
+  end
+
+  if Overlay.active then
+    local kind = Overlay.active.kind
+    if kind == 'slider' then
+      local activeCtrl = find_control(Overlay.active.def.path, 'slider') or Overlay.active.control or Overlay.active
+      if activeCtrl then
+        local mx, my = love.mouse.getPosition()
+        mx, my = Viewport.toVirtual(mx, my)
+        local trackX = activeCtrl.x + 120
+        local trackW = activeCtrl.w - 180
+        local t = clamp((mx - trackX) / trackW, 0, 1)
+        local v = activeCtrl.def.min + t * (activeCtrl.def.max - activeCtrl.def.min)
+        v = round_to_step(v, activeCtrl.def.step or 0)
+        if activeCtrl.def.step and activeCtrl.def.step >= 1 then v = math.floor(v + 0.0) end
+        activeCtrl.value = v
+        apply_change(activeCtrl.def, v, owner, Overlay.context)
+      end
+    elseif kind == 'color' then
+      local activeCtrl = find_control(Overlay.active.def.path, 'color') or Overlay.active.control
+      if activeCtrl and Overlay.active.channel then
+        local mx, my = love.mouse.getPosition()
+        mx, my = Viewport.toVirtual(mx, my)
+        -- Compute track rects
+        local tx = activeCtrl.x + 120
+        local tw = activeCtrl.w - 180
+        local spacing = 8
+        local cw = math.max(10, math.floor((tw - spacing*3) / 4))
+        local idx = Overlay.active.channel
+        local chx = tx + (idx-1) * (cw + spacing)
+        local t = clamp((mx - chx) / cw, 0, 1)
+        local v = round_to_step(t, 0.01)
+        if idx == 4 then v = round_to_step(t, 0.01) end
+        v = clamp(v, 0, 1)
+        activeCtrl.value[idx] = v
+        apply_change(activeCtrl.def, { activeCtrl.value[1], activeCtrl.value[2], activeCtrl.value[3], activeCtrl.value[4] }, owner, Overlay.context)
+      end
+    end
   end
 end
 
@@ -177,6 +228,35 @@ function Overlay.draw(context)
         love.graphics.rectangle('fill', bx+4, by+4, 12, 12, 2, 2)
         love.graphics.setColor(1,1,1,1)
       end
+    elseif c.kind == 'color' then
+      -- label
+      love.graphics.setColor(1,1,1,1)
+      love.graphics.printf(c.def.label or c.def.path, c.x, y + 6, 116, 'left')
+      -- swatch
+      local swx = c.x + 120
+      local swy = y + 4
+      love.graphics.setColor(c.value[1] or 0, c.value[2] or 0, c.value[3] or 0, c.value[4] or 1)
+      love.graphics.rectangle('fill', swx, swy, 20, c.h - 8, 3, 3)
+      love.graphics.setColor(1,1,1,1)
+      love.graphics.rectangle('line', swx, swy, 20, c.h - 8, 3, 3)
+      -- four mini sliders
+      local tx = swx + 28
+      local tw = c.w - (tx - c.x) - 8
+      local spacing = 8
+      local cw = math.max(12, math.floor((tw - spacing*3) / 4))
+      local ty = y + 12
+      for i = 1, 4 do
+        local chx = tx + (i - 1) * (cw + spacing)
+        local t = clamp((c.value[i] or 0), 0, 1)
+        love.graphics.setColor(0.2,0.2,0.2,1)
+        love.graphics.rectangle('fill', chx, ty, cw, 4, 2, 2)
+        love.graphics.setColor(0.6,0.6,0.6,1)
+        love.graphics.rectangle('line', chx, ty, cw, 4, 2, 2)
+        local fx = chx + t * cw
+        love.graphics.setColor(0.3,0.7,0.9,1)
+        love.graphics.circle('fill', fx, ty + 2, 5)
+        love.graphics.setColor(1,1,1,1)
+      end
     elseif c.kind == 'hint' then
       love.graphics.setColor(0.85,0.85,0.85,1)
       love.graphics.printf(c.text or '', c.x, y + 6, c.w, 'center')
@@ -195,7 +275,7 @@ function Overlay.mousepressed(x, y, button, context, owner)
     if c.kind == 'slider' then
       local r = { x = c.x + 120, y = cy, w = c.w - 120, h = c.h }
       if pointIn(x, y, r) then
-        Overlay.active = c
+        Overlay.active = { kind='slider', def=c.def, control=c }
         return true
       end
     elseif c.kind == 'checkbox' then
@@ -204,6 +284,22 @@ function Overlay.mousepressed(x, y, button, context, owner)
         c.value = not c.value
         apply_change(c.def, c.value and true or false, owner, Overlay.context)
         return true
+      end
+    elseif c.kind == 'color' then
+      -- Determine channel hit
+      local swx = c.x + 120
+      local tx = swx + 28
+      local tw = c.w - (tx - c.x) - 8
+      local spacing = 8
+      local cw = math.max(12, math.floor((tw - spacing*3) / 4))
+      local ty = cy + 12
+      for iChan = 1, 4 do
+        local chx = tx + (iChan - 1) * (cw + spacing)
+        local r = { x = chx, y = ty - 10, w = cw, h = 20 }
+        if pointIn(x, y, r) then
+          Overlay.active = { kind='color', def=c.def, control=c, channel=iChan }
+          return true
+        end
       end
     elseif c.kind == 'panel' then
       local r = { x=c.x, y=c.y, w=c.w, h=c.h }
@@ -256,4 +352,3 @@ function Overlay.keypressed(key, context, owner)
 end
 
 return Overlay
-

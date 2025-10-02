@@ -1,16 +1,13 @@
-Sounds good. Quick summary of where we landed:
+Sounds good — we’ll pause here.
+Quick snapshot
 
-Fighter select: portraits with cover scaling, hover pop + shadow, centered carousel with smooth focus slide; frames and stacking fixed.
-Combat log: filter toggles (All/Combat/Heals/Energy/System), header label, filtered scroll bounds.
-Cards: auto-load art with cover background, translucent name/stats/description panels for readability.
-Hand UI: larger cards, peeked hand with full reveal on hover, smooth lift/scale tween, soft shadow on hover.
-Board layout: non-overlapping rows with clamped bottom row; board positions adjusted via config.
-Draft phase: choice row near top with hover pop; deck rows left/right, full-size, with hover pop, configurable spacing/offset, and overlap; dedicated draft settings.
-Misc: removed duplicate ‘duelist’ card; various layout/config additions.
-Whenever you’re ready to pick it back up, we can:
+Overlay works in Draft and Game with live sliders/checkboxes.
+Color controls added (RGBA + swatch) and saved to overrides.
+More tunables: draft hover/spacing/bg, hand/hover behavior, glow/panels.
+When you’re back, easy next picks
 
-Add wrap/scroll for long draft deck rows.
-Add a light glow outline on hand hover or board hover.
-Tune text panel opacities or add gradient overlays for card art.
-Add draft-specific hover speed/scale.
-Ping me when you want to continue.
+Group/collapsible sections (Draft BG, Layout, Colors) for faster scanning.
+Add HUD/resolve tunables (e.g., resolve log lines, HUD panel sizes).
+Optional: auto-sync rule changes (e.g., maxHandSize) to current players mid-match.
+Per-field reset buttons and a “Save As Preset” flow.
+Ping me when ready and I’ll continue from here.
