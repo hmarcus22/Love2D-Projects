@@ -132,6 +132,10 @@ function anim_lab:update(dt)
   -- Check for auto-refill (only when hand is completely empty)
   self:ensureTestCard()
   TunerOverlay.update(dt, 'anim_lab', self)
+  
+  -- Update input for drag behavior (tension calculation, etc.)
+  Input:update(self.gs, dt)
+  
   self.gs:update(dt)
 end
 
@@ -181,18 +185,53 @@ function anim_lab:drawGameWithoutHUD()
   -- Draw resolve log but skip the player info HUD parts
   ResolveRenderer.draw(self.gs, layout, screenW)
   
+  -- Draw drag arrow (copied from GameState:draw for authentic gameplay feel)
+  if self.gs.draggingCard then
+    local card = self.gs.draggingCard
+    if card.dragCursorX and card.dragCursorY then
+      love.graphics.setColor(0.95, 0.8, 0.2, 0.85)
+      -- Anchor arrow start to the card's current (pressed) visual position, not the original pick-up center
+      local sx = (card.x or 0) + (card.w or 0)/2
+      local sy = (card.y or 0) + (card.h or 0)/2
+      local ex, ey = card.dragCursorX, card.dragCursorY
+      local dx, dy = ex - sx, ey - sy
+      local dist = math.sqrt(dx*dx + dy*dy)
+      local thick = math.min(16, math.max(3, dist * 0.04))
+      love.graphics.setLineWidth(thick)
+      love.graphics.line(sx, sy, ex, ey)
+      love.graphics.setLineWidth(1)
+      local angle = math.atan2(dy, dx)
+      local ah = 22
+      local aw = 14
+      local baseX = ex - math.cos(angle) * ah
+      local baseY = ey - math.sin(angle) * ah
+      local leftAngle = angle + 2.4
+      local rightAngle = angle - 2.4
+      local lx = baseX + math.cos(leftAngle) * aw
+      local ly = baseY + math.sin(leftAngle) * aw
+      local rx = baseX + math.cos(rightAngle) * aw
+      local ry = baseY + math.sin(rightAngle) * aw
+      love.graphics.polygon("fill", ex, ey, lx, ly, rx, ry)
+      love.graphics.setColor(1,1,1,1)
+    end
+  end
+  
   -- Draw animations on top
   if self.gs.animations and self.gs.animations.draw then
+    local ImpactFX = require 'src.impact_fx'
+    local pushed = ImpactFX.applyShakeTransform(self.gs)
     self.gs.animations:draw()
+    ImpactFX.drawDust(self.gs)
+    if pushed then love.graphics.pop() end
   end
 end
 
 function anim_lab:drawInfoPanels()
   local screenW = Viewport.getWidth()
   love.graphics.setColor(0,0,0,0.8)
-  love.graphics.rectangle('fill', 10, 10, 520, 120, 8, 8)
+  love.graphics.rectangle('fill', 10, 10, 550, 140, 8, 8)
   love.graphics.setColor(1,1,1,1)
-  love.graphics.rectangle('line', 10, 10, 520, 120, 8, 8)
+  love.graphics.rectangle('line', 10, 10, 550, 140, 8, 8)
   
   -- Instructions
   love.graphics.setColor(1,1,0.8,1)
@@ -202,11 +241,16 @@ function anim_lab:drawInfoPanels()
   love.graphics.print("Drag test card to any slot to see animation  |  C: clear all props", 20, 54)
   love.graphics.print("A: toggle auto-refill  |  P: toggle preview  |  T: toggle overrides", 20, 70)
   
+  -- Animation tweaking workflow
+  love.graphics.setColor(1,0.8,0.8,1)
+  love.graphics.print("F10: open tuner  |  Shift+S: save custom animation  |  Shift+R: reset card", 20, 86)
+  
   -- Selected card info
   local def = self.cards[self.attackerIndex]
   love.graphics.setColor(1,1,1,1)
-  love.graphics.print("Selected Card: " .. (def and def.id or 'nil'), 20, 92)
-  love.graphics.print("Auto-refill: " .. (self.autoRefill and 'ON (when hand empty)' or 'OFF'), 280, 92)
+  love.graphics.print("Selected Card: " .. (def and def.id or 'nil'), 20, 108)
+  love.graphics.print("Auto-refill: " .. (self.autoRefill and 'ON (when hand empty)' or 'OFF'), 280, 108)
+  love.graphics.print("Overrides: " .. (Config.ui.useAnimationOverrides and 'ON' or 'OFF'), 280, 124)
   
   -- Slot layout guide
   love.graphics.setColor(0,0,0,0.8)
@@ -334,7 +378,15 @@ function anim_lab:mousereleased(x,y,button)
   local vx, vy = Viewport.toVirtual(x,y)
   if TunerOverlay.mousereleased(vx, vy, button) then return end
   if not self.gs then return end
+  
+  -- Store current player before input handling
+  local originalPlayer = self.gs.currentPlayer
+  
   Input:mousereleased(self.gs, vx, vy, button)
+  
+  -- Force current player back to original after input (prevents turn switching in lab)
+  self.gs.currentPlayer = originalPlayer
+  
   -- After a successful play, auto-refill may add new copy next update
 end
 
