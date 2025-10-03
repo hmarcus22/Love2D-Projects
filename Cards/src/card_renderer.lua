@@ -20,8 +20,63 @@ end
 
 -- Draw a card (face up or down)
 function CardRenderer.draw(card)
-    local x, y, w, h = card.x, card.y, card.w, card.h
-    -- Debug print removed
+    local x = (card.animX ~= nil) and card.animX or card.x
+    local y = (card.animY ~= nil) and card.animY or card.y
+    local w, h = card.w, card.h
+    local scaleX = card.impactScaleX or 1
+    local scaleY = card.impactScaleY or 1
+    local cx = x + w/2
+    local cy = y + h/2
+    -- Override card.x/y for downstream helpers (stats, art) so they align with animated position
+    local restorePos = false
+    local oldX, oldY
+    if (card.x ~= x) or (card.y ~= y) then
+        oldX, oldY = card.x, card.y
+        card.x, card.y = x, y
+        restorePos = true
+    end
+    local function restore()
+        if restorePos then
+            card.x, card.y = oldX, oldY
+            restorePos = false
+        end
+    end
+    if scaleX ~= 1 or scaleY ~= 1 then
+        love.graphics.push()
+        love.graphics.translate(cx, cy)
+        love.graphics.scale(scaleX, scaleY)
+        love.graphics.translate(-cx, -cy)
+    end
+    -- Z / Shadow (only when elevated or hovered/dragged). Suppressed if _suppressShadow flag set.
+    local z = card.animZ or 0
+    if z < 0 then z = 0 end
+    local showShadow = (not card._suppressShadow) and (
+        z > 2 or card.dragging or (card.handHoverAmount and card.handHoverAmount > 0.02)
+    )
+    if showShadow then
+        local ui = Config.ui or {}
+        local shadowScaleMin = ui.cardShadowMinScale or 0.85
+        local shadowScaleMax = ui.cardShadowMaxScale or 1.08
+        local shadowAlphaMin = ui.cardShadowMinAlpha or 0.25
+        local shadowAlphaMax = ui.cardShadowMaxAlpha or 0.55
+        local norm = 0
+        local arcRef = ui.cardFlightArcHeight or 140
+        if arcRef > 0 then norm = math.min(1, z / arcRef) end
+        local sScale = shadowScaleMax - (shadowScaleMax - shadowScaleMin) * norm
+        local sAlpha = shadowAlphaMax - (shadowAlphaMax - shadowAlphaMin) * norm
+    -- Card-shaped shadow (scaled rounded rectangle) instead of ellipse
+    local shadowW = w * sScale
+    local shadowH = h * sScale * 0.98 -- slight flattening
+    local sx = x + (w - shadowW) / 2
+    local sy = y + (h - shadowH) / 2 + 4 -- small downward offset for depth
+    love.graphics.setColor(0,0,0,sAlpha)
+    love.graphics.rectangle("fill", sx, sy, shadowW, shadowH, 8, 8)
+    love.graphics.setColor(1,1,1,1)
+    end
+    if z > 0 then
+        y = y - z
+        card.y = y -- ensure downstream stat/layout uses lifted Y
+    end
     -- Draw card background (cover art when available)
     local usedCover = false
     if card.faceUp and card.art then
@@ -42,10 +97,13 @@ function CardRenderer.draw(card)
         love.graphics.rectangle("line", x, y, w, h, 8, 8)
     end
 
-    if not card.faceUp then
+    local faceUp = card.faceUp
+    if not faceUp then
         if CardRenderer.drawBackArt(card) then return end
         love.graphics.setColor(0.2, 0.2, 0.6)
         love.graphics.printf("Deck", x, y + h / 2 - 6, w, "center")
+        if scaleX ~= 1 or scaleY ~= 1 then love.graphics.pop() end
+        restore()
         return
     end
 
@@ -106,6 +164,18 @@ function CardRenderer.draw(card)
         love.graphics.setLineWidth(1)
         love.graphics.setColor(1, 1, 1, 1)
     end
+
+    -- Impact flash overlay (fades quickly)
+    if card.impactFlash and card.impactFlash > 0.01 then
+        love.graphics.setColor(1, 1, 0.6, card.impactFlash)
+        love.graphics.rectangle("fill", x, y, w, h, 8, 8)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
+    if scaleX ~= 1 or scaleY ~= 1 then
+        love.graphics.pop()
+    end
+    restore()
 end
 
 function CardRenderer.drawCardStats(card, statY, descTop)

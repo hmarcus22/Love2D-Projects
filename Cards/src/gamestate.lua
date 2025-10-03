@@ -11,6 +11,7 @@ local BoardRenderer = require "src.renderers.board_renderer"
 local HudRenderer = require "src.renderers.hud_renderer"
 local ResolveRenderer = require "src.renderers.resolve_renderer"
 local Resolve = require "src.logic.resolve"
+local AnimationManager = require "src.animation_manager"
 local CardRenderer = require "src.card_renderer"
 local RoundManager = require "src.logic.round_manager"
 local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
@@ -137,6 +138,10 @@ function GameState:recordSpecialEffectOnPlay(player, card, slotIndex)
         return
     end
     local effect = card.definition.effect
+    -- Prevent double application if already triggered earlier (e.g., early trigger for smoke bomb)
+    if effect and card.effectsTriggered and card.effectsTriggered[effect] then
+        return
+    end
     if effect == "double_attack_one_round" then
         self.specialAttackMultipliers = self.specialAttackMultipliers or {}
         self.specialAttackMultipliers[player.id] = self.specialAttackMultipliers[player.id] or {}
@@ -151,18 +156,36 @@ function GameState:recordSpecialEffectOnPlay(player, card, slotIndex)
         card.effectsTriggered = card.effectsTriggered or {}
         card.effectsTriggered[effect] = true
     elseif effect == "knock_off_board" then
-        -- Immediate: knock the opposing card off the board right away
-        local Targeting = require "src.logic.targeting"
-        local targets = Targeting.collectAttackTargets(self, player.id, slotIndex) or {}
+        -- Immediate: knock the opposing card(s) off the board right away
         local applied = false
-        for _, t in ipairs(targets) do
-            if self:knockOffBoard(t.player, t.slot, player.id) then
-                applied = true
+        if card.id == 'body_slam' then
+            -- Enhanced behavior: remove ALL opposing board cards (board wipe)
+            local opponentIndex = (player.id == 1) and 2 or 1
+            local opponent = self.players and self.players[opponentIndex]
+            if opponent and opponent.boardSlots then
+                for i, oslot in ipairs(opponent.boardSlots) do
+                    if oslot.card then
+                        if self:knockOffBoard(opponentIndex, i, player.id) then
+                            applied = true
+                        end
+                    end
+                end
+            end
+        end
+        if not applied then
+            -- Fallback to original single-target logic (mirrored lane / retarget)
+            local Targeting = require "src.logic.targeting"
+            local targets = Targeting.collectAttackTargets(self, player.id, slotIndex) or {}
+            for _, t in ipairs(targets) do
+                if self:knockOffBoard(t.player, t.slot, player.id) then
+                    applied = true
+                end
             end
         end
         if applied then
             card.effectsTriggered = card.effectsTriggered or {}
             card.effectsTriggered[effect] = true
+            self:addLog(string.format("%s crashes through the opposition!", card.name or "Body Slam"))
         end
     end
 end
@@ -309,7 +332,7 @@ function GameState:new()
     gs:refreshLayoutPositions()
 
     gs.logger:log_event("game_start", { players = { gs.players[1].id, gs.players[2].id } })
-
+    gs.animations = AnimationManager.new()
     return gs
 end
 
@@ -339,6 +362,7 @@ function GameState:newFromDraft(draftedPlayers)
     gs.pendingRetarget = nil
     gs:updateCardVisibility()
     gs:refreshLayoutPositions()
+    gs.animations = AnimationManager.new()
     return gs
 end
 
@@ -387,16 +411,63 @@ function GameState:draw()
 
     if self.draggingCard then
         local card = self.draggingCard
-        if not card.w or not card.h then
-            local cw, ch = self:getCardDimensions()
-            card.w = card.w or cw
-            card.h = card.h or ch
+        if card.dragCursorX and card.dragCursorY then
+            love.graphics.setColor(0.95, 0.8, 0.2, 0.85)
+            -- Anchor arrow start to the card's current (pressed) visual position, not the original pick-up center
+            local sx = (card.x or 0) + (card.w or 0)/2
+            local sy = (card.y or 0) + (card.h or 0)/2
+            local ex, ey = card.dragCursorX, card.dragCursorY
+            local dx, dy = ex - sx, ey - sy
+            local dist = math.sqrt(dx*dx + dy*dy)
+            local thick = math.min(16, math.max(3, dist * 0.04))
+            love.graphics.setLineWidth(thick)
+            love.graphics.line(sx, sy, ex, ey)
+            love.graphics.setLineWidth(1)
+            local angle = math.atan2(dy, dx)
+            local ah = 22
+            local aw = 14
+            local baseX = ex - math.cos(angle) * ah
+            local baseY = ey - math.sin(angle) * ah
+            local leftAngle = angle + 2.4
+            local rightAngle = angle - 2.4
+            local lx = baseX + math.cos(leftAngle) * aw
+            local ly = baseY + math.sin(leftAngle) * aw
+            local rx = baseX + math.cos(rightAngle) * aw
+            local ry = baseY + math.sin(rightAngle) * aw
+            love.graphics.polygon("fill", ex, ey, lx, ly, rx, ry)
+            love.graphics.setColor(1,1,1,1)
         end
-        CardRenderer.draw(card)
     end
 
     if HudRenderer.draw then
         HudRenderer.draw(self, layout, screenW)
+    end
+
+    if self.animations and self.animations.draw then
+        local usedShake = false
+        if self._shake then
+            local k = 1 - (self._shake.t / self._shake.dur)
+            local mag = self._shake.mag * k
+            local ox = (love.math.random() * 2 - 1) * mag
+            local oy = (love.math.random() * 2 - 1) * mag
+            love.graphics.push()
+            love.graphics.translate(ox, oy)
+            usedShake = true
+        end
+        self.animations:draw()
+        if self._dustBursts then
+            for _, b in ipairs(self._dustBursts) do
+                local t = b.t / b.dur
+                local alpha = 1 - t
+                local radius = 18 + 40 * (t ^ 0.6)
+                love.graphics.setColor(1, 0.9, 0.6, alpha * 0.55)
+                love.graphics.setLineWidth(3 * (1 - t))
+                love.graphics.circle('line', b.x, b.y, radius)
+                love.graphics.setColor(1,1,1,1)
+                love.graphics.setLineWidth(1)
+            end
+        end
+        if usedShake then love.graphics.pop() end
     end
 
 
@@ -458,6 +529,23 @@ function GameState:update(dt)
             self:finishResolvePhase()
         end
     end
+    -- Screen shake (body slam impact)
+    if self._shake then
+        self._shake.t = self._shake.t + dt
+        if self._shake.t >= self._shake.dur then
+            self._shake = nil
+        end
+    end
+    -- Dust bursts
+    if self._dustBursts then
+        for i = #self._dustBursts, 1, -1 do
+            local b = self._dustBursts[i]
+            b.t = b.t + dt
+            if b.t >= b.dur then table.remove(self._dustBursts, i) end
+        end
+        if #self._dustBursts == 0 then self._dustBursts = nil end
+    end
+    if self.animations then self.animations:update(dt) end
 end
 
 function GameState:updateCardVisibility()
@@ -560,36 +648,42 @@ function GameState:hasBoardCapacity(player)
     local played = self.playedCount and self.playedCount[player.id] or 0
     return played < limit
 end
-function GameState:onCardPlaced(player, card, slotIndex)
-    card.zone = 'board'
-    card.faceUp = true
-
-    local id = player and player.id
-    if id then
-        self.playedCount[id] = (self.playedCount[id] or 0) + 1
-    end
-
-    self:registerTurnAction()
-    self:handleCardPlayed(player, card, slotIndex)
-
-    if id then
-        local limit = self.maxBoardCards or player.maxBoardCards or #(player.boardSlots or {})
-        if Config and Config.debug then print(string.format(
-            "Player %d placed a card in slot %d. Played %d/%d cards.",
-            id,
-            slotIndex,
-            self.playedCount[id],
-            limit
-        )) end
-        if self.logger then
-            self.logger:log_event("card_placed", {
-                player = id,
-                card = card.name or "unknown",
-                slot = slotIndex
-            })
+-- Core placement logic: places card in slot, triggers on-play effects, logs & counts, BUT does NOT advance turn
+function GameState:placeCardWithoutAdvancing(player, card, slotIndex)
+    if not player or not card then return end
+    local slot = player.boardSlots and player.boardSlots[slotIndex]
+    if not slot or slot.card ~= card then
+        -- Allow caller to pass card not yet in slot (animated path). Place it.
+        if slot and slot.card == nil then
+            slot.card = card
         end
     end
-
+    -- Hand state: card leaves hand when animation started, ensure it's not still referenced
+    card.slotIndex = nil
+    card.zone = 'board'
+    card.faceUp = true
+    slot._incoming = nil
+    -- Track played count
+    local id = player.id
+    self.playedCount[id] = (self.playedCount[id] or 0) + 1
+    -- Register action now so phase logic sees it even if turn advance is deferred
+    self:registerTurnAction()
+    -- Trigger on-play effects unless deferred by timing metadata
+    local timing = card.definition and card.definition.effectTiming
+    if timing == 'on_impact' then
+        -- Defer: mark for later processing at impact moment
+        card._deferPlayEffects = { playerId = player.id, slotIndex = slotIndex }
+    else
+        self:handleCardPlayed(player, card, slotIndex)
+    end
+    -- Log event without advancing turn
+    if self.logger then
+        self.logger:log_event("card_placed", { player = id, card = card.name or "unknown", slot = slotIndex })
+    end
+end
+function GameState:onCardPlaced(player, card, slotIndex)
+    -- Backwards-compatible wrapper (instant placement path)
+    self:placeCardWithoutAdvancing(player, card, slotIndex)
     self.lastActionWasPass = false
     self:nextPlayer()
     self:maybeFinishPlayPhase()
@@ -774,7 +868,104 @@ function GameState:getEffectiveCardCost(player, card)
     return cost
 end
 function GameState:playCardFromHand(card, slotIndex)
-    return Actions.playCardFromHand(self, card, slotIndex)
+    local player = card and card.owner
+    if not player then return false end
+    local slot = player.boardSlots and player.boardSlots[slotIndex]
+    if not slot or slot.card then return false end
+    local useFlight = (Config.ui and Config.ui.cardFlightEnabled) and self.animations ~= nil
+    if not useFlight then
+        return Actions.playCardFromHand(self, card, slotIndex)
+    end
+    -- Use shared prevalidation (applies energy, combo, variance, and requirements)
+    local ok = select(1, Actions.prevalidatePlayCard(self, card, slotIndex))
+    if not ok then return false end
+    -- (Removed early smoke bomb trigger; it now activates only on placement)
+    -- Mark slot reserved so other attempts during flight fail fast
+    slot._incoming = true
+    -- Clone pre-placement logic from Actions but defer final placement until animation end
+    -- Temporarily remove from hand visually
+    player.slots[card.slotIndex].card = nil
+    player:compactHand(self)
+    -- Use top-left coordinates (renderer draws from top-left), maintain full path end without snap
+    local fromX, fromY = card.x, card.y
+    local targetX, targetY = self:getBoardSlotPosition(player.id, slotIndex) -- top-left of slot
+    local duration = (Config.ui and Config.ui.cardFlightDuration) or 0.35
+    local placed = false
+    self.animations:add({
+        type = "card_flight",
+        card = card,
+        fromX = fromX, fromY = fromY,
+        toX = targetX, toY = targetY,
+            duration = duration,
+            -- Special body slam trajectory: go higher and then drop sharply
+            arcHeight = (function()
+                if card.id == 'body_slam' then
+                    return ((Config.ui and Config.ui.cardFlightArcHeight) or 140) * 1.35
+                end
+                if Config.ui and Config.ui.cardFlightCurve == 'arc' then
+                    return (Config.ui.cardFlightArcHeight or 140)
+                end
+                return 0
+            end)(),
+        overshootFactor = (Config.ui and Config.ui.cardFlightOvershoot) or 0,
+            slamStyle = (card.id == 'body_slam'),
+        onComplete = function()
+            if placed then return end
+            placed = true
+            slot._incoming = nil
+            -- Place logically without advancing turn yet
+            slot.card = card
+            card.animX = nil; card.animY = nil
+            self:placeCardWithoutAdvancing(player, card, slotIndex)
+            -- Ensure visibility reflects current player (unchanged turn yet)
+            self.currentPlayer = player.id
+            self:updateCardVisibility()
+            local function queueAdvance()
+                self.lastActionWasPass = false
+                self:nextPlayer()
+                self:maybeFinishPlayPhase()
+            end
+            local doImpact = (Config.ui and Config.ui.cardImpactEnabled)
+            if doImpact and self.animations then
+                self.animations:add({
+                    type = "card_impact",
+                    card = card,
+                    gameState = self,
+                    duration = (Config.ui.cardImpactDuration or 0.28),
+                    squashScale = Config.ui.cardImpactSquashScale or 0.85,
+                    flashAlpha = Config.ui.cardImpactFlashAlpha or 0.55,
+                    onStart = function()
+                        if card.id == 'body_slam' then
+                            -- Queue a brief shake + dust effect
+                            self._shake = { t = 0, dur = 0.25, mag = 6 }
+                            self._dustBursts = self._dustBursts or {}
+                            local sx, sy = self:getBoardSlotPosition(player.id, slotIndex)
+                            table.insert(self._dustBursts, { x = sx + card.w/2, y = sy + card.h - 8, t = 0, dur = 0.35 })
+                        end
+                    end,
+                    onComplete = function()
+                        local hold = (Config.ui.cardImpactHoldExtra or 0)
+                        -- Slot glow (visual landing feedback)
+                        local slotX, slotY = self:getBoardSlotPosition(player.id, slotIndex)
+                        self.animations:add({
+                            type = 'slot_glow',
+                            duration = (Config.ui.cardSlotGlowDuration or 0.35),
+                            maxAlpha = (Config.ui.cardSlotGlowAlpha or 0.55),
+                            slot = { x = slotX, y = slotY, w = card.w, h = card.h }
+                        })
+                        if hold > 0 and self.animations then
+                            self.animations:add({ type = "delay", duration = hold, onComplete = queueAdvance })
+                        else
+                            queueAdvance()
+                        end
+                    end
+                })
+            else
+                queueAdvance()
+            end
+        end
+    })
+    return true
 end
 
 function GameState:passTurn()

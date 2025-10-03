@@ -83,6 +83,10 @@ local function build_controls(context)
         table.insert(controls, { kind='color', def=d, value=col, x=innerX, y=y, w=innerW, h=rowH })
         y = y + rowH
         panelH = panelH + rowH
+      elseif d.type == 'enum' then
+        table.insert(controls, { kind='enum', def=d, value=val, x=innerX, y=y, w=innerW, h=rowH, options=d.options or {} })
+        y = y + rowH
+        panelH = panelH + rowH
       end
     end
     panelH = panelH + 8
@@ -228,6 +232,17 @@ function Overlay.draw(context)
         love.graphics.rectangle('fill', bx+4, by+4, 12, 12, 2, 2)
         love.graphics.setColor(1,1,1,1)
       end
+    elseif c.kind == 'enum' then
+      love.graphics.setColor(1,1,1,1)
+      love.graphics.printf(c.def.label or c.def.path, c.x, y + 6, c.w - 120, 'left')
+      local bx = c.x + c.w - 120
+      local bw = 112
+      love.graphics.setColor(0.2,0.2,0.2,1)
+      love.graphics.rectangle('fill', bx, y + 4, bw, c.h - 8, 6, 6)
+      love.graphics.setColor(1,1,1,1)
+      love.graphics.rectangle('line', bx, y + 4, bw, c.h - 8, 6, 6)
+      local current = tostring(c.value)
+      love.graphics.printf(current, bx + 8, y + 8, bw - 16, 'left')
     elseif c.kind == 'color' then
       -- label
       love.graphics.setColor(1,1,1,1)
@@ -283,6 +298,20 @@ function Overlay.mousepressed(x, y, button, context, owner)
       if pointIn(x, y, r) then
         c.value = not c.value
         apply_change(c.def, c.value and true or false, owner, Overlay.context)
+        return true
+      end
+    elseif c.kind == 'enum' then
+      local r = { x = c.x, y = cy, w = c.w, h = c.h }
+      if pointIn(x, y, r) then
+        -- Cycle through options
+        local opts = c.options or {}
+        if #opts > 0 then
+            local idx = 1
+            for i, v in ipairs(opts) do if v == c.value then idx = i break end end
+            local nextVal = opts[(idx % #opts) + 1]
+            c.value = nextVal
+            apply_change(c.def, nextVal, owner, Overlay.context)
+        end
         return true
       end
     elseif c.kind == 'color' then

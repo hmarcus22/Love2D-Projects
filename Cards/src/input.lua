@@ -92,6 +92,8 @@ function Input:mousepressed(gs, x, y, button)
                     c.dragging = true
                     c.offsetX = x - c.x
                     c.offsetY = y - c.y
+                    c.dragOriginX = c.x + (c.w or cardW or 100)/2
+                    c.dragOriginY = c.y + (c.h or cardH or 150)/2
                     c.faceUp = true -- Always show card face while dragging
                     c.w = (cardW or 100)
                     c.h = (cardH or 150)
@@ -156,6 +158,9 @@ function Input:mousereleased(gs, x, y, button)
     end
 
     card.dragging = false
+    card.dragCursorX = nil
+    card.dragCursorY = nil
+    card.dragTension = nil
     gs.draggingCard = nil
     gs.highlightDiscard = false
 end
@@ -204,10 +209,21 @@ function Input:update(gs, dt)
         local mx, my = love.mouse.getPosition()
         local Viewport = require "src.viewport"
         mx, my = Viewport.toVirtual(mx, my)
-        gs.draggingCard.x = mx - (gs.draggingCard.offsetX or 0)
-        gs.draggingCard.y = my - (gs.draggingCard.offsetY or 0)
-        gs.draggingCard.faceUp = true -- Always show card face while dragging
-    -- Debug print removed
+        local card = gs.draggingCard
+        card.dragCursorX = mx
+        card.dragCursorY = my
+        card.faceUp = true
+        -- Compute tension based on distance from origin (rubber band)
+        if card.dragOriginX and card.dragOriginY then
+            local dx = mx - card.dragOriginX
+            local dy = my - card.dragOriginY
+            local dist = math.sqrt(dx*dx + dy*dy)
+            local maxDist = 320
+            local tension = math.min(1, dist / maxDist)
+            card.dragTension = tension
+        else
+            card.dragTension = 0
+        end
     end
 end
 

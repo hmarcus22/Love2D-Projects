@@ -8,22 +8,22 @@ local function dprint(...)
     end
 end
 
-function Actions.playCardFromHand(self, card, slotIndex)
-    local player = card.owner
+-- Shared prevalidation for playing a card from hand (no slot mutation)
+function Actions.prevalidatePlayCard(self, card, slotIndex)
+    local player = card and card.owner
     if not player or not slotIndex then
-        dprint("[playCardFromHand] Invalid player or slotIndex")
-        return false
+        dprint("[prevalidatePlayCard] Invalid player or slotIndex")
+        return false, "invalid"
     end
     if self.phase ~= "play" then
-        dprint("[playCardFromHand] Not in play phase")
-        return false
+        dprint("[prevalidatePlayCard] Not in play phase")
+        return false, "wrong_phase"
     end
     local slot = player.boardSlots and player.boardSlots[slotIndex]
-    if not slot or slot.card then
-        dprint("[playCardFromHand] Invalid slot or slot already occupied")
-        return false
+    if not slot or slot.card or slot._incoming then
+        dprint("[prevalidatePlayCard] Invalid slot or occupied")
+        return false, "slot_full"
     end
-
     local definition = card.definition or {}
     local effectId = definition.effect
 
@@ -33,21 +33,19 @@ function Actions.playCardFromHand(self, card, slotIndex)
             self:addLog("Haymaker requires two punches this round")
             player:snapCard(card, self)
             player:compactHand(self)
-            return false
+            return false, "requirement"
         end
     end
-
-    -- Energy cost check
     if Config.rules.energyEnabled ~= false then
         local baseCost = definition.cost or 0
         local cost = self:getEffectiveCardCost(player, card)
         local energy = player.energy or 0
         if cost > energy then
-            dprint(string.format("[playCardFromHand] Not enough energy: cost=%d, energy=%d", cost, energy))
+            dprint(string.format("[prevalidatePlayCard] Not enough energy: cost=%d, energy=%d", cost, energy))
+            self:addLog("Not enough energy")
             player:snapCard(card, self)
             player:compactHand(self)
-            self:addLog("Not enough energy")
-            return false
+            return false, "energy"
         end
         local discount = baseCost - cost
         if discount and discount > 0 then
@@ -59,60 +57,62 @@ function Actions.playCardFromHand(self, card, slotIndex)
             player.energy = 0
         end
     end
-
-    -- Apply combo bonuses and attack variance before placing
-    do
-        local def = card.definition or {}
-        -- Combo: allow card-specific bonus if previous card matches
-        local comboApplied = false
-        if player and player.applyComboBonus then
-            comboApplied = player:applyComboBonus(card)
-        end
-        -- Fighter passive attack variance (e.g., Wildcard)
-        local fighter = player and player.getFighter and player:getFighter() or nil
-        local passives = fighter and fighter.passives or nil
-        local varCfg = passives and passives.attackVariance or nil
-        local amount = 0
-        if type(varCfg) == 'table' then
-            amount = varCfg.amount or varCfg.value or varCfg.delta or 0
-        else
-            amount = varCfg or 0
-        end
-        if (def.attack or 0) > 0 and amount and amount > 0 then
-            local rng = (love and love.math and love.math.random) or math.random
-            local sign = (rng(2) == 1) and 1 or -1
-            card.statVariance = { attack = sign * amount }
-        else
-            card.statVariance = nil
-        end
-
-        -- Toasts for UX feedback
-        local HudRenderer = require "src.renderers.hud_renderer"
-        if comboApplied and def and def.combo and def.combo.bonus then
-            local parts = {}
-            if def.combo.bonus.attack and def.combo.bonus.attack ~= 0 then
-                table.insert(parts, string.format("%+dA", def.combo.bonus.attack))
-            end
-            if def.combo.bonus.block and def.combo.bonus.block ~= 0 then
-                table.insert(parts, string.format("%+dB", def.combo.bonus.block))
-            end
-            local label = (#parts > 0) and ("Combo: " .. table.concat(parts, ", ")) or "Combo bonus!"
-            HudRenderer.showToast(label)
-        end
+    -- Combo + variance
+    local def = card.definition or {}
+    local comboApplied = false
+    if player and player.applyComboBonus then
+        comboApplied = player:applyComboBonus(card)
     end
+    local fighter = player and player.getFighter and player:getFighter() or nil
+    local passives = fighter and fighter.passives or nil
+    local varCfg = passives and passives.attackVariance or nil
+    local amount = 0
+    if type(varCfg) == 'table' then
+        amount = varCfg.amount or varCfg.value or varCfg.delta or 0
+    else
+        amount = varCfg or 0
+    end
+    if (def.attack or 0) > 0 and amount and amount > 0 then
+        local rng = (love and love.math and love.math.random) or math.random
+        local sign = (rng(2) == 1) and 1 or -1
+        card.statVariance = { attack = sign * amount }
+    else
+        card.statVariance = nil
+    end
+    if comboApplied and def and def.combo and def.combo.bonus then
+        local HudRenderer = require "src.renderers.hud_renderer"
+        local parts = {}
+        if def.combo.bonus.attack and def.combo.bonus.attack ~= 0 then table.insert(parts, string.format("%+dA", def.combo.bonus.attack)) end
+        if def.combo.bonus.block and def.combo.bonus.block ~= 0 then table.insert(parts, string.format("%+dB", def.combo.bonus.block)) end
+        local label = (#parts > 0) and ("Combo: " .. table.concat(parts, ", ")) or "Combo bonus!"
+        HudRenderer.showToast(label)
+    end
+    return true, nil
+end
 
-    -- Place card on board
+function Actions.playCardFromHand(self, card, slotIndex)
+    local ok = select(1, self:prevalidatePlayCard(card, slotIndex))
+    if not ok then return false end
+    local player = card.owner
+    local slot = player.boardSlots and player.boardSlots[slotIndex]
+    if not slot then return false end
+    slot._incoming = nil -- immediate path places instantly, remove reservation
     slot.card = card
-    card.zone = "board"
-    card.faceUp = true
     player.slots[card.slotIndex].card = nil
     player:compactHand(self)
-    self:onCardPlaced(player, card, slotIndex)
+    self:placeCardWithoutAdvancing(player, card, slotIndex)
+    self.lastActionWasPass = false
+    self:nextPlayer()
+    self:maybeFinishPlayPhase()
     return true
 end
 
 function Actions.passTurn(self)
     if self.phase ~= "play" then return end
+    -- Prevent pass while a card is mid-flight to avoid ordering exploits
+    if self.animations and self.animations:isBusy() then
+        return
+    end
     if self.hasPendingRetarget and self:hasPendingRetarget() then return end
 
     local pid = self.currentPlayer

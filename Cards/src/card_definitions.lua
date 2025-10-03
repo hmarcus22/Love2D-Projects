@@ -192,6 +192,7 @@ local extraFighterCards = {
         cost = 3,
         ultimate = true,
         effect = "avoid_all_attacks",
+        effectTiming = 'on_landing', -- trigger immediately on landing (placement)
         tags = { "ninja", "ultimate" },
     },
     {
@@ -250,6 +251,8 @@ local extraFighterCards = {
         cost = 2,
         attack = 2,
         effect = "knock_off_board",
+        effectTiming = 'on_impact', -- defer effect until impact squash for visual sync
+        flightProfile = 'slam_body', -- custom horizontal timing (fast start, slow mid, drop)
         tags = { "wrestler", "signature" },
     },
     {

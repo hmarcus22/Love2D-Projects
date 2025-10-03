@@ -296,18 +296,30 @@ function Player:drawHand(isCurrent, gs)
         slot.x, slot.y = x, y
 
         local card = slot.card
-        if card and (not gs or card ~= gs.draggingCard) then
-            local lift = liftAmount * (card.handHoverAmount or 0)
-            card.x = x
-            card.y = y - lift
-            -- Ensure hand cards adopt current layout size
-            card.w = cardW
-            card.h = cardH
-        end
+        if card then
+            if gs and card == gs.draggingCard then
+                -- Dragging: keep hover state active (for glow/scale) but push card downward (pressed) instead of lifting
+                card.handHoverTarget = 1
+                local tension = card.dragTension or 0
+                -- Base press: 40% of lift range plus up to 60% more with tension
+                local press = math.floor((liftAmount * 0.4) + tension * (liftAmount * 0.6))
+                card.x = x
+                card.y = y + press
+                card.w = cardW
+                card.h = cardH
+            else
+                local lift = liftAmount * (card.handHoverAmount or 0)
+                card.x = x
+                card.y = y - lift
+                card.w = cardW
+                card.h = cardH
+            end
     end
+    end -- end for each hand slot
 
     local hoveredCard
-    if gs and mx and my then
+    -- Suppress hover highlight while a card is being dragged for clearer focus
+    if gs and mx and my and not gs.draggingCard then
         local useScaled = activeLayout.handHoverHitScaled == true
         local hoverScale = (activeLayout.handHoverScale or 0.06)
         for idx = #self.slots, 1, -1 do
@@ -349,6 +361,26 @@ function Player:drawHand(isCurrent, gs)
                 CardRenderer.draw(card)
             end
         end
+    end
+
+    -- Draw the dragging card (preserving hover scale) above the rest but below hoveredCard (if different)
+    if gs and gs.draggingCard and gs.draggingCard.owner == self then
+        local dragCard = gs.draggingCard
+        local CardRenderer = require "src.card_renderer"
+        local amount = dragCard.handHoverAmount or 0
+        local hoverScale = (activeLayout.handHoverScale or 0.06)
+        local dx, dy, dw, dh = HoverUtils.scaledRect(dragCard.x, dragCard.y, cardW, cardH, amount, hoverScale)
+        -- Highlight backdrop before scaling outline
+        love.graphics.setColor(1, 1, 0.3, 0.20 + 0.35 * amount)
+        love.graphics.rectangle("fill", dx - 8, dy - 8, dw + 16, dh + 16, 14, 14)
+        love.graphics.setColor(1, 1, 0.4, 0.85)
+        love.graphics.setLineWidth(3)
+        love.graphics.rectangle("line", dx - 8, dy - 8, dw + 16, dh + 16, 14, 14)
+        love.graphics.setLineWidth(1)
+        dragCard.w, dragCard.h = dw, dh
+        dragCard.x, dragCard.y = dx, dy
+        love.graphics.setColor(1,1,1,1)
+        CardRenderer.draw(dragCard)
     end
 
     if hoveredCard and (not gs or (hoveredCard ~= gs.draggingCard)) then

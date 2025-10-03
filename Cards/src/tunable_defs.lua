@@ -50,6 +50,26 @@ local defs = {
   { path = 'rules.autoDrawPerRound',  label = 'Auto Draw per Round', type = 'number', min = 0, max = 5, step = 1,   context = 'game', category = 'Rules' },
   { path = 'rules.autoDrawOnTurnStart', label = 'Auto Draw on Turn', type = 'number', min=0, max=5, step=1,         context = 'game', category = 'Rules' },
 
+  -- UI / Animation
+  { path = 'ui.cardFlightEnabled',      label = 'Card Flight Enabled',    type = 'boolean',                          context = 'game', category = 'Animation' },
+  { path = 'ui.cardFlightDuration',     label = 'Flight Duration',        type = 'number', min = 0.05, max = 1.5, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardImpactEnabled',      label = 'Impact Enabled',         type = 'boolean',                          context = 'game', category = 'Animation' },
+  { path = 'ui.cardImpactDuration',     label = 'Impact Duration',        type = 'number', min = 0.05, max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardImpactSquashScale',  label = 'Impact Squash Scale',    type = 'number', min = 0.5,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardImpactFlashAlpha',   label = 'Impact Flash Alpha',     type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardImpactHoldExtra',    label = 'Impact Hold Extra',      type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardFlightCurve',        label = 'Flight Curve',           type = 'enum',  options = { 'arc', 'linear' },       context = 'game', category = 'Animation' },
+  { path = 'ui.cardFlightArcHeight',    label = 'Flight Arc Height',      type = 'number', min = 0,    max = 400, step = 1,    context = 'game', category = 'Animation' },
+  { path = 'ui.cardFlightOvershoot',    label = 'Flight Overshoot',       type = 'number', min = 0,    max = 0.4, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardHoverBaseLift',      label = 'Hover Base Lift',        type = 'number', min = 0,    max = 120, step = 1,    context = 'game', category = 'Animation' },
+  { path = 'ui.cardDragExtraLift',      label = 'Drag Extra Lift',        type = 'number', min = 0,    max = 160, step = 1,    context = 'game', category = 'Animation' },
+  { path = 'ui.cardShadowMinScale',     label = 'Shadow Min Scale',       type = 'number', min = 0.2,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardShadowMaxScale',     label = 'Shadow Max Scale',       type = 'number', min = 0.6,  max = 2.0, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardShadowMinAlpha',     label = 'Shadow Min Alpha',       type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardShadowMaxAlpha',     label = 'Shadow Max Alpha',       type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardSlotGlowDuration',   label = 'Slot Glow Duration',     type = 'number', min = 0.05, max = 1.5, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.cardSlotGlowAlpha',      label = 'Slot Glow Alpha',        type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
+
   -- Layout hand and hover behavior
   { path = 'layout.handAreaWidth',    label = 'Hand Area Width',    type = 'number', min = 300, max = 900, step = 1,  context = 'all',  category = 'Layout Hand' },
   { path = 'layout.handReferenceCount', label = 'Hand Ref Count',   type = 'number', min = 1,   max = 10,  step = 1,  context = 'all',  category = 'Layout Hand' },
