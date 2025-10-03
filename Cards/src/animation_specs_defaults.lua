@@ -9,6 +9,7 @@ return {
       arcHeight = 140,
       easing = 'easeOutQuad',
       arcEnabled = true,
+      verticalMode = 'standard_arc', -- standard_arc | hang_drop | plateau_drop
     },
     impact = {
       squashScale = 0.85,

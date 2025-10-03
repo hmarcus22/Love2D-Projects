@@ -45,31 +45,51 @@ function AnimationManager:update(dt)
             local eased = overshoot > 0 and easeOutBack(profP, 1.70158 * overshoot) or (a.easing or easeOutQuad)(profP)
 
             if a.slamStyle then
-                -- Horizontal uses eased (profiled) progress.
-                -- Vertical: hang high (slow descend) until final drop window.
-                local dropStart = 0.7
+                local verticalMode = a.verticalMode or 'hang_drop'
                 local verticalP
-                if p < dropStart then
-                    verticalP = (p / dropStart) * 0.15 -- only descend 15%
-                else
-                    local t2 = (p - dropStart) / (1 - dropStart)
-                    verticalP = 0.15 + (1 - 0.15) * (t2 * t2)
-                end
-                c.animX = a.fromX + (a.toX - a.fromX) * eased
-                c.animY = a.fromY + (a.toY - a.fromY) * verticalP
-                -- Arc / height component for slam: stay high then dive, giving impression of lift plateau.
-                if a.arcHeight and a.arcHeight > 0 then
-                    local lift
+                if verticalMode == 'hang_drop' then
+                    local dropStart = 0.7
                     if p < dropStart then
-                        local rise = math.sin((p / dropStart) * math.pi * 0.5)
-                        lift = a.arcHeight * (0.85 + 0.15 * rise) -- gentle slight rise toward near-max
+                        verticalP = (p / dropStart) * 0.15
                     else
-                        local t3 = (p - dropStart) / (1 - dropStart)
-                        lift = a.arcHeight * (1 - (t3 ^ 1.6)) -- power falloff
+                        local t2 = (p - dropStart) / (1 - dropStart)
+                        verticalP = 0.15 + (1 - 0.15) * (t2 * t2)
                     end
-                    c.animZ = math.max(0, lift)
-                else
-                    c.animZ = 0
+                    c.animX = a.fromX + (a.toX - a.fromX) * eased
+                    c.animY = a.fromY + (a.toY - a.fromY) * verticalP
+                    if a.arcHeight and a.arcHeight > 0 then
+                        local dropStartH = 0.7
+                        local lift
+                        if p < dropStartH then
+                            local rise = math.sin((p / dropStartH) * math.pi * 0.5)
+                            lift = a.arcHeight * (0.85 + 0.15 * rise)
+                        else
+                            local t3 = (p - dropStartH) / (1 - dropStartH)
+                            lift = a.arcHeight * (1 - (t3 ^ 1.6))
+                        end
+                        c.animZ = math.max(0, lift)
+                    else c.animZ = 0 end
+                elseif verticalMode == 'plateau_drop' then
+                    -- Maintain mid plateau then sharp fall
+                    local plateauEnd = 0.6
+                    if p < plateauEnd then
+                        verticalP = p * 0.05 -- almost stationary vertically
+                    else
+                        local t2 = (p - plateauEnd) / (1 - plateauEnd)
+                        verticalP = 0.05 + (t2 ^ 1.4) * 0.95
+                    end
+                    c.animX = a.fromX + (a.toX - a.fromX) * eased
+                    c.animY = a.fromY + (a.toY - a.fromY) * verticalP
+                    if a.arcHeight and a.arcHeight > 0 then
+                        local lift = a.arcHeight * (1 - (math.max(0, (p - plateauEnd)) ^ 1.2))
+                        c.animZ = lift
+                    else c.animZ = 0 end
+                else -- fallback
+                    c.animX = a.fromX + (a.toX - a.fromX) * eased
+                    c.animY = a.fromY + (a.toY - a.fromY) * eased
+                    if a.arcHeight and a.arcHeight > 0 then
+                        c.animZ = math.sin(math.pi * profP) * a.arcHeight
+                    else c.animZ = 0 end
                 end
             else
                 -- Standard flight: same easing for X/Y, arc uses pre-eased profP so profile affects arc timing too.

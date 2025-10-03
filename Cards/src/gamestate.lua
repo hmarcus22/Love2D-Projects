@@ -891,7 +891,8 @@ function GameState:playCardFromHand(card, slotIndex)
             -- Special body slam trajectory: go higher and then drop sharply
             arcHeight = ((Config.ui and Config.ui.cardFlightCurve == 'arc') or slamStyleFlag) and arcHeightBase or 0,
         overshootFactor = overshootCfg,
-        slamStyle = slamStyleFlag,
+    slamStyle = slamStyleFlag,
+    verticalMode = (spec and spec.flight and spec.flight.verticalMode) or nil,
         onComplete = function()
             if placed then return end
             placed = true

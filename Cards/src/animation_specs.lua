@@ -77,6 +77,7 @@ local function normalize(cardId)
   spec.flight.arcHeight = math.max(0, spec.flight.arcHeight or 0)
   spec.flight.arcScale  = spec.flight.arcScale or 1
   spec.flight.profile = spec.flight.profile or 'default'
+  spec.flight.verticalMode = spec.flight.verticalMode or 'standard_arc'
 
   local prof = Profiles.get(spec.flight.profile)
   spec.flight.profileMeta = prof
@@ -92,6 +93,10 @@ local function normalize(cardId)
     spec.flight.arcScale = prof.arcScale
   end
   if prof.slamStyle then spec.flight.slamStyle = true end
+  -- Derive slamStyle from verticalMode if not explicitly set
+  if spec.flight.verticalMode ~= 'standard_arc' then
+    spec.flight.slamStyle = true
+  end
 
   spec.flight.easingFn = resolveEasing(spec.flight.easing)
 

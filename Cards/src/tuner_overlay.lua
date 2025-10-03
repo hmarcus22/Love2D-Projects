@@ -82,6 +82,7 @@ local function build_controls(context)
       local spec = AnimationSpecs.getCardSpec(cid)
       categories['Anim Card'] = categories['Anim Card'] or {}
       local flight = spec.flight or {}
+      local impact = spec.impact or {}
       local function addDyn(pathKey, label, value, min, max, step)
         table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey=pathKey, label=label, type='number', min=min, max=max, step=step, value=value })
       end
@@ -90,6 +91,14 @@ local function build_controls(context)
       addDyn('arcScale', 'Arc Scale*', flight.arcScale or 1, 0.05, 3.0, 0.01)
       table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='slamStyle', label='Slam Style*', type='boolean', value = flight.slamStyle or false })
       table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='profile', label='Profile*', type='enum', options={'default','slam_body'}, value=flight.profile or 'default' })
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='verticalMode', label='Vertical Mode*', type='enum', options={'standard_arc','hang_drop','plateau_drop'}, value=flight.verticalMode or 'standard_arc' })
+      -- Impact group
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='squashScale', label='Impact Squash*', type='number', min=0.5, max=1.0, step=0.01, value=impact.squashScale or 0.85 })
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='flashAlpha', label='Impact Flash*', type='number', min=0, max=1, step=0.01, value=impact.flashAlpha or 0.55 })
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='shakeMag', label='Shake Mag*', type='number', min=0, max=20, step=0.1, value=impact.shakeMag or 6 })
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='shakeDur', label='Shake Dur*', type='number', min=0, max=2, step=0.01, value=impact.shakeDur or 0.25 })
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='dustCount', label='Dust Count*', type='number', min=0, max=5, step=1, value=impact.dustCount or 1 })
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='holdExtra', label='Impact Hold*', type='number', min=0, max=1, step=0.01, value=impact.holdExtra or 0.1 })
       -- Save / Reset buttons are represented as hints for now
       table.insert(categories['Anim Card'], { kind='hint', text='Ctrl+S saves config overrides; Shift+S saves anim overrides; Shift+R resets this card' })
     end
@@ -479,10 +488,14 @@ function Overlay.applyDynamicChange(owner, def, value)
   if not owner or not owner.cards then return end
   local cardDef = owner.cards[owner.attackerIndex]
   if not cardDef then return end
-  if not (def.dynGroup == 'flight') then return end
+  local cardDef = owner.cards[owner.attackerIndex]
+  if not cardDef then return end
   local AnimationSpecs = require 'src.animation_specs'
-  local patch = { flight = { [def.dynKey] = value } }
-  AnimationSpecs.setCardSpec(cardDef.id, patch)
+  if def.dynGroup == 'flight' then
+    AnimationSpecs.setCardSpec(cardDef.id, { flight = { [def.dynKey] = value } })
+  elseif def.dynGroup == 'impact' then
+    AnimationSpecs.setCardSpec(cardDef.id, { impact = { [def.dynKey] = value } })
+  end
 end
 
 return Overlay
