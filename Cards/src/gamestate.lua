@@ -849,105 +849,27 @@ function GameState:playCardFromHand(card, slotIndex)
     -- Use shared prevalidation (applies energy, combo, variance, and requirements)
     local ok = select(1, Actions.prevalidatePlayCard(self, card, slotIndex))
     if not ok then return false end
-    -- (Removed early smoke bomb trigger; it now activates only on placement)
     -- Mark slot reserved so other attempts during flight fail fast
     slot._incoming = true
-    -- Clone pre-placement logic from Actions but defer final placement until animation end
     -- Temporarily remove from hand visually
     player.slots[card.slotIndex].card = nil
     player:compactHand(self)
-    -- Use top-left coordinates (renderer draws from top-left), maintain full path end without snap
-    local fromX, fromY = card.x, card.y
-    local targetX, targetY = self:getBoardSlotPosition(player.id, slotIndex) -- top-left of slot
-    local duration = (Config.ui and Config.ui.cardFlightDuration) or 0.35
-    local overshootCfg = (Config.ui and Config.ui.cardFlightOvershoot) or 0
-    local arcHeightBase = (Config.ui and Config.ui.cardFlightArcHeight) or 140
-    local slamStyleFlag = false
-    local spec = nil
-    do
-        local AnimSpecs = require 'src.animation_specs'
-        spec = AnimSpecs.getCardSpec(card.id)
-        if spec and spec.flight then
-            if Config.ui.useAnimationOverrides then
-                duration = spec.flight.duration or duration
-                overshootCfg = spec.flight.overshoot or overshootCfg
-                if spec.flight.arcScale and spec.flight.arcScale ~= 1 then
-                    arcHeightBase = arcHeightBase * spec.flight.arcScale
-                end
-                if spec.flight.slamStyle then slamStyleFlag = true end
-            else
-                -- Overrides disabled: ignore per-card timing changes, but still allow horizontal shaping elsewhere
-                slamStyleFlag = false
-            end
-        end
+    
+    -- Build turn advancement callback
+    local function queueAdvance()
+        self.lastActionWasPass = false
+        self:nextPlayer()
+        self:maybeFinishPlayPhase()
     end
-    local placed = false
-    self.animations:add({
-        type = "card_flight",
-        card = card,
-        fromX = fromX, fromY = fromY,
-        toX = targetX, toY = targetY,
-            duration = duration,
-            -- Special body slam trajectory: go higher and then drop sharply
-            arcHeight = ((Config.ui and Config.ui.cardFlightCurve == 'arc') or slamStyleFlag) and arcHeightBase or 0,
-        overshootFactor = overshootCfg,
-    slamStyle = slamStyleFlag,
-    verticalMode = (spec and spec.flight and spec.flight.verticalMode) or nil,
-        onComplete = function()
-            if placed then return end
-            placed = true
-            slot._incoming = nil
-            -- Place logically without advancing turn yet
-            slot.card = card
-            card.animX = nil; card.animY = nil
-            self:placeCardWithoutAdvancing(player, card, slotIndex)
-            -- Ensure visibility reflects current player (unchanged turn yet)
-            self.currentPlayer = player.id
-            self:updateCardVisibility()
-            local function queueAdvance()
-                self.lastActionWasPass = false
-                self:nextPlayer()
-                self:maybeFinishPlayPhase()
-            end
-            local doImpact = (Config.ui and Config.ui.cardImpactEnabled)
-            if doImpact and self.animations then
-                self.animations:add({
-                    type = "card_impact",
-                    card = card,
-                    gameState = self,
-                    duration = (Config.ui.cardImpactDuration or 0.28),
-                    squashScale = Config.ui.cardImpactSquashScale or 0.85,
-                    flashAlpha = Config.ui.cardImpactFlashAlpha or 0.55,
-                    onStart = function()
-                        if card.id == 'body_slam' then
-                            local ImpactFX = require 'src.impact_fx'
-                            local sx, sy = self:getBoardSlotPosition(player.id, slotIndex)
-                            ImpactFX.triggerShake(self, 0.25, 6)
-                            ImpactFX.triggerDust(self, sx + card.w/2, sy + card.h - 8)
-                        end
-                    end,
-                    onComplete = function()
-                        local hold = (Config.ui.cardImpactHoldExtra or 0)
-                        -- Slot glow (visual landing feedback)
-                        local slotX, slotY = self:getBoardSlotPosition(player.id, slotIndex)
-                        self.animations:add({
-                            type = 'slot_glow',
-                            duration = (Config.ui.cardSlotGlowDuration or 0.35),
-                            maxAlpha = (Config.ui.cardSlotGlowAlpha or 0.55),
-                            slot = { x = slotX, y = slotY, w = card.w, h = card.h }
-                        })
-                        if hold > 0 and self.animations then
-                            self.animations:add({ type = "delay", duration = hold, onComplete = queueAdvance })
-                        else
-                            queueAdvance()
-                        end
-                    end
-                })
-            else
-                queueAdvance()
-            end
-        end
-    })
+    
+    -- Use AnimationBuilder to create animation sequence
+    local AnimationBuilder = require 'src.logic.animation_builder'
+    local animations = AnimationBuilder.buildCardPlaySequence(self, card, slotIndex, queueAdvance)
+    
+    -- Queue all animations
+    for _, anim in ipairs(animations) do
+        self.animations:add(anim)
+    end
     return true
 end
 

@@ -21,19 +21,53 @@ end
 function anim_lab:init()
   self.cards = buildDefList()
   self.attackerIndex = 1
-  -- Create two blank players with generous limits
-  local p1 = Player{ id=1, maxHandSize=10, maxBoardCards=3 }
-  local p2 = Player{ id=2, maxHandSize=10, maxBoardCards=3 }
-  p1.deck = {}; p2.deck = {}
-  self.gs = GameState:newFromDraft({p1,p2})
-  -- Give lots of energy for testing
-  p1.energy, p2.energy = 99, 99
+  
+  -- Create single neutral player for the testing hand area
+  local testPlayer = Player{ id=1, maxHandSize=10, maxBoardCards=3 }
+  testPlayer.deck = {}
+  testPlayer.energy = 99
+  
+  -- Create dummy second player to maintain GameState structure
+  local dummyPlayer = Player{ id=2, maxHandSize=10, maxBoardCards=3 }
+  dummyPlayer.deck = {}
+  dummyPlayer.energy = 99
+  
+  self.gs = GameState:newFromDraft({testPlayer, dummyPlayer})
+  self.gs.currentPlayer = 1 -- Always use player 1 as the "thrower"
+  
   -- Lab flags
   self.autoRefill = true -- auto keep a test copy in current player's hand
+  self.showPreview = true -- show selected card preview
 end
 
 function anim_lab:enter()
   self:init()
+end
+
+-- Place selected card as prop in specific slot (1-6, covering both board sides)
+function anim_lab:placeProp(slotNumber)
+  if slotNumber < 1 or slotNumber > 6 then return end
+  local def = self.cards[self.attackerIndex]
+  if not def then return end
+  
+  -- Determine which player's board (slots 1-3 = player 1, slots 4-6 = player 2)
+  local playerIndex = (slotNumber <= 3) and 1 or 2
+  local slotIndex = (slotNumber <= 3) and slotNumber or (slotNumber - 3)
+  
+  local player = self.gs.players[playerIndex]
+  local slot = player.boardSlots[slotIndex]
+  if not slot then return end
+  
+  -- Create prop card and place it directly
+  local propCard = CardFactory.createCard(def.id)
+  propCard.faceUp = true
+  slot.card = propCard
+  
+  -- Position the card
+  local x, y = self.gs:getBoardSlotPosition(playerIndex, slotIndex)
+  propCard.x, propCard.y = x, y
+  propCard.w = (Config.layout and Config.layout.cardW) or 100
+  propCard.h = (Config.layout and Config.layout.cardH) or 150
 end
 
 -- Spawn a copy of currently selected definition into current player's hand
@@ -55,14 +89,26 @@ local function handHasDef(player, defId)
   return false
 end
 
--- Ensure a test card copy exists when autoRefill enabled
+-- Ensure a test card copy exists when autoRefill enabled (only if hand is empty)
 function anim_lab:ensureTestCard()
   if not self.autoRefill then return end
-  local def = self.cards[self.attackerIndex]
-  if not def then return end
   local player = self.gs and self.gs:getCurrentPlayer()
   if not player then return end
-  if handHasDef(player, def.id) then return end
+  
+  -- Only auto-spawn if hand is completely empty
+  local handEmpty = true
+  for _, slot in ipairs(player.slots or {}) do
+    if slot.card then
+      handEmpty = false
+      break
+    end
+  end
+  
+  if not handEmpty then return end -- Hand has cards, don't auto-spawn
+  
+  local def = self.cards[self.attackerIndex]
+  if not def then return end
+  
   -- Avoid spawning while a flight of same def is mid-air (optional)
   if self.gs and self.gs.animations then
     for _, a in ipairs(self.gs.animations.queue or {}) do
@@ -72,10 +118,18 @@ function anim_lab:ensureTestCard()
   self:spawnTestCard()
 end
 
+-- Handle card selection change
+function anim_lab:selectCard(newIndex)
+  self.attackerIndex = newIndex
+  -- No auto-spawning during selection - let user browse freely
+  -- Auto-refill will only happen in update() if hand becomes completely empty
+end
+
 function anim_lab:update(dt)
   if not self.gs then return end
   -- Keep players energized
   for _, p in ipairs(self.gs.players or {}) do p.energy = 99 end
+  -- Check for auto-refill (only when hand is completely empty)
   self:ensureTestCard()
   TunerOverlay.update(dt, 'anim_lab', self)
   self.gs:update(dt)
@@ -84,16 +138,145 @@ end
 function anim_lab:draw()
   if not self.gs then return end
   Viewport.apply()
-  -- Delegate to GameState draw (includes board, hand, animations, impacts)
-  self.gs:draw()
-  -- Overlay instructional text
-  love.graphics.setColor(1,1,1,0.9)
-  love.graphics.print("Animation Lab - Using full gameplay pipeline", 20, 14)
-  love.graphics.print("Up/Down: select card  |  Space: force spawn copy  |  Tab: switch player  |  C: clear board  |  T: toggle overrides", 20, 32)
-  love.graphics.print("Selected: " .. (self.cards[self.attackerIndex] and self.cards[self.attackerIndex].id or 'nil'), 20, 50)
-  love.graphics.setColor(1,1,1,1)
+  
+  -- Custom draw without player info HUD (cleaner for lab)
+  self:drawGameWithoutHUD()
+  
+  -- Draw info panels
+  self:drawInfoPanels()
+  
   TunerOverlay.draw('anim_lab')
   Viewport.unapply()
+end
+
+-- Draw game elements without the player info HUD
+function anim_lab:drawGameWithoutHUD()
+  self.gs:refreshLayoutPositions()
+  local r, g, b = self.gs:getTurnBackgroundColor()
+  love.graphics.clear(r, g, b, 1)
+  
+  local layout = self.gs:getLayout()
+  local screenW = Viewport.getWidth()
+  
+  local BoardRenderer = require 'src.renderers.board_renderer'
+  local ResolveRenderer = require 'src.renderers.resolve_renderer'
+  
+  -- Draw board
+  BoardRenderer.draw(self.gs, layout)
+  
+  -- Draw deck and discard stacks
+  if self.gs.deckStack and self.gs.deckStack.draw then
+    self.gs.deckStack:draw()
+  end
+  if self.gs.discardStack and self.gs.discardStack.draw then
+    self.gs.discardStack:draw()
+  end
+  
+  -- Draw hands (without player info HUD)
+  for index, player in ipairs(self.gs.players or {}) do
+    local isCurrent = (index == self.gs.currentPlayer)
+    player:drawHand(isCurrent, self.gs)
+  end
+  
+  -- Draw resolve log but skip the player info HUD parts
+  ResolveRenderer.draw(self.gs, layout, screenW)
+  
+  -- Draw animations on top
+  if self.gs.animations and self.gs.animations.draw then
+    self.gs.animations:draw()
+  end
+end
+
+function anim_lab:drawInfoPanels()
+  local screenW = Viewport.getWidth()
+  love.graphics.setColor(0,0,0,0.8)
+  love.graphics.rectangle('fill', 10, 10, 520, 120, 8, 8)
+  love.graphics.setColor(1,1,1,1)
+  love.graphics.rectangle('line', 10, 10, 520, 120, 8, 8)
+  
+  -- Instructions
+  love.graphics.setColor(1,1,0.8,1)
+  love.graphics.print("Animation Lab - Bowling Ball Style Testing", 20, 20)
+  love.graphics.setColor(0.9,0.9,0.9,1)
+  love.graphics.print("Up/Down: select card  |  Space: spawn test card  |  1-6: place prop in slot", 20, 38)
+  love.graphics.print("Drag test card to any slot to see animation  |  C: clear all props", 20, 54)
+  love.graphics.print("A: toggle auto-refill  |  P: toggle preview  |  T: toggle overrides", 20, 70)
+  
+  -- Selected card info
+  local def = self.cards[self.attackerIndex]
+  love.graphics.setColor(1,1,1,1)
+  love.graphics.print("Selected Card: " .. (def and def.id or 'nil'), 20, 92)
+  love.graphics.print("Auto-refill: " .. (self.autoRefill and 'ON (when hand empty)' or 'OFF'), 280, 92)
+  
+  -- Slot layout guide
+  love.graphics.setColor(0,0,0,0.8)
+  love.graphics.rectangle('fill', screenW - 200, 10, 190, 100, 8, 8)
+  love.graphics.setColor(1,1,1,1)
+  love.graphics.rectangle('line', screenW - 200, 10, 190, 100, 8, 8)
+  
+  love.graphics.setColor(1,1,0.8,1)
+  love.graphics.print("Prop Slots (Number Keys)", screenW - 190, 20)
+  love.graphics.setColor(0.9,0.9,0.9,1)
+  love.graphics.print("Top Row:    1   2   3", screenW - 190, 40)
+  love.graphics.print("Bottom Row: 4   5   6", screenW - 190, 58)
+  love.graphics.print("Drag from hand to test!", screenW - 190, 80)
+  
+  -- Card preview panel (if enabled and card selected)
+  if self.showPreview and def then
+    self:drawCardPreview(def)
+  end
+end
+
+function anim_lab:drawCardPreview(def)
+  local screenW = Viewport.getWidth()
+  local screenH = Viewport.getHeight()
+  local panelW, panelH = 200, 280
+  local panelX = screenW - panelW - 20
+  local panelY = screenH - panelH - 20
+  
+  -- Panel background
+  love.graphics.setColor(0,0,0,0.9)
+  love.graphics.rectangle('fill', panelX, panelY, panelW, panelH, 8, 8)
+  love.graphics.setColor(1,1,1,1)
+  love.graphics.rectangle('line', panelX, panelY, panelW, panelH, 8, 8)
+  
+  -- Create temporary card for preview
+  local CardFactory = require 'src.card_factory'
+  local CardRenderer = require 'src.card_renderer'
+  local previewCard = CardFactory.createCard(def.id)
+  previewCard.x = panelX + 10
+  previewCard.y = panelY + 10
+  previewCard.w = 100
+  previewCard.h = 150
+  previewCard.faceUp = true
+  previewCard._suppressShadow = true -- disable shadow for clean preview
+  
+  -- Draw card
+  CardRenderer.draw(previewCard)
+  
+  -- Animation spec info
+  local AnimSpecs = require 'src.animation_specs'
+  local spec = AnimSpecs.getCardSpec(def.id)
+  love.graphics.setColor(1,1,0.8,1)
+  love.graphics.print("Animation Info:", panelX + 120, panelY + 15)
+  love.graphics.setColor(0.9,0.9,0.9,1)
+  local y = panelY + 35
+  if spec and spec.flight then
+    love.graphics.print("Duration: " .. (spec.flight.duration or 'default'), panelX + 120, y)
+    y = y + 15
+    love.graphics.print("Overshoot: " .. (spec.flight.overshoot or 'default'), panelX + 120, y)
+    y = y + 15
+    love.graphics.print("Arc Scale: " .. (spec.flight.arcScale or 'default'), panelX + 120, y)
+    y = y + 15
+    love.graphics.print("Profile: " .. (spec.flight.profile or 'default'), panelX + 120, y)
+    y = y + 15
+    if spec.flight.verticalMode then
+      love.graphics.print("V-Mode: " .. spec.flight.verticalMode, panelX + 120, y)
+      y = y + 15
+    end
+  else
+    love.graphics.print("Using defaults", panelX + 120, y)
+  end
 end
 
 function anim_lab:keypressed(key)
@@ -102,26 +285,39 @@ function anim_lab:keypressed(key)
     Gamestate.switch(menu)
     return
   elseif key == 'up' then
-    self.attackerIndex = (self.attackerIndex - 2) % #self.cards + 1
+    local newIndex = (self.attackerIndex - 2) % #self.cards + 1
+    self:selectCard(newIndex)
   elseif key == 'down' then
-    self.attackerIndex = (self.attackerIndex % #self.cards) + 1
+    local newIndex = (self.attackerIndex % #self.cards) + 1
+    self:selectCard(newIndex)
   elseif key == 'space' then
     self:spawnTestCard()
-  elseif key == 'tab' then
-    if self.gs then
-      self.gs.currentPlayer = (self.gs.currentPlayer == 1) and 2 or 1
-      self.gs:updateCardVisibility()
-      self.gs:refreshLayoutPositions()
-    end
   elseif key == 'c' then
-    -- Clear all board slots (leave hand as-is)
+    -- Clear all prop slots
     if self.gs then
       for _, p in ipairs(self.gs.players or {}) do
         for i, slot in ipairs(p.boardSlots or {}) do slot.card = nil end
       end
     end
+  elseif key == 'a' then
+    self.autoRefill = not self.autoRefill
+  elseif key == 'p' then
+    self.showPreview = not self.showPreview
   elseif key == 't' then
     Config.ui.useAnimationOverrides = not Config.ui.useAnimationOverrides
+  -- Number keys for quick prop placement
+  elseif key == '1' then
+    self:placeProp(1)
+  elseif key == '2' then
+    self:placeProp(2)
+  elseif key == '3' then
+    self:placeProp(3)
+  elseif key == '4' then
+    self:placeProp(4)
+  elseif key == '5' then
+    self:placeProp(5)
+  elseif key == '6' then
+    self:placeProp(6)
   end
   -- Pass through to tuner for save/reset shortcuts
   TunerOverlay.keypressed(key, 'anim_lab', self)

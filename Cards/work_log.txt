@@ -1,0 +1,216 @@
+Animation Lab Work Log / Snapshot (2025-10-03)
+================================================
+
+Goal: Provide a durable, high-signal overview of the animation & tuning architecture so any contributor (or AI model) can immediately resume iteration.
+
+-------------------------------------------------
+1. High-Level Architecture
+-------------------------------------------------
+Core Systems:
+- GameState (gamestate.lua) orchestrates phases, turn order, placement, and animation queue usage.
+- Animation Manager (animation_manager.lua) drives queued animations: card_flight, card_impact, slot_glow, delay.
+- Flight Profiles (flight_profiles.lua) define horizontal shaping via metadata + function. Metadata keys (current set):
+  duration, overshoot, arcScale, slamStyle, horizontal (fn).
+- Animation Specs (animation_specs.lua + animation_specs_defaults.lua) merge global defaults + per-card overrides.
+- Tuner Overlay (tuner_overlay.lua) provides runtime editing. In animation lab it injects dynamic per-card controls.
+- Impact FX (impact_fx.lua) handles shake + dust (triggered at impact on certain cards e.g. body_slam).
+
+Animation Lab State:
+- Originally a bespoke sandbox; refactored to reuse full GameState pipeline (states/anim_lab.lua).
+- Now uses GameState:newFromDraft with two simple players (high energy) so flight / impact logic is identical to gameplay.
+
+-------------------------------------------------
+2. Flight & Vertical Motion Pipeline
+-------------------------------------------------
+Stages for card_flight:
+1. Raw progress p = t / duration.
+2. Profile horizontal shaping: prof.horizontal(p) -> profP.
+3. Apply easing & optional overshoot (easeOutBack param scaled by overshootFactor).
+4. Compute X/Y interpolation on eased value.
+5. Compute vertical (Z) by verticalMode branch OR standard arc sin(pi * profP) * arcHeight.
+6. slamStyle + verticalMode (hang_drop / plateau_drop) adds custom Y/Z curves.
+
+Vertical Modes (current):
+- standard_arc: symmetric arc via sin curve.
+- hang_drop: holds high until late drop; used with slamStyle for heavier feel.
+- plateau_drop: shallow early movement then accelerated fall.
+
+-------------------------------------------------
+3. Flight Profiles (flight_profiles.lua)
+-------------------------------------------------
+Profile Table Format:
+{
+  duration = <default base duration>,
+  overshoot = <default overshoot factor>,
+  arcScale = <multiplier applied to global arcHeight>,
+  slamStyle = <bool: prefer verticalMode hang_drop>,
+  horizontal = function(p) -> adjustedProgress
+}
+
+Current Profiles:
+- default: identity horizontal.
+- slam_body: slightly front-loaded + metadata (e.g., arcScale 1.35, duration 0.55, slamStyle true).
+
+Profiles.get(name) returns a merged record (with safe fallbacks).
+
+-------------------------------------------------
+4. Animation Specs System
+-------------------------------------------------
+Files:
+- animation_specs_defaults.lua: global defaults (flight, impact, debug) and baseline per-card seeds.
+- animation_specs.lua: load defaults + overrides, build normalized card spec: { flight = {...}, impact = {...}, debug = {...} }.
+- Overrides saved as diff file (card_animation_overrides.lua) only storing deviations.
+Normalization Duties:
+- Ensure profile name presence (fallback 'default').
+- Derive slamStyle if metadata requires.
+- Pass verticalMode through when present.
+- Provide arcScale for scaling global arc height.
+
+Usage Flow:
+Game state (and lab) call AnimationSpecs.getCardSpec(cardId) before constructing flight animation. If Config.ui.useAnimationOverrides == false then only structural aspects (profile presence) are used; timing metadata (duration, overshoot, arcScale) is suppressed.
+
+-------------------------------------------------
+5. Impact FX & Landing Sequence
+-------------------------------------------------
+After flight completes:
+- Optionally queue card_impact (if Config.ui.cardImpactEnabled).
+- Impact phases: squash -> recover (impactScaleX/Y, impactFlash fade).
+- Body Slam hook triggers ImpactFX: screen shake + dust spawn.
+- Optional hold (delay) before advancing turn controlled by cardImpactHoldExtra.
+- Slot glow queued (slot_glow) for visual landing feedback.
+
+Per-card Impact Tunables (in Tuner Anim Card group):
+- squashScale, flashAlpha, shakeMag, shakeDur, dustCount, holdExtra.
+
+-------------------------------------------------
+6. Tuner Overlay (tuner_overlay.lua) Integration
+-------------------------------------------------
+Contexts:
+- 'game': full tunable set.
+- 'anim_lab': filtered to animation-relevant globals + dynamic per-card section.
+Dynamic Per-Card Controls:
+- Flight: duration, overshoot, arcScale, slamStyle, profile, verticalMode.
+- Impact: squashScale, flashAlpha, shakeMag, shakeDur, dustCount, holdExtra.
+Shortcuts:
+- F10 toggle overlay.
+- Ctrl+S save config overrides.
+- Ctrl+Shift+S save animation overrides.
+- Ctrl+Shift+R reset current card animation spec.
+
+(Improvement TODO) Layout changes in anim_lab context currently do NOT auto-refresh layout positions; add branch mirroring 'game' refresh.
+
+-------------------------------------------------
+7. Animation Lab vs Gameplay Differences (Current)
+-------------------------------------------------
+Lab Differences:
+- Infinite energy (players.energy set to 99 each update) — ensures no gating.
+- Auto-refill: ensures at least one copy of selected definition in current player's hand.
+- No fighters assigned (means no passives: favored tag discount / variance / combo colorization not visible unless card logic itself triggers it).
+- Turn advancement largely irrelevant; lab focuses on placement + animation observation.
+- Manual spawn (Space) spawns another copy of selected card.
+- Tab swaps current player to test opposing direction.
+
+Implications:
+- Energy-based timing or passives (e.g., favored discount influencing cost) not observable in lab yet.
+- Variance (attack variance passives) not demonstrated due to missing fighters.
+
+-------------------------------------------------
+8. Pending / Proposed Enhancements
+-------------------------------------------------
+Priority A (Parity / Reliability):
+- Layout refresh on anim_lab tuner changes.
+- Toggle: Infinite Energy (default on).
+- Toggle: Auto Refill (default on).
+
+Priority B (Fidelity / Depth):
+- Fighter selection in lab (choose fighters, load decks, passives, variance, favored tags).
+- Slow-mo / playback rate slider.
+- Loop last play (auto re-trigger after impact).
+- Ghost path comparison: sample baseline vs modified spec; draw path dots.
+
+Priority C (Quality of Life / Debug):
+- Visual highlight of modified per-card spec fields (asterisk or color).
+- Export tuned spec -> new profile candidate script snippet.
+- On-card debug overlay: current progress %, arc height sample, vertical mode label.
+
+-------------------------------------------------
+9. Quick Usage (Current Lab)
+-------------------------------------------------
+Open Animation Lab (Menu -> Animation Lab or key 'L' depending on menu binding).
+Keys:
+- Up/Down: change selected card definition.
+- Space: spawn another test copy immediately.
+- Tab: switch active player (test opposite direction flight).
+- C: clear board (slots only).
+- T: toggle animation overrides usage.
+- F10: open tuner; edit per-card flight/impact fields; Ctrl+Shift+S to save overrides.
+Drag & Play:
+- Drag selected test card from hand onto an empty board slot to trigger full flight + impact + slot glow.
+- Auto-refill ensures a fresh card copy reappears for iterative tuning.
+
+-------------------------------------------------
+10. Maintenance Checklist When Altering Animation Logic
+-------------------------------------------------
+When you add/change a flight profile:
+[ ] Add new profile entry to flight_profiles.lua with metadata.
+[ ] Ensure horizontal function clamps/normalizes output (0..1) if overshoot.
+[ ] (Optional) Add to dynamic enum options in tuner_overlay (profile list) if not generic.
+
+When you add a vertical mode:
+[ ] Extend animation_manager.lua verticalMode switch.
+[ ] Add enum option to tuner_overlay dynamic control.
+[ ] Document behavior here.
+
+When you add new impact parameters:
+[ ] Add to animation_specs normalization (if persisted per-card).
+[ ] Add dynamic impact control in tuner_overlay.
+[ ] Use inside card_impact onStart/onUpdate path.
+
+When you add debug path / ghost rendering:
+[ ] Add a debug flag in specs (debug.showPath).
+[ ] Hook drawing inside animation_manager:draw.
+[ ] Provide tuner toggle in Anim Card group.
+
+-------------------------------------------------
+11. Known Minor Gaps / TODO Markers
+-------------------------------------------------
+- Layout refresh missing for anim_lab context (tuner apply_change patch pending).
+- No UI to toggle infinite energy or auto-refill (hard-coded true right now).
+- Fighter passives not represented; variance & favored cost scenarios untestable here.
+- No baseline vs modified diff visualization beyond raw numbers.
+
+-------------------------------------------------
+12. Suggested Next Small Patch (Low Risk)
+-------------------------------------------------
+In tuner_overlay.lua apply_change():
+elseif context == 'anim_lab' and owner and owner.gs then
+  if owner.gs.buildLayoutCache then owner.gs:buildLayoutCache() end
+  if owner.gs.refreshLayoutPositions then owner.gs:refreshLayoutPositions() end
+end
+
+Add two Config flags (ui.labInfiniteEnergy, ui.labAutoRefill) and gate current hard-coded behavior in anim_lab.lua
+
+-------------------------------------------------
+13. Reference File Map
+-------------------------------------------------
+- states/anim_lab.lua : Lab state, spawns GameState, auto-refill logic, selected definition cycling.
+- animation_manager.lua : Flight/impact update & draw; vertical modes; profile-first pipeline.
+- flight_profiles.lua : Metadata-driven flight profiles.
+- animation_specs.lua / animation_specs_defaults.lua : Spec loading & normalization.
+- tuner_overlay.lua : Dynamic per-card controls; save/reset shortcuts.
+- impact_fx.lua : Shake & dust triggers.
+- config.lua / tunable_defs.lua : Global tunables including overrides flag.
+
+-------------------------------------------------
+14. Quick Diff Narrative (Recent Refactor)
+-------------------------------------------------
+OLD: anim_lab had custom board + manual flight call from left to right card pair.
+NEW: anim_lab instantiates real GameState and uses existing input, placement, flight & impact sequence.
+Benefit: Zero divergence risk; future gameplay animation changes appear in lab automatically.
+
+-------------------------------------------------
+15. Fast Onboarding Blurb (Copy/Paste For New Contributor)
+-------------------------------------------------
+"Animation Lab boots a minimalist match state using the same GameState and animation queue as gameplay. Drag a spawned test card onto a slot to see the full placement animation (profile shaping, vertical mode, overshoot, impact FX). Open the tuner (F10) and adjust per-card flight duration / overshoot / arcScale / verticalMode then save overrides (Ctrl+Shift+S); replay instantly. Layout or profile code changes propagate without altering the lab."
+
+End of work_log.
