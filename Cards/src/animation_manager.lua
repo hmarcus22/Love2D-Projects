@@ -32,54 +32,51 @@ function AnimationManager:update(dt)
         local p = math.min(1, a.t / a.duration)
         if a.type == "card_flight" and a.card then
             local c = a.card
+            -- 1. Raw timeline progress p (0..1)
+            -- 2. Flight profile shapes horizontal progress BEFORE easing/overshoot
+            local Profiles = require 'src.flight_profiles'
+            local profileName = (c.definition and c.definition.flightProfile) or 'default'
+            local prof = Profiles.get(profileName)
+            local profileFn = prof.horizontal or Profiles.default
+            local profP = profileFn(p)
+            if profP < 0 then profP = 0 elseif profP > 1 then profP = 1 end
+            -- 3. Apply easing / optional overshoot to profP
             local overshoot = a.overshootFactor or 0
-            local baseEase
-            if c.definition and c.definition.flightProfile == 'slam_body' then
-                -- slam_body profile: accelerate quickly to cover ~70% horizontal distance fast,
-                -- then slow approach (anticipation) before vertical drop handled by slamStyle logic.
-                -- Custom profile: fast accel (easeOutQuad first half) then ease in (slow) before drop
-                if p < 0.55 then
-                    local halfP = p / 0.55
-                    baseEase = 1 - (1 - halfP)*(1 - halfP) -- outQuad portion
-                    baseEase = baseEase * 0.70 -- compress to 70% distance early
-                else
-                    local tailP = (p - 0.55) / 0.45
-                    -- easeInSine like (1 - cos(pi * t))/2, but reversed to slow into position
-                    local k = (math.sin((tailP) * math.pi * 0.5)) -- gentle
-                    baseEase = 0.70 + k * 0.30
-                end
-            else
-                baseEase = overshoot > 0 and easeOutBack(p, 1.70158 * overshoot) or (a.easing or easeOutQuad)(p)
-            end
-            local eased = baseEase
-            -- Slam style: hang high for first 70%, then fast vertical drop last 30%
+            local eased = overshoot > 0 and easeOutBack(profP, 1.70158 * overshoot) or (a.easing or easeOutQuad)(profP)
+
             if a.slamStyle then
-                -- Body Slam variant: card races horizontally, hangs high, then plunges hard.
-                local dropStart = 0.7 -- last 30% is the slam/drop window
+                -- Horizontal uses eased (profiled) progress.
+                -- Vertical: hang high (slow descend) until final drop window.
+                local dropStart = 0.7
                 local verticalP
                 if p < dropStart then
-                    -- Keep vertical progress very shallow: only ~15% of the way down before drop
-                    verticalP = (p / dropStart) * 0.15
+                    verticalP = (p / dropStart) * 0.15 -- only descend 15%
                 else
-                    local t = (p - dropStart) / (1 - dropStart)
-                    -- Accelerated quadratic descent from 15% -> 100%
-                    verticalP = 0.15 + (1 - 0.15) * (t * t)
+                    local t2 = (p - dropStart) / (1 - dropStart)
+                    verticalP = 0.15 + (1 - 0.15) * (t2 * t2)
                 end
-                local x = a.fromX + (a.toX - a.fromX) * eased
-                local y = a.fromY + (a.toY - a.fromY) * verticalP
-                c.animX = x
-                c.animY = y
+                c.animX = a.fromX + (a.toX - a.fromX) * eased
+                c.animY = a.fromY + (a.toY - a.fromY) * verticalP
+                -- Arc / height component for slam: stay high then dive, giving impression of lift plateau.
                 if a.arcHeight and a.arcHeight > 0 then
-                    -- Maintain a plateau near max height, then drop sharply
-                                local baseEase = (a.easing or easeOutQuad)(p)
-                                local profileName = (c.definition and c.definition.flightProfile) or 'default'
-                                local Profiles = require 'src.flight_profiles'
-                                local profileFn = Profiles[profileName] or Profiles.default
-                                -- Horizontal progress shaped by profile AFTER base easing (profile expects linear-ish input)
-                                local eased = profileFn(baseEase)
-                    local arcP = p
-                    local lift = math.sin(math.pi * arcP) * a.arcHeight
-                    c.animZ = lift
+                    local lift
+                    if p < dropStart then
+                        local rise = math.sin((p / dropStart) * math.pi * 0.5)
+                        lift = a.arcHeight * (0.85 + 0.15 * rise) -- gentle slight rise toward near-max
+                    else
+                        local t3 = (p - dropStart) / (1 - dropStart)
+                        lift = a.arcHeight * (1 - (t3 ^ 1.6)) -- power falloff
+                    end
+                    c.animZ = math.max(0, lift)
+                else
+                    c.animZ = 0
+                end
+            else
+                -- Standard flight: same easing for X/Y, arc uses pre-eased profP so profile affects arc timing too.
+                c.animX = a.fromX + (a.toX - a.fromX) * eased
+                c.animY = a.fromY + (a.toY - a.fromY) * eased
+                if a.arcHeight and a.arcHeight > 0 then
+                    c.animZ = math.sin(math.pi * profP) * a.arcHeight
                 else
                     c.animZ = 0
                 end
@@ -119,6 +116,8 @@ function AnimationManager:update(dt)
             c.impactFlash = (a.flashAlpha or 0.5) * (1 - p)
         elseif a.type == "slot_glow" then
             -- p used directly; on draw we compute fade
+        elseif a.type == "delay" then
+            -- passive wait animation; nothing to update besides time
         end
         if p >= 1 then
             if a.onComplete then pcall(a.onComplete) end
@@ -142,13 +141,25 @@ function AnimationManager:draw()
     for _, a in ipairs(self.queue) do
         if a.type == "card_flight" and a.card then
             local CardRenderer = require "src.card_renderer"
-            -- Temporarily override card position for draw
             local c = a.card
-            local ox, oy = c.x, c.y
-            c.animX = a.card.animX -- already set in update; CardRenderer uses animX/animY
-            c.animY = a.card.animY
             CardRenderer.draw(c)
-            -- Keep animX/animY for next frame until completion clears them
+            -- Optional debug: hold F3 to sample the horizontal flight profile path.
+            if c.definition and c.definition.flightProfile and love.keyboard and love.keyboard.isDown('f3') then
+                local Profiles = require 'src.flight_profiles'
+                local profileFn = Profiles[c.definition.flightProfile] or Profiles.default
+                love.graphics.setColor(1,0.25,0.25,0.55)
+                local samples = 28
+                for si=0,samples do
+                    local sp = si / samples
+                    local profP = profileFn(sp)
+                    local overshoot = a.overshootFactor or 0
+                    local eased = overshoot > 0 and easeOutBack(profP, 1.70158 * overshoot) or (a.easing or easeOutQuad)(profP)
+                    local px = a.fromX + (a.toX - a.fromX) * eased + (c.w or 0)/2
+                    local py = a.fromY + (a.toY - a.fromY) * eased + (c.h or 0)/2
+                    love.graphics.circle('fill', px, py, 2)
+                end
+                love.graphics.setColor(1,1,1,1)
+            end
         elseif a.type == "slot_glow" and a.slot then
             local alpha = (a.maxAlpha or 0.5) * (1 - (a.t / a.duration))
             if alpha > 0.01 then

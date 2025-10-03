@@ -2,6 +2,7 @@ local Config = require "src.config"
 local Viewport = require "src.viewport"
 local Deep = require "src.utils.deep"
 local Tunables = require "src.tunable_defs"
+local AnimationSpecs = require 'src.animation_specs'
 
 local Overlay = {
   open = false,
@@ -47,15 +48,56 @@ local function build_controls(context)
 
   local controls = {}
   local categories = {}
+  local animLab = (context == 'anim_lab')
+  local function allowAnimLab(def)
+    if not animLab then return true end
+    -- Only show a curated subset of animation-related global fields in animation lab context
+    if def.path == 'ui.useAnimationOverrides' then return true end
+    if def.path:match('^ui%.cardFlight') then return true end
+    if def.path:match('^ui%.cardImpact') then return true end
+    return false
+  end
   for _, def in ipairs(Tunables) do
-    if def.context == 'all' or def.context == context then
-      categories[def.category or 'General'] = categories[def.category or 'General'] or {}
-      table.insert(categories[def.category or 'General'], def)
+    local ctxOk = (def.context == 'all' or def.context == context)
+    if animLab then
+      -- In anim_lab we ignore the original context gating and apply our allow list
+      if allowAnimLab(def) then
+        categories[def.category or 'General'] = categories[def.category or 'General'] or {}
+        table.insert(categories[def.category or 'General'], def)
+      end
+    else
+      if ctxOk then
+        categories[def.category or 'General'] = categories[def.category or 'General'] or {}
+        table.insert(categories[def.category or 'General'], def)
+      end
+    end
+  end
+
+  -- Inject dynamic per-card animation spec controls in anim_lab context
+  if context == 'anim_lab' and Overlay._labOwner and Overlay._labOwner.cards then
+    local owner = Overlay._labOwner
+    local def = owner.cards[owner.attackerIndex]
+    if def then
+      local cid = def.id
+      local spec = AnimationSpecs.getCardSpec(cid)
+      categories['Anim Card'] = categories['Anim Card'] or {}
+      local flight = spec.flight or {}
+      local function addDyn(pathKey, label, value, min, max, step)
+        table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey=pathKey, label=label, type='number', min=min, max=max, step=step, value=value })
+      end
+      addDyn('duration', 'Flight Duration*', flight.duration or 0.35, 0.05, 2.0, 0.01)
+      addDyn('overshoot', 'Flight Overshoot*', flight.overshoot or 0, 0, 0.8, 0.01)
+      addDyn('arcScale', 'Arc Scale*', flight.arcScale or 1, 0.05, 3.0, 0.01)
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='slamStyle', label='Slam Style*', type='boolean', value = flight.slamStyle or false })
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='profile', label='Profile*', type='enum', options={'default','slam_body'}, value=flight.profile or 'default' })
+      -- Save / Reset buttons are represented as hints for now
+      table.insert(categories['Anim Card'], { kind='hint', text='Ctrl+S saves config overrides; Shift+S saves anim overrides; Shift+R resets this card' })
     end
   end
 
   local panelH = hHeader
-  table.insert(controls, { kind='panel', x=x, y=y, w=w, h=0, title='Tuner ('..context..')' })
+  local panelTitle = animLab and 'Tuner (Animation Lab)' or ('Tuner ('..context..')')
+  table.insert(controls, { kind='panel', x=x, y=y, w=w, h=0, title=panelTitle })
   y = y + hHeader
   panelH = panelH + 8
 
@@ -64,10 +106,29 @@ local function build_controls(context)
     table.insert(controls, { kind='label', text=cat, x=innerX, y=y, w=innerW, h=rowH })
     y = y + rowH
     panelH = panelH + rowH
-    table.sort(defs, function(a,b) return a.label < b.label end)
+    table.sort(defs, function(a,b)
+      local al = a.label or (a.def and a.def.label) or ''
+      local bl = b.label or (b.def and b.def.label) or ''
+      return al < bl
+    end)
     for _, d in ipairs(defs) do
       local val = Deep.get_by_path(Config, d.path)
-      if d.type == 'number' then
+      if d._dynamic then
+        -- Build dynamic control row without relying on Config path
+        if d.type == 'number' then
+          table.insert(controls, { kind='slider', def=d, value=d.value, x=innerX, y=y, w=innerW, h=rowH, _dynamic=true })
+          y = y + rowH; panelH = panelH + rowH
+        elseif d.type == 'boolean' then
+          table.insert(controls, { kind='checkbox', def=d, value=d.value and true or false, x=innerX, y=y, w=innerW, h=rowH, _dynamic=true })
+          y = y + rowH; panelH = panelH + rowH
+        elseif d.type == 'enum' then
+          table.insert(controls, { kind='enum', def=d, value=d.value, options=d.options or {}, x=innerX, y=y, w=innerW, h=rowH, _dynamic=true })
+          y = y + rowH; panelH = panelH + rowH
+        elseif d.kind == 'hint' then
+          table.insert(controls, { kind='hint', text=d.text, x=innerX, y=y, w=innerW, h=rowH })
+          y = y + rowH; panelH = panelH + rowH
+        end
+      elseif d.type == 'number' then
         table.insert(controls, { kind='slider', def=d, value=val, x=innerX, y=y, w=innerW, h=rowH })
         y = y + rowH
         panelH = panelH + rowH
@@ -129,6 +190,7 @@ end
 function Overlay.update(dt, context, owner)
   if not Overlay.open then return end
   Overlay.context = context or Overlay.context
+  if context == 'anim_lab' then Overlay._labOwner = owner end
   Overlay.controls = build_controls(Overlay.context)
 
   -- Resolve active control against freshly built controls
@@ -153,7 +215,13 @@ function Overlay.update(dt, context, owner)
         v = round_to_step(v, activeCtrl.def.step or 0)
         if activeCtrl.def.step and activeCtrl.def.step >= 1 then v = math.floor(v + 0.0) end
         activeCtrl.value = v
-        apply_change(activeCtrl.def, v, owner, Overlay.context)
+        if activeCtrl._dynamic then
+          -- Apply dynamic change to animation spec override
+          Overlay.applyDynamicChange(owner, activeCtrl.def, v)
+          activeCtrl.value = v
+        else
+          apply_change(activeCtrl.def, v, owner, Overlay.context)
+        end
       end
     elseif kind == 'color' then
       local activeCtrl = find_control(Overlay.active.def.path, 'color') or Overlay.active.control
@@ -297,7 +365,11 @@ function Overlay.mousepressed(x, y, button, context, owner)
       local r = { x = c.x, y = cy, w = c.w, h = c.h }
       if pointIn(x, y, r) then
         c.value = not c.value
-        apply_change(c.def, c.value and true or false, owner, Overlay.context)
+        if c._dynamic then
+          Overlay.applyDynamicChange(owner, c.def, c.value and true or false)
+        else
+          apply_change(c.def, c.value and true or false, owner, Overlay.context)
+        end
         return true
       end
     elseif c.kind == 'enum' then
@@ -310,7 +382,11 @@ function Overlay.mousepressed(x, y, button, context, owner)
             for i, v in ipairs(opts) do if v == c.value then idx = i break end end
             local nextVal = opts[(idx % #opts) + 1]
             c.value = nextVal
-            apply_change(c.def, nextVal, owner, Overlay.context)
+            if c._dynamic then
+              Overlay.applyDynamicChange(owner, c.def, nextVal)
+            else
+              apply_change(c.def, nextVal, owner, Overlay.context)
+            end
         end
         return true
       end
@@ -357,15 +433,33 @@ function Overlay.keypressed(key, context, owner)
   end
   if not Overlay.open then return false end
   local ctrl = love.keyboard.isDown('lctrl') or love.keyboard.isDown('rctrl')
+  local shift = love.keyboard.isDown('lshift') or love.keyboard.isDown('rshift')
   if ctrl and (key == 's') then
-    Config.saveOverrides()
+    if context == 'anim_lab' and shift then
+      -- Save animation overrides
+      local AnimationSpecs = require 'src.animation_specs'
+      AnimationSpecs.saveOverrides()
+    else
+      Config.saveOverrides()
+    end
     return true
   elseif ctrl and (key == 'r') then
     -- Reset all visible tunables
     local visible = {}
-    for _, c in ipairs(Overlay.controls or {}) do
-      if c.def and c.def.path then
-        Config.reset(c.def.path)
+    if context == 'anim_lab' and shift then
+      -- Reset current card animation spec
+      if owner and owner.cards then
+        local def = owner.cards[owner.attackerIndex]
+        if def then
+          local AnimationSpecs = require 'src.animation_specs'
+          AnimationSpecs.resetCard(def.id)
+        end
+      end
+    else
+      for _, c in ipairs(Overlay.controls or {}) do
+        if c.def and c.def.path then
+          Config.reset(c.def.path)
+        end
       end
     end
     -- apply refresh once for the context
@@ -378,6 +472,17 @@ function Overlay.keypressed(key, context, owner)
     return true
   end
   return false
+end
+
+-- Apply dynamic (per-card animation) changes from overlay
+function Overlay.applyDynamicChange(owner, def, value)
+  if not owner or not owner.cards then return end
+  local cardDef = owner.cards[owner.attackerIndex]
+  if not cardDef then return end
+  if not (def.dynGroup == 'flight') then return end
+  local AnimationSpecs = require 'src.animation_specs'
+  local patch = { flight = { [def.dynKey] = value } }
+  AnimationSpecs.setCardSpec(cardDef.id, patch)
 end
 
 return Overlay

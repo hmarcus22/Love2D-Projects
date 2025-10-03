@@ -91,6 +91,9 @@ local defaults = {
   cardFlightCurve = "arc", -- 'arc' or 'linear'
   cardFlightArcHeight = 140,
   cardFlightOvershoot = 0.12,
+  -- If false, per-card/profile override metadata (duration/overshoot/arcScale/slamStyle) are ignored;
+  -- horizontal shaping still applies but timing falls back to global defaults.
+  useAnimationOverrides = true,
     cardImpactEnabled = true,
     cardImpactDuration = 0.28,
     cardImpactSquashScale = 0.85, -- vertical squash minimum

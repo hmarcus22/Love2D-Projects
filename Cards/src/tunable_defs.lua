@@ -61,6 +61,7 @@ local defs = {
   { path = 'ui.cardFlightCurve',        label = 'Flight Curve',           type = 'enum',  options = { 'arc', 'linear' },       context = 'game', category = 'Animation' },
   { path = 'ui.cardFlightArcHeight',    label = 'Flight Arc Height',      type = 'number', min = 0,    max = 400, step = 1,    context = 'game', category = 'Animation' },
   { path = 'ui.cardFlightOvershoot',    label = 'Flight Overshoot',       type = 'number', min = 0,    max = 0.4, step = 0.01, context = 'game', category = 'Animation' },
+  { path = 'ui.useAnimationOverrides',  label = 'Use Anim Overrides',     type = 'boolean',                                context = 'game', category = 'Animation' },
   { path = 'ui.cardHoverBaseLift',      label = 'Hover Base Lift',        type = 'number', min = 0,    max = 120, step = 1,    context = 'game', category = 'Animation' },
   { path = 'ui.cardDragExtraLift',      label = 'Drag Extra Lift',        type = 'number', min = 0,    max = 160, step = 1,    context = 'game', category = 'Animation' },
   { path = 'ui.cardShadowMinScale',     label = 'Shadow Min Scale',       type = 'number', min = 0.2,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },

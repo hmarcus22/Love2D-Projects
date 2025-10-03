@@ -444,31 +444,13 @@ function GameState:draw()
     end
 
     if self.animations and self.animations.draw then
-        local usedShake = false
-        if self._shake then
-            local k = 1 - (self._shake.t / self._shake.dur)
-            local mag = self._shake.mag * k
-            local ox = (love.math.random() * 2 - 1) * mag
-            local oy = (love.math.random() * 2 - 1) * mag
-            love.graphics.push()
-            love.graphics.translate(ox, oy)
-            usedShake = true
-        end
+        local ImpactFX = require 'src.impact_fx'
+        local pushed = ImpactFX.applyShakeTransform(self)
         self.animations:draw()
-        if self._dustBursts then
-            for _, b in ipairs(self._dustBursts) do
-                local t = b.t / b.dur
-                local alpha = 1 - t
-                local radius = 18 + 40 * (t ^ 0.6)
-                love.graphics.setColor(1, 0.9, 0.6, alpha * 0.55)
-                love.graphics.setLineWidth(3 * (1 - t))
-                love.graphics.circle('line', b.x, b.y, radius)
-                love.graphics.setColor(1,1,1,1)
-                love.graphics.setLineWidth(1)
-            end
-        end
-        if usedShake then love.graphics.pop() end
+        ImpactFX.drawDust(self)
+        if pushed then love.graphics.pop() end
     end
+    -- TODO: move inline FX drawing to ImpactFX module (refactor pending)
 
 
 end
@@ -529,23 +511,11 @@ function GameState:update(dt)
             self:finishResolvePhase()
         end
     end
-    -- Screen shake (body slam impact)
-    if self._shake then
-        self._shake.t = self._shake.t + dt
-        if self._shake.t >= self._shake.dur then
-            self._shake = nil
-        end
-    end
-    -- Dust bursts
-    if self._dustBursts then
-        for i = #self._dustBursts, 1, -1 do
-            local b = self._dustBursts[i]
-            b.t = b.t + dt
-            if b.t >= b.dur then table.remove(self._dustBursts, i) end
-        end
-        if #self._dustBursts == 0 then self._dustBursts = nil end
-    end
+    -- Impact FX update handled centrally
     if self.animations then self.animations:update(dt) end
+    -- Update impact FX (shake, dust) lifecycle
+    local ImpactFX = require 'src.impact_fx'
+    ImpactFX.update(self, dt)
 end
 
 function GameState:updateCardVisibility()
@@ -890,6 +860,27 @@ function GameState:playCardFromHand(card, slotIndex)
     local fromX, fromY = card.x, card.y
     local targetX, targetY = self:getBoardSlotPosition(player.id, slotIndex) -- top-left of slot
     local duration = (Config.ui and Config.ui.cardFlightDuration) or 0.35
+    local overshootCfg = (Config.ui and Config.ui.cardFlightOvershoot) or 0
+    local arcHeightBase = (Config.ui and Config.ui.cardFlightArcHeight) or 140
+    local slamStyleFlag = false
+    local spec = nil
+    do
+        local AnimSpecs = require 'src.animation_specs'
+        spec = AnimSpecs.getCardSpec(card.id)
+        if spec and spec.flight then
+            if Config.ui.useAnimationOverrides then
+                duration = spec.flight.duration or duration
+                overshootCfg = spec.flight.overshoot or overshootCfg
+                if spec.flight.arcScale and spec.flight.arcScale ~= 1 then
+                    arcHeightBase = arcHeightBase * spec.flight.arcScale
+                end
+                if spec.flight.slamStyle then slamStyleFlag = true end
+            else
+                -- Overrides disabled: ignore per-card timing changes, but still allow horizontal shaping elsewhere
+                slamStyleFlag = false
+            end
+        end
+    end
     local placed = false
     self.animations:add({
         type = "card_flight",
@@ -898,17 +889,9 @@ function GameState:playCardFromHand(card, slotIndex)
         toX = targetX, toY = targetY,
             duration = duration,
             -- Special body slam trajectory: go higher and then drop sharply
-            arcHeight = (function()
-                if card.id == 'body_slam' then
-                    return ((Config.ui and Config.ui.cardFlightArcHeight) or 140) * 1.35
-                end
-                if Config.ui and Config.ui.cardFlightCurve == 'arc' then
-                    return (Config.ui.cardFlightArcHeight or 140)
-                end
-                return 0
-            end)(),
-        overshootFactor = (Config.ui and Config.ui.cardFlightOvershoot) or 0,
-            slamStyle = (card.id == 'body_slam'),
+            arcHeight = ((Config.ui and Config.ui.cardFlightCurve == 'arc') or slamStyleFlag) and arcHeightBase or 0,
+        overshootFactor = overshootCfg,
+        slamStyle = slamStyleFlag,
         onComplete = function()
             if placed then return end
             placed = true
@@ -936,11 +919,10 @@ function GameState:playCardFromHand(card, slotIndex)
                     flashAlpha = Config.ui.cardImpactFlashAlpha or 0.55,
                     onStart = function()
                         if card.id == 'body_slam' then
-                            -- Queue a brief shake + dust effect
-                            self._shake = { t = 0, dur = 0.25, mag = 6 }
-                            self._dustBursts = self._dustBursts or {}
+                            local ImpactFX = require 'src.impact_fx'
                             local sx, sy = self:getBoardSlotPosition(player.id, slotIndex)
-                            table.insert(self._dustBursts, { x = sx + card.w/2, y = sy + card.h - 8, t = 0, dur = 0.35 })
+                            ImpactFX.triggerShake(self, 0.25, 6)
+                            ImpactFX.triggerDust(self, sx + card.w/2, sy + card.h - 8)
                         end
                     end,
                     onComplete = function()
