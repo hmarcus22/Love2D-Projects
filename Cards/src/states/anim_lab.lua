@@ -290,10 +290,10 @@ function anim_lab:drawCardPreview(def)
   local previewCard = CardFactory.createCard(def.id)
   previewCard.x = panelX + 10
   previewCard.y = panelY + 10
-  previewCard.w = 100
-  previewCard.h = 150
+  previewCard.w = 120  -- Increased from 100 for better token visibility
+  previewCard.h = 180  -- Increased from 150 to maintain aspect ratio
   previewCard.faceUp = true
-  previewCard._suppressShadow = true -- disable shadow for clean preview
+  -- Removed _suppressShadow to allow texture cache usage
   
   -- Draw card
   CardRenderer.draw(previewCard)

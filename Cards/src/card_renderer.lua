@@ -38,6 +38,26 @@ local function getPanelSize(configKey, fallback)
     return (Config.ui and Config.ui[configKey]) or fallback or 10
 end
 
+-- Count all tokens that will be displayed for a card
+local function countAllTokens(card)
+    if not card.definition then return 0 end
+    
+    local count = 0
+    
+    -- Basic stat tokens
+    if card.definition.attack and card.definition.attack > 0 then count = count + 1 end
+    if card.definition.block and card.definition.block > 0 then count = count + 1 end
+    if card.definition.heal and card.definition.heal > 0 then count = count + 1 end
+    
+    -- Modifier tokens
+    if card.definition.mod then count = count + 1 end
+    
+    -- Effect tokens
+    if card.definition.effect then count = count + 1 end
+    
+    return count
+end
+
 -- Draw art to cover the entire card area while preserving aspect ratio
 function CardRenderer.drawArtCover(image, x, y, w, h)
     if not image then return false end
@@ -335,10 +355,7 @@ function CardRenderer.drawDirect(card)
     
     -- Stats background
     if card.definition then
-        local statsCount = 0
-        if card.definition.attack and card.definition.attack > 0 then statsCount = statsCount + 1 end
-        if card.definition.block and card.definition.block > 0 then statsCount = statsCount + 1 end
-        if card.definition.heal and card.definition.heal > 0 then statsCount = statsCount + 1 end
+        local statsCount = countAllTokens(card)
         if statsCount > 0 then
             local statsY = y + statsYOffset
             local statsPanelHeight = getPanelSize('cardStatsPanelHeight', 18)
@@ -414,6 +431,37 @@ function CardRenderer.drawCardStats(card, x, statY, descTop)
     if card.definition.heal and card.definition.heal > 0 then
         drawStat("Heal", tostring(card.definition.heal), {0.2, 0.8, 0.2})
     end
+    
+    -- Modifier tokens (Purple)
+    if card.definition.mod then
+        local mod = card.definition.mod
+        if mod.attack and mod.attack ~= 0 then
+            local sign = mod.attack > 0 and "+" or ""
+            local target = mod.target == "ally" and "Ally" or "Enemy"
+            drawStat(target, sign .. mod.attack .. " ATK", {0.7, 0.3, 0.8})
+        end
+        if mod.block and mod.block ~= 0 then
+            local sign = mod.block > 0 and "+" or ""
+            local target = mod.target == "ally" and "Ally" or "Enemy"
+            drawStat(target, sign .. mod.block .. " BLK", {0.7, 0.3, 0.8})
+        end
+        if mod.retarget then
+            drawStat("Special", "Retarget", {1.0, 0.5, 0.1})
+        end
+    end
+    
+    -- Special effect tokens (Orange)
+    if card.definition.effect then
+        if card.definition.effect == "aoe_attack" then
+            drawStat("Special", "AOE", {1.0, 0.5, 0.1})
+        end
+    end
+    
+    -- Combo tokens (Orange)
+    if card.definition.combo then
+        drawStat("Combo", "After " .. (card.definition.combo.after or "?"), {1.0, 0.5, 0.1})
+    end
+    
     return statY
 end
 
