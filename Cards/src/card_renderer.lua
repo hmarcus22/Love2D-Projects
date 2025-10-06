@@ -308,12 +308,13 @@ function CardRenderer.drawDirect(card)
     local layout = Config.layout or {}
     local nameAlpha = (layout.cardNamePanelAlpha ~= nil) and layout.cardNamePanelAlpha or 0.78
     local namePanelHeight = getPanelSize('cardNamePanelHeight', 26)
+    local nameYOffset = getPanelSize('cardNameYOffset', 8)
     love.graphics.setColor(1, 1, 1, nameAlpha)
-    love.graphics.rectangle("fill", x + 4, y + 4, w - 8, namePanelHeight, 6, 6)
+    love.graphics.rectangle("fill", x + 4, y + nameYOffset - 2, w - 8, namePanelHeight, 6, 6)
     love.graphics.setColor(0, 0, 0)
     local nameFont = getFont(getFontSize('cardNameFontSize', 10))
     love.graphics.setFont(nameFont)
-    love.graphics.printf(card.name, x, y + 8, w, "center")
+    love.graphics.printf(card.name, x, y + nameYOffset, w, "center")
     love.graphics.setFont(defaultFont)
     
     -- Cost circle
@@ -327,7 +328,9 @@ function CardRenderer.drawDirect(card)
         love.graphics.setFont(defaultFont)
     end
     
-    local descTop = y + h - 60
+    local descYOffset = getPanelSize('cardDescYOffset', 60)
+    local statsYOffset = getPanelSize('cardStatsYOffset', 44)
+    local descTop = y + h - descYOffset
     local statY = y + 48
     
     -- Stats background
@@ -337,7 +340,7 @@ function CardRenderer.drawDirect(card)
         if card.definition.block and card.definition.block > 0 then statsCount = statsCount + 1 end
         if card.definition.heal and card.definition.heal > 0 then statsCount = statsCount + 1 end
         if statsCount > 0 then
-            local statsY = y + 44
+            local statsY = y + statsYOffset
             local statsPanelHeight = getPanelSize('cardStatsPanelHeight', 18)
             local statsH = math.min((descTop - 6) - statsY, statsCount * statsPanelHeight + 6)
             if statsH and statsH > 4 then
@@ -352,7 +355,7 @@ function CardRenderer.drawDirect(card)
     if not usedCover then
         statY = CardRenderer.drawArt(card.art, x, y, w, h, descTop, statY)
     end
-    statY = CardRenderer.drawCardStats(card, statY, descTop)
+    statY = CardRenderer.drawCardStats(card, x, y + statsYOffset, descTop)
     
     -- Description
     if card.definition and card.definition.description then
@@ -381,19 +384,19 @@ function CardRenderer.drawDirect(card)
 end
 
 -- Stats drawing helper
-function CardRenderer.drawCardStats(card, statY, descTop)
+function CardRenderer.drawCardStats(card, x, statY, descTop)
     if not card.definition then return statY end
     
     local function drawStat(label, textValue, color)
         if not textValue or textValue == "" then return end
         if statY + 18 > descTop - 4 then return end
         love.graphics.setColor(color[1], color[2], color[3])
-        love.graphics.rectangle("fill", card.x + 10, statY, 14, 14, 2, 2)
+        love.graphics.rectangle("fill", x + 10, statY, 14, 14, 2, 2)
         love.graphics.setColor(0, 0, 0)
-        love.graphics.rectangle("line", card.x + 10, statY, 14, 14, 2, 2)
+        love.graphics.rectangle("line", x + 10, statY, 14, 14, 2, 2)
         local statFont = getFont(getFontSize('cardStatFontSize', 8))
         love.graphics.setFont(statFont)
-        love.graphics.printf(label .. ": " .. textValue, card.x + 30, statY - 2, card.w - 40, "left")
+        love.graphics.printf(label .. ": " .. textValue, x + 30, statY - 2, card.w - 40, "left")
         love.graphics.setFont(defaultFont)
         statY = statY + 18
     end

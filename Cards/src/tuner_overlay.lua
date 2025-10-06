@@ -10,6 +10,7 @@ local Overlay = {
   scroll = 0,
   active = nil,
   context = 'game',
+  collapsedCategories = {}, -- Track which categories are collapsed
 }
 
 local function clamp(v, a, b)
@@ -146,55 +147,73 @@ local function build_controls(context)
 
   -- Category sections
   for cat, defs in pairs(categories) do
-    table.insert(controls, { kind='label', text=cat, x=innerX, y=y, w=innerW, h=rowH })
+    -- Check if category is collapsed (default to true for most categories)
+    local isCollapsed = Overlay.collapsedCategories[cat]
+    if isCollapsed == nil then
+      -- Default state: collapse everything except key categories
+      isCollapsed = not (cat == 'Card Text' or cat == 'Layout' or cat == 'Card Rendering')
+      Overlay.collapsedCategories[cat] = isCollapsed
+    end
+    
+    local indicator = isCollapsed and "▶" or "▼"
+    local categoryText = indicator .. " " .. cat
+    table.insert(controls, { kind='category_header', text=categoryText, category=cat, x=innerX, y=y, w=innerW, h=rowH, collapsed=isCollapsed })
     y = y + rowH
     panelH = panelH + rowH
-    table.sort(defs, function(a,b)
-      local al = a.label or (a.def and a.def.label) or ''
-      local bl = b.label or (b.def and b.def.label) or ''
-      return al < bl
-    end)
-    for _, d in ipairs(defs) do
-      local val = Deep.get_by_path(Config, d.path)
-      if d._dynamic then
-        -- Build dynamic control row without relying on Config path
-        if d.type == 'number' then
-          table.insert(controls, { kind='slider', def=d, value=d.value, x=innerX, y=y, w=innerW, h=rowH, _dynamic=true })
-          y = y + rowH; panelH = panelH + rowH
+    
+    -- Only show category contents if not collapsed
+    if not isCollapsed then
+      table.sort(defs, function(a,b)
+        local al = a.label or (a.def and a.def.label) or ''
+        local bl = b.label or (b.def and b.def.label) or ''
+        return al < bl
+      end)
+      for _, d in ipairs(defs) do
+        local val = Deep.get_by_path(Config, d.path)
+        if d._dynamic then
+          -- Build dynamic control row without relying on Config path
+          if d.type == 'number' then
+            table.insert(controls, { kind='slider', def=d, value=d.value, x=innerX, y=y, w=innerW, h=rowH, _dynamic=true })
+            y = y + rowH; panelH = panelH + rowH
+          elseif d.type == 'boolean' then
+            table.insert(controls, { kind='checkbox', def=d, value=d.value and true or false, x=innerX, y=y, w=innerW, h=rowH, _dynamic=true })
+            y = y + rowH; panelH = panelH + rowH
+          elseif d.type == 'enum' then
+            table.insert(controls, { kind='enum', def=d, value=d.value, options=d.options or {}, x=innerX, y=y, w=innerW, h=rowH, _dynamic=true })
+            y = y + rowH; panelH = panelH + rowH
+          elseif d.kind == 'hint' then
+            table.insert(controls, { kind='hint', text=d.text, x=innerX, y=y, w=innerW, h=rowH })
+            y = y + rowH; panelH = panelH + rowH
+          end
+        elseif d.type == 'number' then
+          table.insert(controls, { kind='slider', def=d, value=val, x=innerX, y=y, w=innerW, h=rowH })
+          y = y + rowH
+          panelH = panelH + rowH
         elseif d.type == 'boolean' then
-          table.insert(controls, { kind='checkbox', def=d, value=d.value and true or false, x=innerX, y=y, w=innerW, h=rowH, _dynamic=true })
-          y = y + rowH; panelH = panelH + rowH
+          table.insert(controls, { kind='checkbox', def=d, value=val and true or false, x=innerX, y=y, w=innerW, h=rowH })
+          y = y + rowH
+          panelH = panelH + rowH
+        elseif d.type == 'color' then
+          local col = {0,0,0,1}
+          if type(val) == 'table' then
+            col[1] = val[1] or 0; col[2] = val[2] or 0; col[3] = val[3] or 0; col[4] = val[4] ~= nil and val[4] or 1
+          end
+          table.insert(controls, { kind='color', def=d, value=col, x=innerX, y=y, w=innerW, h=rowH })
+          y = y + rowH
+          panelH = panelH + rowH
         elseif d.type == 'enum' then
-          table.insert(controls, { kind='enum', def=d, value=d.value, options=d.options or {}, x=innerX, y=y, w=innerW, h=rowH, _dynamic=true })
-          y = y + rowH; panelH = panelH + rowH
-        elseif d.kind == 'hint' then
-          table.insert(controls, { kind='hint', text=d.text, x=innerX, y=y, w=innerW, h=rowH })
-          y = y + rowH; panelH = panelH + rowH
+          table.insert(controls, { kind='enum', def=d, value=val, x=innerX, y=y, w=innerW, h=rowH, options=d.options or {} })
+          y = y + rowH
+          panelH = panelH + rowH
         end
-      elseif d.type == 'number' then
-        table.insert(controls, { kind='slider', def=d, value=val, x=innerX, y=y, w=innerW, h=rowH })
-        y = y + rowH
-        panelH = panelH + rowH
-      elseif d.type == 'boolean' then
-        table.insert(controls, { kind='checkbox', def=d, value=val and true or false, x=innerX, y=y, w=innerW, h=rowH })
-        y = y + rowH
-        panelH = panelH + rowH
-      elseif d.type == 'color' then
-        local col = {0,0,0,1}
-        if type(val) == 'table' then
-          col[1] = val[1] or 0; col[2] = val[2] or 0; col[3] = val[3] or 0; col[4] = val[4] ~= nil and val[4] or 1
-        end
-        table.insert(controls, { kind='color', def=d, value=col, x=innerX, y=y, w=innerW, h=rowH })
-        y = y + rowH
-        panelH = panelH + rowH
-      elseif d.type == 'enum' then
-        table.insert(controls, { kind='enum', def=d, value=val, x=innerX, y=y, w=innerW, h=rowH, options=d.options or {} })
-        y = y + rowH
-        panelH = panelH + rowH
       end
     end
-    panelH = panelH + 8
-    y = y + 8
+    
+    -- Add spacing only if category was expanded
+    if not isCollapsed then
+      panelH = panelH + 8
+      y = y + 8
+    end
   end
 
   -- Footer hint
@@ -220,8 +239,8 @@ local function apply_change(def, value, owner, context)
     end
   else
     Config.set(def.path, value)
-    -- Clear texture cache if font size or panel size changed
-    if def.path and (def.path:find('FontSize') or def.path:find('PanelHeight') or def.path:find('PanelPadding')) then
+    -- Clear texture cache if font size, panel size, Y offset, or panel alpha changed
+    if def.path and (def.path:find('FontSize') or def.path:find('PanelHeight') or def.path:find('PanelPadding') or def.path:find('YOffset') or def.path:find('PanelAlpha')) then
       local CardTextureCache = require "src.renderers.card_texture_cache"
       CardTextureCache.onFontChange()
     end
@@ -323,6 +342,11 @@ function Overlay.draw(context)
       love.graphics.setColor(1,1,0.8,1)
       love.graphics.printf(c.text or '', c.x, y + 6, c.w, 'left')
       love.graphics.setColor(1,1,1,1)
+    elseif c.kind == 'category_header' then
+      -- Draw clickable category header
+      love.graphics.setColor(1, 1, 0.8, 1)
+      love.graphics.printf(c.text or '', c.x, y + 6, c.w, 'left')
+      love.graphics.setColor(1, 1, 1, 1)
     elseif c.kind == 'slider' then
       -- label
       love.graphics.setColor(1,1,1,1)
@@ -412,7 +436,16 @@ function Overlay.mousepressed(x, y, button, context, owner)
     local c = Overlay.controls[i]
     -- Apply scroll offset only to non-panel controls (panels are fixed)
     local cy = c.kind == 'panel' and c.y or (c.y - (Overlay.scroll or 0))
-    if c.kind == 'slider' then
+    if c.kind == 'category_header' then
+      local r = { x = c.x, y = cy, w = c.w, h = c.h }
+      if pointIn(x, y, r) then
+        -- Toggle collapse state for this category
+        Overlay.collapsedCategories[c.category] = not (Overlay.collapsedCategories[c.category] or false)
+        -- Rebuild controls to reflect new state
+        Overlay.controls = build_controls(Overlay.context)
+        return true
+      end
+    elseif c.kind == 'slider' then
       local r = { x = c.x + 120, y = cy, w = c.w - 120, h = c.h }
       if pointIn(x, y, r) then
         Overlay.active = { kind='slider', def=c.def, control=c }

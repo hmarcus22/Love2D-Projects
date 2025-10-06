@@ -108,9 +108,14 @@ local defaults = {
   cardStatFontSize = 8,         -- Attack/Block/Heal stat text size
   cardDescFontSize = 7,         -- Description text size
   cardBackFontSize = 10,        -- "Deck" text on card backs
+  -- Text background panel sizing
   cardNamePanelHeight = 26,     -- Height of name background panel
   cardStatsPanelHeight = 18,    -- Height per line for stats background panel
   cardDescPanelPadding = 8,     -- Padding around description background panel
+  -- Text vertical positioning
+  cardNameYOffset = 8,          -- Vertical offset for card name from top
+  cardStatsYOffset = 44,        -- Vertical offset for stats area from top
+  cardDescYOffset = 60,         -- Vertical offset for description from bottom
   cardHoverBaseLift = 18,
   cardDragExtraLift = 24,
   cardShadowMinScale = 0.85,

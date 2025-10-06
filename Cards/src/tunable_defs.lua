@@ -79,9 +79,12 @@ local defs = {
   { path = 'ui.cardStatFontSize',       label = 'Stat Font Size',         type = 'number', min = 6,    max = 30,  step = 1, context = 'all',  category = 'Card Text' },
   { path = 'ui.cardDescFontSize',       label = 'Description Font Size',  type = 'number', min = 6,    max = 30,  step = 1, context = 'all',  category = 'Card Text' },
   { path = 'ui.cardBackFontSize',       label = 'Card Back Font Size',    type = 'number', min = 6,    max = 30,  step = 1, context = 'all',  category = 'Card Text' },
-  { path = 'ui.cardNamePanelHeight',    label = 'Name Panel Height',      type = 'number', min = 10,   max = 50,  step = 1, context = 'all',  category = 'Card Text' },
-  { path = 'ui.cardStatsPanelHeight',   label = 'Stats Panel Height',     type = 'number', min = 10,   max = 50,  step = 1, context = 'all',  category = 'Card Text' },
-  { path = 'ui.cardDescPanelPadding',   label = 'Description Panel Pad',  type = 'number', min = 2,    max = 20,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardNamePanelHeight',    label = 'Name Panel Height',      type = 'number', min = 10,   max = 50,  step = 1, context = 'all',  category = 'Card Text' }, -- default: 26
+  { path = 'ui.cardStatsPanelHeight',   label = 'Stats Panel Height',     type = 'number', min = 10,   max = 50,  step = 1, context = 'all',  category = 'Card Text' }, -- default: 18
+  { path = 'ui.cardDescPanelPadding',   label = 'Description Panel Pad',  type = 'number', min = 2,    max = 20,  step = 1, context = 'all',  category = 'Card Text' }, -- default: 8
+  { path = 'ui.cardNameYOffset',        label = 'Name Y Offset',          type = 'number', min = 0,    max = 40,  step = 1, context = 'all',  category = 'Card Text' }, -- default: 8
+  { path = 'ui.cardStatsYOffset',       label = 'Stats Y Offset',         type = 'number', min = 20,   max = 80,  step = 1, context = 'all',  category = 'Card Text' }, -- default: 44
+  { path = 'ui.cardDescYOffset',        label = 'Description Y Offset',   type = 'number', min = 30,   max = 120, step = 1, context = 'all',  category = 'Card Text' }, -- default: 60
 
   -- Layout hand and hover behavior
   { path = 'layout.handAreaWidth',    label = 'Hand Area Width',    type = 'number', min = 300, max = 900, step = 1,  context = 'all',  category = 'Layout Hand' },
