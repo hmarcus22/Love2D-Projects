@@ -7,11 +7,23 @@ local CardTextureCache = require "src.renderers.card_texture_cache"
 local fontCache = {}
 local defaultFont = love.graphics.getFont()
 
--- Get font for specified size (no scaling - this is for texture pre-rendering)
+-- Get font for specified size with better font for scaling
 local function getFont(size)
     size = size or 12
     if not fontCache[size] then
-        fontCache[size] = love.graphics.newFont(size)
+        -- Try to use a better font for text clarity
+        local success, font = pcall(function()
+            -- Try to load a system font that scales better
+            return love.graphics.newFont("arial.ttf", size)
+        end)
+        
+        if success and font then
+            fontCache[size] = font
+        else
+            -- Fallback to default font with better filtering
+            fontCache[size] = love.graphics.newFont(size)
+            fontCache[size]:setFilter("linear", "linear")
+        end
     end
     return fontCache[size]
 end
@@ -19,6 +31,11 @@ end
 -- Get configured font size with fallback
 local function getFontSize(configKey, fallback)
     return (Config.ui and Config.ui[configKey]) or fallback or 12
+end
+
+-- Get configured panel size with fallback
+local function getPanelSize(configKey, fallback)
+    return (Config.ui and Config.ui[configKey]) or fallback or 10
 end
 
 -- Draw art to cover the entire card area while preserving aspect ratio
@@ -290,8 +307,9 @@ function CardRenderer.drawDirect(card)
     -- Name panel
     local layout = Config.layout or {}
     local nameAlpha = (layout.cardNamePanelAlpha ~= nil) and layout.cardNamePanelAlpha or 0.78
+    local namePanelHeight = getPanelSize('cardNamePanelHeight', 26)
     love.graphics.setColor(1, 1, 1, nameAlpha)
-    love.graphics.rectangle("fill", x + 4, y + 4, w - 8, 26, 6, 6)
+    love.graphics.rectangle("fill", x + 4, y + 4, w - 8, namePanelHeight, 6, 6)
     love.graphics.setColor(0, 0, 0)
     local nameFont = getFont(getFontSize('cardNameFontSize', 10))
     love.graphics.setFont(nameFont)
@@ -320,7 +338,8 @@ function CardRenderer.drawDirect(card)
         if card.definition.heal and card.definition.heal > 0 then statsCount = statsCount + 1 end
         if statsCount > 0 then
             local statsY = y + 44
-            local statsH = math.min((descTop - 6) - statsY, statsCount * 18 + 6)
+            local statsPanelHeight = getPanelSize('cardStatsPanelHeight', 18)
+            local statsH = math.min((descTop - 6) - statsY, statsCount * statsPanelHeight + 6)
             if statsH and statsH > 4 then
                 local statsAlpha = (layout.cardStatsPanelAlpha ~= nil) and layout.cardStatsPanelAlpha or 0.66
                 love.graphics.setColor(1, 1, 1, statsAlpha)
@@ -337,8 +356,9 @@ function CardRenderer.drawDirect(card)
     
     -- Description
     if card.definition and card.definition.description then
+        local descPadding = getPanelSize('cardDescPanelPadding', 8)
         local descY = descTop - 4
-        local descH = math.max(10, h - (descTop - y) - 8)
+        local descH = math.max(10, h - (descTop - y) - descPadding)
         local descAlpha = (layout.cardDescPanelAlpha ~= nil) and layout.cardDescPanelAlpha or 0.78
         love.graphics.setColor(1, 1, 1, descAlpha)
         love.graphics.rectangle("fill", x + 4, descY, w - 8, descH, 6, 6)

@@ -1,5 +1,5 @@
 -- Registry of tunable config fields with UI metadata
--- path: dotted path into Config
+-- path: dotted path into config
 -- type: 'number' | 'boolean'
 -- min/max/step for numbers
 -- context: 'game' | 'draft' | 'all'
@@ -74,11 +74,14 @@ local defs = {
   -- Card Rendering
   { path = 'ui.useCardTextureCache',    label = 'Use Card Texture Cache', type = 'boolean',                                context = 'all',  category = 'Card Rendering' },
   { path = 'ui.cardTextureDebugInfo',   label = 'Show Cache Debug Info',  type = 'boolean',                                context = 'all',  category = 'Card Rendering' },
-  { path = 'ui.cardNameFontSize',       label = 'Card Name Font Size',    type = 'number', min = 6,    max = 20,  step = 1, context = 'all',  category = 'Card Text' },
-  { path = 'ui.cardCostFontSize',       label = 'Cost Font Size',         type = 'number', min = 6,    max = 16,  step = 1, context = 'all',  category = 'Card Text' },
-  { path = 'ui.cardStatFontSize',       label = 'Stat Font Size',         type = 'number', min = 6,    max = 16,  step = 1, context = 'all',  category = 'Card Text' },
-  { path = 'ui.cardDescFontSize',       label = 'Description Font Size',  type = 'number', min = 6,    max = 16,  step = 1, context = 'all',  category = 'Card Text' },
-  { path = 'ui.cardBackFontSize',       label = 'Card Back Font Size',    type = 'number', min = 6,    max = 20,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardNameFontSize',       label = 'Card Name Font Size',    type = 'number', min = 6,    max = 30,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardCostFontSize',       label = 'Cost Font Size',         type = 'number', min = 6,    max = 30,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardStatFontSize',       label = 'Stat Font Size',         type = 'number', min = 6,    max = 30,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardDescFontSize',       label = 'Description Font Size',  type = 'number', min = 6,    max = 30,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardBackFontSize',       label = 'Card Back Font Size',    type = 'number', min = 6,    max = 30,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardNamePanelHeight',    label = 'Name Panel Height',      type = 'number', min = 10,   max = 50,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardStatsPanelHeight',   label = 'Stats Panel Height',     type = 'number', min = 10,   max = 50,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardDescPanelPadding',   label = 'Description Panel Pad',  type = 'number', min = 2,    max = 20,  step = 1, context = 'all',  category = 'Card Text' },
 
   -- Layout hand and hover behavior
   { path = 'layout.handAreaWidth',    label = 'Hand Area Width',    type = 'number', min = 300, max = 900, step = 1,  context = 'all',  category = 'Layout Hand' },

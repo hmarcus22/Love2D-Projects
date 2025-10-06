@@ -220,8 +220,8 @@ local function apply_change(def, value, owner, context)
     end
   else
     Config.set(def.path, value)
-    -- Clear texture cache if font size changed
-    if def.path and def.path:find('FontSize') then
+    -- Clear texture cache if font size or panel size changed
+    if def.path and (def.path:find('FontSize') or def.path:find('PanelHeight') or def.path:find('PanelPadding')) then
       local CardTextureCache = require "src.renderers.card_texture_cache"
       CardTextureCache.onFontChange()
     end

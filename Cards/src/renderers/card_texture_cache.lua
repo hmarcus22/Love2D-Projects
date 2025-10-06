@@ -53,7 +53,7 @@ end
 local function renderCardToTexture(card)
     -- Use exact 10:15 aspect ratio at high resolution
     local aspectWidth, aspectHeight = 10, 15  -- Card aspect ratio
-    local scale = 20  -- High resolution: 200x300
+    local scale = 30  -- Higher resolution: 300x450 for better text
     local baseWidth = aspectWidth * scale
     local baseHeight = aspectHeight * scale
     local canvas = getCanvas(baseWidth, baseHeight)
