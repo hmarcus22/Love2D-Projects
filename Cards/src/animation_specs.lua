@@ -174,4 +174,19 @@ function AnimationSpecs.resetAll()
   cache = {}
 end
 
+-- Check if a card has any overrides from defaults
+function AnimationSpecs._hasOverrides(cardId)
+  return overrides.cards and overrides.cards[cardId] ~= nil
+end
+
+-- Get the defaults table (for comparison)
+function AnimationSpecs._getDefaults()
+  return defaults
+end
+
+-- Get the raw override data for a card (without merging)
+function AnimationSpecs._getCardOverrides(cardId)
+  return overrides.cards and overrides.cards[cardId] or {}
+end
+
 return AnimationSpecs

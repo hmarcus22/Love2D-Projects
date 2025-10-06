@@ -80,27 +80,61 @@ local function build_controls(context)
     if def then
       local cid = def.id
       local spec = AnimationSpecs.getCardSpec(cid)
+      local overrides = AnimationSpecs._getCardOverrides(cid)
       categories['Anim Card'] = categories['Anim Card'] or {}
+      
+      -- Profile information header
+      local profileName = spec.flight.profile or "default"
+      local hasOverrides = AnimationSpecs._hasOverrides(cid)
+      local profileStatus = hasOverrides and " (modified)" or ""
+      
+      table.insert(categories['Anim Card'], { 
+        kind='hint', 
+        text=string.format("Card: %s | Profile: %s%s", cid, profileName, profileStatus)
+      })
+      
+      -- Helper function to check if value is overridden
+      local function isOverridden(section, key)
+        return overrides[section] and overrides[section][key] ~= nil
+      end
+      
       local flight = spec.flight or {}
       local impact = spec.impact or {}
-      local function addDyn(pathKey, label, value, min, max, step)
-        table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey=pathKey, label=label, type='number', min=min, max=max, step=step, value=value })
+      
+      -- Flight profile selector
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='profile', label='Flight Profile', type='enum', options={'default','slam_body'}, value=flight.profile or 'default' })
+      
+      -- Flight controls with override indicators
+      local function addFlightDyn(pathKey, label, value, min, max, step)
+        local displayLabel = isOverridden('flight', pathKey) and (label .. ' *') or label
+        table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey=pathKey, label=displayLabel, type='number', min=min, max=max, step=step, value=value })
       end
-      addDyn('duration', 'Flight Duration*', flight.duration or 0.35, 0.05, 2.0, 0.01)
-      addDyn('overshoot', 'Flight Overshoot*', flight.overshoot or 0, 0, 0.8, 0.01)
-      addDyn('arcScale', 'Arc Scale*', flight.arcScale or 1, 0.05, 3.0, 0.01)
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='slamStyle', label='Slam Style*', type='boolean', value = flight.slamStyle or false })
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='profile', label='Profile*', type='enum', options={'default','slam_body'}, value=flight.profile or 'default' })
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='verticalMode', label='Vertical Mode*', type='enum', options={'standard_arc','hang_drop','plateau_drop'}, value=flight.verticalMode or 'standard_arc' })
-      -- Impact group
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='squashScale', label='Impact Squash*', type='number', min=0.5, max=1.0, step=0.01, value=impact.squashScale or 0.85 })
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='flashAlpha', label='Impact Flash*', type='number', min=0, max=1, step=0.01, value=impact.flashAlpha or 0.55 })
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='shakeMag', label='Shake Mag*', type='number', min=0, max=20, step=0.1, value=impact.shakeMag or 6 })
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='shakeDur', label='Shake Dur*', type='number', min=0, max=2, step=0.01, value=impact.shakeDur or 0.25 })
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='dustCount', label='Dust Count*', type='number', min=0, max=5, step=1, value=impact.dustCount or 1 })
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey='holdExtra', label='Impact Hold*', type='number', min=0, max=1, step=0.01, value=impact.holdExtra or 0.1 })
+      
+      addFlightDyn('duration', 'Duration', flight.duration or 0.35, 0.05, 2.0, 0.01)
+      addFlightDyn('overshoot', 'Overshoot', flight.overshoot or 0, 0, 0.8, 0.01)
+      addFlightDyn('arcScale', 'Arc Scale', flight.arcScale or 1, 0.05, 3.0, 0.01)
+      
+      local slamLabel = isOverridden('flight', 'slamStyle') and 'Slam Style *' or 'Slam Style'
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='slamStyle', label=slamLabel, type='boolean', value = flight.slamStyle or false })
+      
+      local vertModeLabel = isOverridden('flight', 'verticalMode') and 'Vertical Mode *' or 'Vertical Mode'
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='verticalMode', label=vertModeLabel, type='enum', options={'standard_arc','hang_drop','plateau_drop'}, value=flight.verticalMode or 'standard_arc' })
+      
+      -- Impact controls with override indicators
+      local function addImpactDyn(pathKey, label, value, min, max, step)
+        local displayLabel = isOverridden('impact', pathKey) and (label .. ' *') or label
+        table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey=pathKey, label=displayLabel, type='number', min=min, max=max, step=step, value=value })
+      end
+      
+      addImpactDyn('squashScale', 'Squash Scale', impact.squashScale or 0.85, 0.5, 1.0, 0.01)
+      addImpactDyn('flashAlpha', 'Flash Alpha', impact.flashAlpha or 0.55, 0, 1, 0.01)
+      addImpactDyn('shakeMag', 'Shake Mag', impact.shakeMag or 6, 0, 20, 0.1)
+      addImpactDyn('shakeDur', 'Shake Dur', impact.shakeDur or 0.25, 0, 2, 0.01)
+      addImpactDyn('dustCount', 'Dust Count', impact.dustCount or 1, 0, 5, 1)
+      addImpactDyn('holdExtra', 'Hold Extra', impact.holdExtra or 0.1, 0, 1, 0.01)
+      
       -- Save / Reset buttons are represented as hints for now
-      table.insert(categories['Anim Card'], { kind='hint', text='Ctrl+S saves config overrides; Shift+S saves anim overrides; Shift+R resets this card' })
+      table.insert(categories['Anim Card'], { kind='hint', text='Shift+S: save anim overrides | Shift+R: reset this card | * = overridden' })
     end
   end
 
@@ -213,7 +247,11 @@ function Overlay.update(dt, context, owner)
   if Overlay.active then
     local kind = Overlay.active.kind
     if kind == 'slider' then
-      local activeCtrl = find_control(Overlay.active.def.path, 'slider') or Overlay.active.control or Overlay.active
+      local activeCtrl = Overlay.active.control
+      -- For non-dynamic controls, try to find by path as fallback
+      if not activeCtrl and Overlay.active.def and Overlay.active.def.path then
+        activeCtrl = find_control(Overlay.active.def.path, 'slider')
+      end
       if activeCtrl then
         local mx, my = love.mouse.getPosition()
         mx, my = Viewport.toVirtual(mx, my)
@@ -233,7 +271,11 @@ function Overlay.update(dt, context, owner)
         end
       end
     elseif kind == 'color' then
-      local activeCtrl = find_control(Overlay.active.def.path, 'color') or Overlay.active.control
+      local activeCtrl = Overlay.active.control
+      -- For non-dynamic controls, try to find by path as fallback
+      if not activeCtrl and Overlay.active.def and Overlay.active.def.path then
+        activeCtrl = find_control(Overlay.active.def.path, 'color')
+      end
       if activeCtrl and Overlay.active.channel then
         local mx, my = love.mouse.getPosition()
         mx, my = Viewport.toVirtual(mx, my)
@@ -363,7 +405,8 @@ function Overlay.mousepressed(x, y, button, context, owner)
   -- hit test controls
   for i = #Overlay.controls, 1, -1 do
     local c = Overlay.controls[i]
-    local cy = c.y - (Overlay.scroll or 0)
+    -- Apply scroll offset only to non-panel controls (panels are fixed)
+    local cy = c.kind == 'panel' and c.y or (c.y - (Overlay.scroll or 0))
     if c.kind == 'slider' then
       local r = { x = c.x + 120, y = cy, w = c.w - 120, h = c.h }
       if pointIn(x, y, r) then
