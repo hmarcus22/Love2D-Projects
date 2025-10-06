@@ -99,6 +99,15 @@ local defaults = {
     cardImpactSquashScale = 0.85, -- vertical squash minimum
     cardImpactFlashAlpha = 0.55,
   cardImpactHoldExtra = 0.1, -- extra pause after impact before advancing turn
+  -- Card rendering system
+  useCardTextureCache = true, -- Pre-render cards to textures for consistent scaling
+  cardTextureDebugInfo = false, -- Show cache statistics overlay
+  -- Card text sizing
+  cardNameFontSize = 10,        -- Card name text size
+  cardCostFontSize = 8,         -- Energy cost number size  
+  cardStatFontSize = 8,         -- Attack/Block/Heal stat text size
+  cardDescFontSize = 7,         -- Description text size
+  cardBackFontSize = 10,        -- "Deck" text on card backs
   cardHoverBaseLift = 18,
   cardDragExtraLift = 24,
   cardShadowMinScale = 0.85,

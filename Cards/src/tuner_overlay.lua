@@ -220,6 +220,11 @@ local function apply_change(def, value, owner, context)
     end
   else
     Config.set(def.path, value)
+    -- Clear texture cache if font size changed
+    if def.path and def.path:find('FontSize') then
+      local CardTextureCache = require "src.renderers.card_texture_cache"
+      CardTextureCache.onFontChange()
+    end
   end
   -- Trigger minimal refresh for immediate feedback
   if context == 'game' and owner and owner.gs then
@@ -508,10 +513,19 @@ function Overlay.keypressed(key, context, owner)
         end
       end
     else
+      local shouldClearCache = false
       for _, c in ipairs(Overlay.controls or {}) do
         if c.def and c.def.path then
           Config.reset(c.def.path)
+          if c.def.path:find('FontSize') then
+            shouldClearCache = true
+          end
         end
+      end
+      -- Clear texture cache if any font size was reset
+      if shouldClearCache then
+        local CardTextureCache = require "src.renderers.card_texture_cache"
+        CardTextureCache.onFontChange()
       end
     end
     -- apply refresh once for the context

@@ -1,6 +1,25 @@
 -- CardRenderer: decouples card rendering from card logic
 local CardRenderer = {}
 local Config = require "src.config"
+local CardTextureCache = require "src.renderers.card_texture_cache"
+
+-- Font cache for different sizes
+local fontCache = {}
+local defaultFont = love.graphics.getFont()
+
+-- Get font for specified size (no scaling - this is for texture pre-rendering)
+local function getFont(size)
+    size = size or 12
+    if not fontCache[size] then
+        fontCache[size] = love.graphics.newFont(size)
+    end
+    return fontCache[size]
+end
+
+-- Get configured font size with fallback
+local function getFontSize(configKey, fallback)
+    return (Config.ui and Config.ui[configKey]) or fallback or 12
+end
 
 -- Draw art to cover the entire card area while preserving aspect ratio
 function CardRenderer.drawArtCover(image, x, y, w, h)
@@ -18,8 +37,18 @@ function CardRenderer.drawArtCover(image, x, y, w, h)
     return true
 end
 
--- Draw a card (face up or down)
+-- Main draw function - uses texture cache for consistent scaling
 function CardRenderer.draw(card)
+    local useCache = (Config.ui and Config.ui.useCardTextureCache) and not card._suppressShadow
+    if useCache then
+        CardRenderer.drawWithTexture(card)
+    else
+        CardRenderer.drawDirect(card)
+    end
+end
+
+-- Draw card using pre-rendered texture (scale like card art)
+function CardRenderer.drawWithTexture(card)
     local x = (card.animX ~= nil) and card.animX or card.x
     local y = (card.animY ~= nil) and card.animY or card.y
     local w, h = card.w, card.h
@@ -27,32 +56,118 @@ function CardRenderer.draw(card)
     local scaleY = card.impactScaleY or 1
     local cx = x + w/2
     local cy = y + h/2
-    -- Override card.x/y for downstream helpers (stats, art) so they align with animated position
-    local restorePos = false
-    local oldX, oldY
-    if (card.x ~= x) or (card.y ~= y) then
-        oldX, oldY = card.x, card.y
-        card.x, card.y = x, y
-        restorePos = true
+    
+    -- Get pre-rendered high-resolution texture
+    local texture, renderWidth, renderHeight = CardTextureCache.getTexture(card)
+    
+    if not texture then
+        -- Fallback to direct rendering
+        CardRenderer.drawDirect(card)
+        return
     end
-    local function restore()
-        if restorePos then
-            card.x, card.y = oldX, oldY
-            restorePos = false
+    
+    -- Draw shadow if needed
+    if not card._suppressShadow then
+        CardRenderer.drawCardShadow(card, x, y, w, h, scaleX, scaleY)
+    end
+    
+    -- Uniform scaling to exactly fill the card frame
+    -- Since all cards have same 10:15 aspect ratio, use width-based scaling for consistency
+    local scale = w / renderWidth
+    
+    -- Draw the pre-rendered texture scaled uniformly to fill card frame
+    love.graphics.push()
+    love.graphics.translate(cx, cy)
+    love.graphics.scale(scaleX, scaleY)
+    love.graphics.translate(-w/2, -h/2)
+    
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.draw(texture, 0, 0, 0, scale, scale)
+    
+    love.graphics.pop()
+    
+    -- Draw post-texture effects (glow, flash, etc.)
+    CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
+end
+
+-- All the post-texture effects
+function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
+    local cx, cy = x + w/2, y + h/2
+    
+    -- Dragging border
+    if card.dragging then
+        love.graphics.setColor(1, 1, 0, 1)
+        love.graphics.setLineWidth(5)
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.push()
+            love.graphics.translate(cx, cy)
+            love.graphics.scale(scaleX, scaleY)
+            love.graphics.translate(-cx, -cy)
+        end
+        
+        love.graphics.rectangle("line", x, y, w, h, 8, 8)
+        love.graphics.setLineWidth(1)
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.pop()
         end
     end
-    if scaleX ~= 1 or scaleY ~= 1 then
-        love.graphics.push()
-        love.graphics.translate(cx, cy)
-        love.graphics.scale(scaleX, scaleY)
-        love.graphics.translate(-cx, -cy)
+    
+    -- Hover glow
+    local amt = card.handHoverAmount or 0
+    if amt and amt > 0.01 then
+        local glowCfg = (Config.layout and Config.layout.hoverGlow) or {}
+        local color = glowCfg.color or {1, 1, 0.8, 0.85}
+        local alpha = (color[4] or 0.85) * math.min(1, amt)
+        love.graphics.setColor(color[1], color[2], color[3], alpha)
+        local lw = (glowCfg.width or 3) + (amt * (glowCfg.extraWidth or 2))
+        love.graphics.setLineWidth(lw)
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.push()
+            love.graphics.translate(cx, cy)
+            love.graphics.scale(scaleX, scaleY)
+            love.graphics.translate(-cx, -cy)
+        end
+        
+        love.graphics.rectangle("line", x - 4, y - 4, w + 8, h + 8, 12, 12)
+        love.graphics.setLineWidth(1)
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.pop()
+        end
+        
+        love.graphics.setColor(1, 1, 1, 1)
     end
-    -- Z / Shadow (only when elevated or hovered/dragged). Suppressed if _suppressShadow flag set.
+
+    -- Impact flash
+    if card.impactFlash and card.impactFlash > 0.01 then
+        love.graphics.setColor(1, 1, 0.6, card.impactFlash)
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.push()
+            love.graphics.translate(cx, cy)
+            love.graphics.scale(scaleX, scaleY)
+            love.graphics.translate(-cx, -cy)
+        end
+        
+        love.graphics.rectangle("fill", x, y, w, h, 8, 8)
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.pop()
+        end
+        
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+end
+
+-- Shadow drawing
+function CardRenderer.drawCardShadow(card, x, y, w, h, scaleX, scaleY)
     local z = card.animZ or 0
     if z < 0 then z = 0 end
-    local showShadow = (not card._suppressShadow) and (
-        z > 2 or card.dragging or (card.handHoverAmount and card.handHoverAmount > 0.02)
-    )
+    local showShadow = z > 2 or card.dragging or (card.handHoverAmount and card.handHoverAmount > 0.02)
+    
     if showShadow then
         local ui = Config.ui or {}
         local shadowScaleMin = ui.cardShadowMinScale or 0.85
@@ -64,20 +179,76 @@ function CardRenderer.draw(card)
         if arcRef > 0 then norm = math.min(1, z / arcRef) end
         local sScale = shadowScaleMax - (shadowScaleMax - shadowScaleMin) * norm
         local sAlpha = shadowAlphaMax - (shadowAlphaMax - shadowAlphaMin) * norm
-    -- Card-shaped shadow (scaled rounded rectangle) instead of ellipse
-    local shadowW = w * sScale
-    local shadowH = h * sScale * 0.98 -- slight flattening
-    local sx = x + (w - shadowW) / 2
-    local sy = y + (h - shadowH) / 2 + 4 -- small downward offset for depth
-    love.graphics.setColor(0,0,0,sAlpha)
-    love.graphics.rectangle("fill", sx, sy, shadowW, shadowH, 8, 8)
-    love.graphics.setColor(1,1,1,1)
+        
+        local shadowW = w * sScale
+        local shadowH = h * sScale * 0.98
+        local sx = x + (w - shadowW) / 2
+        local sy = y + (h - shadowH) / 2 + 4
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.push()
+            local cx, cy = x + w/2, y + h/2
+            love.graphics.translate(cx, cy)
+            love.graphics.scale(scaleX, scaleY)
+            love.graphics.translate(-cx, -cy)
+        end
+        
+        love.graphics.setColor(0, 0, 0, sAlpha)
+        love.graphics.rectangle("fill", sx, sy, shadowW, shadowH, 8, 8)
+        love.graphics.setColor(1, 1, 1, 1)
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.pop()
+        end
     end
+end
+
+-- Direct rendering (for texture generation) - SIMPLIFIED with configurable fonts
+function CardRenderer.drawDirect(card)
+    local x = (card.animX ~= nil) and card.animX or card.x
+    local y = (card.animY ~= nil) and card.animY or card.y
+    local w, h = card.w, card.h
+    local scaleX = card.impactScaleX or 1
+    local scaleY = card.impactScaleY or 1
+    local cx = x + w/2
+    local cy = y + h/2
+    
+    -- Position override for downstream helpers
+    local restorePos = false
+    local oldX, oldY
+    if (card.x ~= x) or (card.y ~= y) then
+        oldX, oldY = card.x, card.y
+        card.x, card.y = x, y
+        restorePos = true
+    end
+    
+    local function restore()
+        if restorePos then
+            card.x, card.y = oldX, oldY
+            restorePos = false
+        end
+    end
+    
+    if scaleX ~= 1 or scaleY ~= 1 then
+        love.graphics.push()
+        love.graphics.translate(cx, cy)
+        love.graphics.scale(scaleX, scaleY)
+        love.graphics.translate(-cx, -cy)
+    end
+    
+    -- Shadow (only when not suppressed)
+    if not card._suppressShadow then
+        CardRenderer.drawCardShadow(card, x, y, w, h, 1, 1) -- No double scaling
+    end
+    
+    -- Z elevation
+    local z = card.animZ or 0
     if z > 0 then
         y = y - z
-        card.y = y -- ensure downstream stat/layout uses lifted Y
+        card.y = y
     end
-    -- Draw card background (cover art when available)
+    
+    -- Background/art
     local usedCover = false
     if card.faceUp and card.art then
         usedCover = CardRenderer.drawArtCover(card.art, x, y, w, h)
@@ -86,7 +257,8 @@ function CardRenderer.draw(card)
         love.graphics.setColor(1, 1, 1)
         love.graphics.rectangle("fill", x, y, w, h, 8, 8)
     end
-    -- If dragging, draw a bright yellow border for visibility
+    
+    -- Border
     if card.dragging then
         love.graphics.setColor(1, 1, 0, 1)
         love.graphics.setLineWidth(5)
@@ -97,79 +269,89 @@ function CardRenderer.draw(card)
         love.graphics.rectangle("line", x, y, w, h, 8, 8)
     end
 
+    -- Face down cards
     local faceUp = card.faceUp
     if not faceUp then
-        if CardRenderer.drawBackArt(card) then return end
+        if CardRenderer.drawBackArt(card) then 
+            if scaleX ~= 1 or scaleY ~= 1 then love.graphics.pop() end
+            restore()
+            return 
+        end
         love.graphics.setColor(0.2, 0.2, 0.6)
+        local backFont = getFont(getFontSize('cardBackFontSize', 10))
+        love.graphics.setFont(backFont)
         love.graphics.printf("Deck", x, y + h / 2 - 6, w, "center")
+        love.graphics.setFont(defaultFont)
         if scaleX ~= 1 or scaleY ~= 1 then love.graphics.pop() end
         restore()
         return
     end
 
-    -- Soft translucent header behind name for readability over art
+    -- Name panel
     local layout = Config.layout or {}
     local nameAlpha = (layout.cardNamePanelAlpha ~= nil) and layout.cardNamePanelAlpha or 0.78
     love.graphics.setColor(1, 1, 1, nameAlpha)
     love.graphics.rectangle("fill", x + 4, y + 4, w - 8, 26, 6, 6)
     love.graphics.setColor(0, 0, 0)
+    local nameFont = getFont(getFontSize('cardNameFontSize', 10))
+    love.graphics.setFont(nameFont)
     love.graphics.printf(card.name, x, y + 8, w, "center")
-    if not card.definition then return end
-    if card.definition.cost then
+    love.graphics.setFont(defaultFont)
+    
+    -- Cost circle
+    if card.definition and card.definition.cost then
         love.graphics.setColor(0.9, 0.9, 0.3)
         love.graphics.circle("fill", x + 15, y + 15, 12)
         love.graphics.setColor(0, 0, 0)
+        local costFont = getFont(getFontSize('cardCostFontSize', 8))
+        love.graphics.setFont(costFont)
         love.graphics.printf(tostring(card.definition.cost), x, y + 9, 30, "center")
+        love.graphics.setFont(defaultFont)
     end
+    
     local descTop = y + h - 60
     local statY = y + 48
-    -- Draw soft backdrops for stats block and description to improve legibility
-    local statsCount = 0
-    if card.definition.attack and card.definition.attack > 0 then statsCount = statsCount + 1 end
-    if card.definition.block and card.definition.block > 0 then statsCount = statsCount + 1 end
-    if card.definition.heal and card.definition.heal > 0 then statsCount = statsCount + 1 end
-    if statsCount > 0 then
-        local statsY = y + 44
-        local statsH = math.min((descTop - 6) - statsY, statsCount * 18 + 6)
-        if statsH and statsH > 4 then
-            local statsAlpha = (layout.cardStatsPanelAlpha ~= nil) and layout.cardStatsPanelAlpha or 0.66
-            love.graphics.setColor(1, 1, 1, statsAlpha)
-            love.graphics.rectangle("fill", x + 4, statsY, w - 8, statsH, 6, 6)
+    
+    -- Stats background
+    if card.definition then
+        local statsCount = 0
+        if card.definition.attack and card.definition.attack > 0 then statsCount = statsCount + 1 end
+        if card.definition.block and card.definition.block > 0 then statsCount = statsCount + 1 end
+        if card.definition.heal and card.definition.heal > 0 then statsCount = statsCount + 1 end
+        if statsCount > 0 then
+            local statsY = y + 44
+            local statsH = math.min((descTop - 6) - statsY, statsCount * 18 + 6)
+            if statsH and statsH > 4 then
+                local statsAlpha = (layout.cardStatsPanelAlpha ~= nil) and layout.cardStatsPanelAlpha or 0.66
+                love.graphics.setColor(1, 1, 1, statsAlpha)
+                love.graphics.rectangle("fill", x + 4, statsY, w - 8, statsH, 6, 6)
+            end
         end
     end
+    
+    -- Art and stats
     if not usedCover then
         statY = CardRenderer.drawArt(card.art, x, y, w, h, descTop, statY)
     end
     statY = CardRenderer.drawCardStats(card, statY, descTop)
-    if card.definition.description then
+    
+    -- Description
+    if card.definition and card.definition.description then
         local descY = descTop - 4
         local descH = math.max(10, h - (descTop - y) - 8)
         local descAlpha = (layout.cardDescPanelAlpha ~= nil) and layout.cardDescPanelAlpha or 0.78
         love.graphics.setColor(1, 1, 1, descAlpha)
         love.graphics.rectangle("fill", x + 4, descY, w - 8, descH, 6, 6)
         love.graphics.setColor(0.1, 0.1, 0.1)
+        local descFont = getFont(getFontSize('cardDescFontSize', 7))
+        love.graphics.setFont(descFont)
         love.graphics.printf(card.definition.description, x + 5, descTop, w - 10, "center")
+        love.graphics.setFont(defaultFont)
     end
 
-    -- Light glow outline on hover/peek (scales with hover amount)
-    local amt = card.handHoverAmount or 0
-    if amt and amt > 0.01 then
-        local glowCfg = (Config.layout and Config.layout.hoverGlow) or {}
-        local color = glowCfg.color or {1, 1, 0.8, 0.85}
-        local alpha = (color[4] or 0.85) * math.min(1, amt)
-        love.graphics.setColor(color[1], color[2], color[3], alpha)
-        local lw = (glowCfg.width or 3) + (amt * (glowCfg.extraWidth or 2))
-        love.graphics.setLineWidth(lw)
-        love.graphics.rectangle("line", x - 4, y - 4, w + 8, h + 8, 12, 12)
-        love.graphics.setLineWidth(1)
-        love.graphics.setColor(1, 1, 1, 1)
-    end
-
-    -- Impact flash overlay (fades quickly)
-    if card.impactFlash and card.impactFlash > 0.01 then
-        love.graphics.setColor(1, 1, 0.6, card.impactFlash)
-        love.graphics.rectangle("fill", x, y, w, h, 8, 8)
-        love.graphics.setColor(1, 1, 1, 1)
+    -- Post-texture effects (when not using texture cache)
+    if not (Config.ui and Config.ui.useCardTextureCache) then
+        CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
     end
 
     if scaleX ~= 1 or scaleY ~= 1 then
@@ -178,8 +360,10 @@ function CardRenderer.draw(card)
     restore()
 end
 
+-- Stats drawing helper
 function CardRenderer.drawCardStats(card, statY, descTop)
     if not card.definition then return statY end
+    
     local function drawStat(label, textValue, color)
         if not textValue or textValue == "" then return end
         if statY + 18 > descTop - 4 then return end
@@ -187,9 +371,13 @@ function CardRenderer.drawCardStats(card, statY, descTop)
         love.graphics.rectangle("fill", card.x + 10, statY, 14, 14, 2, 2)
         love.graphics.setColor(0, 0, 0)
         love.graphics.rectangle("line", card.x + 10, statY, 14, 14, 2, 2)
+        local statFont = getFont(getFontSize('cardStatFontSize', 8))
+        love.graphics.setFont(statFont)
         love.graphics.printf(label .. ": " .. textValue, card.x + 30, statY - 2, card.w - 40, "left")
+        love.graphics.setFont(defaultFont)
         statY = statY + 18
     end
+    
     if card.definition.attack and card.definition.attack > 0 then
         local base = card.definition.attack
         local variance = card.statVariance and card.statVariance.attack or 0
@@ -206,6 +394,7 @@ function CardRenderer.drawCardStats(card, statY, descTop)
     return statY
 end
 
+-- Art drawing helpers (unchanged)
 function CardRenderer.drawArt(image, x, y, w, h, descTop, statY)
     if not image then return statY end
     local imgW, imgH = image:getDimensions()
@@ -240,6 +429,37 @@ function CardRenderer.drawBackArt(card)
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.draw(image, artX, artY, 0, scale, scale)
     return true
+end
+
+-- Debug and utility functions
+function CardRenderer.setTextureCache(enabled)
+    if Config.ui then
+        Config.ui.useCardTextureCache = enabled
+    end
+end
+
+function CardRenderer.drawDebugInfo()
+    if not (Config.ui and Config.ui.cardTextureDebugInfo) then return end
+    
+    local stats = CardTextureCache.getStats()
+    local lines = {
+        string.format("Card Texture Cache:"),
+        string.format("  Size: %d/%d", stats.size, 100),
+        string.format("  Hits: %d (%.1f%%)", stats.hits, (stats.hitRate or 0) * 100),
+        string.format("  Misses: %d", stats.misses),
+        string.format("  Evictions: %d", stats.evictions),
+    }
+    
+    local x, y = 10, 10
+    local lineHeight = 16
+    
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", x - 5, y - 5, 180, #lines * lineHeight + 10, 4, 4)
+    
+    love.graphics.setColor(1, 1, 1, 1)
+    for i, line in ipairs(lines) do
+        love.graphics.print(line, x, y + (i - 1) * lineHeight)
+    end
 end
 
 return CardRenderer

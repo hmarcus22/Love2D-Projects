@@ -452,6 +452,9 @@ function GameState:draw()
     end
     -- TODO: move inline FX drawing to ImpactFX module (refactor pending)
 
+    -- Draw debug overlays
+    local CardRenderer = require "src.card_renderer"
+    CardRenderer.drawDebugInfo()
 
 end
 function GameState:getPassButtonRect()

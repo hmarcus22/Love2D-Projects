@@ -70,6 +70,15 @@ local defs = {
   { path = 'ui.cardShadowMaxAlpha',     label = 'Shadow Max Alpha',       type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
   { path = 'ui.cardSlotGlowDuration',   label = 'Slot Glow Duration',     type = 'number', min = 0.05, max = 1.5, step = 0.01, context = 'game', category = 'Animation' },
   { path = 'ui.cardSlotGlowAlpha',      label = 'Slot Glow Alpha',        type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
+  
+  -- Card Rendering
+  { path = 'ui.useCardTextureCache',    label = 'Use Card Texture Cache', type = 'boolean',                                context = 'all',  category = 'Card Rendering' },
+  { path = 'ui.cardTextureDebugInfo',   label = 'Show Cache Debug Info',  type = 'boolean',                                context = 'all',  category = 'Card Rendering' },
+  { path = 'ui.cardNameFontSize',       label = 'Card Name Font Size',    type = 'number', min = 6,    max = 20,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardCostFontSize',       label = 'Cost Font Size',         type = 'number', min = 6,    max = 16,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardStatFontSize',       label = 'Stat Font Size',         type = 'number', min = 6,    max = 16,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardDescFontSize',       label = 'Description Font Size',  type = 'number', min = 6,    max = 16,  step = 1, context = 'all',  category = 'Card Text' },
+  { path = 'ui.cardBackFontSize',       label = 'Card Back Font Size',    type = 'number', min = 6,    max = 20,  step = 1, context = 'all',  category = 'Card Text' },
 
   -- Layout hand and hover behavior
   { path = 'layout.handAreaWidth',    label = 'Hand Area Width',    type = 'number', min = 300, max = 900, step = 1,  context = 'all',  category = 'Layout Hand' },

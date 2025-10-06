@@ -10,6 +10,7 @@ local game  = require "src.states.game"
 local pause = require "src.states.pause"
 
 function love.load()
+    print("DEBUG: Game started, texture cache system active")
     local windowConfig = Config.window or {}
     local width = windowConfig.width or 1000
     local height = windowConfig.height or 600
@@ -41,4 +42,5 @@ end
 
 function love.resize(w, h)
     Viewport.resize(w, h)
+    -- No need to clear texture cache - textures scale like card art
 end
