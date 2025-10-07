@@ -118,6 +118,74 @@ function anim_lab:ensureTestCard()
   self:spawnTestCard()
 end
 
+-- Print all available combos to console for reference
+function anim_lab:printComboList()
+  print("\n=== ANIMATION LAB COMBO LIST ===")
+  print("7: Quick Jab → Jab-Cross")
+  print("8: Attack + Feint → Counterplay")
+  print("9: Card + Rally → Wild Swing")
+  print("0: Guard Hands → Suplex")
+  print("-: Guard Hands → Ground Pound")
+  print("=: Attack + Feint → Shadow Step")
+  print("[: Card + Rally → Bottle Smash")
+  print("W: Show this list")
+  print("\nInstructions: Cards are added to hand. Play prerequisite cards to board, then combo card should glow!")
+  print("For modifier combos: Play base card + modifier together, then combo card glows.")
+  print("================================\n")
+end
+
+-- Setup a specific combo for testing
+function anim_lab:setupCombo(setupCardId, comboCardId, comboName, attackCardId)
+  local player = self.gs and self.gs:getCurrentPlayer()
+  if not player then 
+    print("No player found")
+    return 
+  end
+  
+  print("Animation Lab: Setting up " .. comboName .. " combo test...")
+  
+  -- Clear existing board cards and hand
+  for i, slot in ipairs(player.boardSlots or {}) do 
+    slot.card = nil 
+  end
+  for i, slot in ipairs(player.slots or {}) do 
+    slot.card = nil 
+  end
+  
+  -- Reset player state
+  player.prevCardId = nil
+  
+  -- If an attack card is needed (for feint combos), add it first
+  if attackCardId then
+    local attackCard = CardFactory.createCard(attackCardId)
+    if attackCard then
+      player:addCard(attackCard)
+      print("  → Added " .. (attackCard.definition.name or attackCardId) .. " to hand")
+    end
+  end
+  
+  -- Add setup card to hand
+  local setupCard = CardFactory.createCard(setupCardId)
+  if setupCard then
+    player:addCard(setupCard)
+    print("  → Added " .. (setupCard.definition.name or setupCardId) .. " to hand")
+  end
+  
+  -- Add combo card to hand
+  local comboCard = CardFactory.createCard(comboCardId)
+  if comboCard then
+    player:addCard(comboCard)
+    print("  → Added " .. (comboCard.definition.name or comboCardId) .. " to hand")
+    if attackCardId then
+      print("  → Play attack + feint together, then combo card should glow!")
+    else
+      print("  → Play the first card, then the second should glow for combo!")
+    end
+  end
+  
+  self.gs:refreshLayoutPositions()
+end
+
 -- Handle card selection change
 function anim_lab:selectCard(newIndex)
   self.attackerIndex = newIndex
@@ -129,8 +197,14 @@ function anim_lab:update(dt)
   if not self.gs then return end
   -- Keep players energized
   for _, p in ipairs(self.gs.players or {}) do p.energy = 99 end
+  
+  -- Ensure we're in play phase for card playing
+  if self.gs.phase ~= "play" then
+    self.gs.phase = "play"
+  end
+  
   -- Check for auto-refill (only when hand is completely empty)
-  self:ensureTestCard()
+  -- Temporarily disabled for debugging: self:ensureTestCard()
   TunerOverlay.update(dt, 'anim_lab', self)
   
   -- Update input for drag behavior (tension calculation, etc.)
@@ -232,9 +306,9 @@ end
 function anim_lab:drawInfoPanels()
   local screenW = Viewport.getWidth()
   love.graphics.setColor(0,0,0,0.8)
-  love.graphics.rectangle('fill', 10, 10, 550, 140, 8, 8)
+  love.graphics.rectangle('fill', 10, 10, 550, 160, 8, 8)
   love.graphics.setColor(1,1,1,1)
-  love.graphics.rectangle('line', 10, 10, 550, 140, 8, 8)
+  love.graphics.rectangle('line', 10, 10, 550, 160, 8, 8)
   
   -- Instructions
   love.graphics.setColor(1,1,0.8,1)
@@ -243,22 +317,24 @@ function anim_lab:drawInfoPanels()
   love.graphics.print("Up/Down: select card  |  Space: spawn test card  |  1-6: place prop in slot", 20, 38)
   love.graphics.print("Drag test card to any slot to see animation  |  C: clear all props", 20, 54)
   love.graphics.print("A: toggle auto-refill  |  P: toggle preview  |  T: toggle overrides  |  R: resolve phase", 20, 70)
+  love.graphics.print("7: Quick Jab → Jab-Cross  |  8: Feint → Counterplay  |  9: Rally → Wild Swing", 20, 86)
+  love.graphics.print("0: Guard → Suplex  |  -/=: More combos  |  W: show all combos", 20, 102)
   
   -- Animation tweaking workflow
   love.graphics.setColor(1,0.8,0.8,1)
-  love.graphics.print("F10: open tuner  |  Shift+S: save custom animation  |  Shift+R: reset card", 20, 86)
+  love.graphics.print("F10: open tuner  |  Shift+S: save custom animation  |  Shift+R: reset card", 20, 118)
   
   -- Selected card info
   local def = self.cards[self.attackerIndex]
   love.graphics.setColor(1,1,1,1)
-  love.graphics.print("Selected Card: " .. (def and def.id or 'nil'), 20, 108)
-  love.graphics.print("Auto-refill: " .. (self.autoRefill and 'ON (when hand empty)' or 'OFF'), 280, 108)
-  love.graphics.print("Overrides: " .. (Config.ui.useAnimationOverrides and 'ON' or 'OFF'), 280, 124)
+  love.graphics.print("Selected Card: " .. (def and def.id or 'nil'), 20, 124)
+  love.graphics.print("Auto-refill: " .. (self.autoRefill and 'ON (when hand empty)' or 'OFF'), 280, 124)
+  love.graphics.print("Overrides: " .. (Config.ui.useAnimationOverrides and 'ON' or 'OFF'), 280, 140)
   
   -- Game phase status for testing
   local phase = self.gs and self.gs.phase or "none"
   love.graphics.setColor(0.8, 1, 0.8, 1)
-  love.graphics.print("Game Phase: " .. phase, 20, 124)
+  love.graphics.print("Game Phase: " .. phase, 20, 140)
   
   -- Slot layout guide
   love.graphics.setColor(0,0,0,0.8)
@@ -366,6 +442,22 @@ function anim_lab:keypressed(key)
     else
       print("Animation Lab: Already in resolve phase or no gamestate")
     end
+  elseif key == '7' then
+    self:setupCombo("punch", "jab_cross", "Quick Jab → Jab-Cross")
+  elseif key == '8' then
+    self:setupCombo("feint", "counterplay", "Attack + Feint → Counterplay", "punch")
+  elseif key == '9' then
+    self:setupCombo("rally", "wild_swing", "Card + Rally → Wild Swing", "punch")
+  elseif key == '0' then
+    self:setupCombo("block", "suplex", "Guard Hands → Suplex")
+  elseif key == '-' then
+    self:setupCombo("block", "ground_pound", "Guard Hands → Ground Pound")
+  elseif key == '=' then
+    self:setupCombo("feint", "shadow_step", "Attack + Feint → Shadow Step", "punch")
+  elseif key == '[' then
+    self:setupCombo("rally", "bottle_smash", "Card + Rally → Bottle Smash", "punch")
+  elseif key == 'w' then
+    self:printComboList()
   -- Number keys for quick prop placement
   elseif key == '1' then
     self:placeProp(1)
@@ -399,7 +491,48 @@ function anim_lab:mousereleased(x,y,button)
   -- Store current player before input handling
   local originalPlayer = self.gs.currentPlayer
   
+  -- Debug: Check if we're dropping a card
+  if self.gs.draggingCard then
+    print("Animation Lab: Dropping card", self.gs.draggingCard.id, "at", vx, vy)
+    print("  Phase:", self.gs.phase or "unknown")
+    print("  Current player:", self.gs.currentPlayer)
+    print("  Player energy:", self.gs:getCurrentPlayer() and self.gs:getCurrentPlayer().energy or "unknown")
+    print("  Card cost:", self.gs.draggingCard.definition and self.gs.draggingCard.definition.cost or "unknown")
+    
+    -- Check what board slots exist and their positions
+    local player = self.gs:getCurrentPlayer()
+    if player and player.boardSlots then
+      local cardW, cardH = self.gs:getCardDimensions()
+      print("  Card dimensions:", cardW, "x", cardH)
+      for i, slot in ipairs(player.boardSlots) do
+        local x, y = self.gs:getBoardSlotPosition(self.gs.currentPlayer, i)
+        local occupied = slot.card and "occupied" or "empty"
+        print("  Board slot", i, "at", x, y, "to", x+cardW, y+cardH, occupied)
+      end
+    end
+  end
+  
   Input:mousereleased(self.gs, vx, vy, button)
+  
+  -- Debug: Check if card was successfully played
+  if self.gs.draggingCard then
+    print("  Card still dragging - drop failed")
+  else
+    print("  Card no longer dragging - likely played successfully")
+    -- Check where the cards actually are now
+    local player = self.gs:getCurrentPlayer()
+    if player then
+      local handCount = 0
+      local boardCount = 0
+      for _, slot in ipairs(player.slots or {}) do
+        if slot.card then handCount = handCount + 1 end
+      end
+      for _, slot in ipairs(player.boardSlots or {}) do
+        if slot.card then boardCount = boardCount + 1 end
+      end
+      print("  Hand cards:", handCount, "Board cards:", boardCount)
+    end
+  end
   
   -- Force current player back to original after input (prevents turn switching in lab)
   self.gs.currentPlayer = originalPlayer

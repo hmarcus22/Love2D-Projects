@@ -201,6 +201,12 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
 
     -- Combo glow - green to white cycling animation when combo is available
     if card.player and card.player.canPlayCombo and card.player:canPlayCombo(card.definition) then
+        -- Debug output (remove this later)
+        if not card._comboDebugLogged then
+            print("COMBO GLOW: Rendering for card", card.id or "unknown")
+            card._comboDebugLogged = true
+        end
+        
         local comboGlowCfg = (Config.layout and Config.layout.comboGlow) or {}
         local time = love.timer.getTime()
         local cycle = math.sin(time * (comboGlowCfg.cycleSpeed or 3)) * 0.5 + 0.5  -- 0 to 1 sine wave
@@ -233,6 +239,23 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
         end
         
         love.graphics.setColor(1, 1, 1, 1)
+    else
+        -- Debug: Check why combo glow is not showing
+        if card.id == "jab_cross" and not card._debugLogged then
+            print("DEBUG jab_cross: player=", card.player and "yes" or "no")
+            if card.player then
+                print("  canPlayCombo function=", card.player.canPlayCombo and "yes" or "no")
+                if card.player.canPlayCombo then
+                    print("  canPlayCombo result=", card.player:canPlayCombo(card.definition))
+                    print("  prevCardId=", card.player.prevCardId)
+                    print("  card.definition=", card.definition and "yes" or "no")
+                    if card.definition and card.definition.combo then
+                        print("  combo.after=", card.definition.combo.after)
+                    end
+                end
+            end
+            card._debugLogged = true
+        end
     end
 
     -- Impact flash
