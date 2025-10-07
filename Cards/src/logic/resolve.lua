@@ -157,6 +157,27 @@ function Resolve.resolveAttackStep(self, slotIndex)
                                         retargetSuffix
                                     ))
                                 end
+                                
+                                -- CHECK FOR COUNTER RETALIATION: If defender has counter effect, deal damage back
+                                if defenderSlot and defenderSlot.card and defenderSlot.card.definition then
+                                    local defCard = defenderSlot.card
+                                    local defDef = defCard.definition
+                                    if defDef.effect == "counter_retaliate" and defDef.counterDamage then
+                                        local counterDamage = defDef.counterDamage
+                                        local beforeCounter = attacker.health or attacker.maxHealth or 20
+                                        attacker.health = math.max(0, beforeCounter - counterDamage)
+                                        
+                                        if self.addLog then
+                                            self:addLog(string.format(
+                                                "Counter: P%d %s retaliates against P%d for %d damage!",
+                                                defender.id or defenderIndex,
+                                                defCard.name or "counter",
+                                                attacker.id or attackerIndex,
+                                                counterDamage
+                                            ))
+                                        end
+                                    end
+                                end
                             end
                         end
                     end

@@ -36,11 +36,13 @@
     {
         id = "counter",
         name = "Counter",
-        description = "Gain 2 guard and strike back for 2 damage.",
+        description = "Gain 2 guard. When this card is attacked, deal 2 damage back to the attacker.",
         cost = 2,
-        attack = 2,
-        block = 2,
-        tags = { "boxer", "tactician" },
+        attack = 0,  -- No offensive attack - purely defensive
+        block = 2,   -- Primary purpose: always provides 2 block
+        effect = "counter_retaliate",
+        counterDamage = 2,  -- Damage dealt when attacked
+        tags = { "boxer" },  -- Available to all fighters (removed tactician)
     },
 }
 
@@ -217,10 +219,12 @@ local extraFighterCards = {
     {
         id = "counterpunch",
         name = "Counterpunch",
-        description = "Block 2 and retaliate with 2 damage.",
-        cost = 2,
-        attack = 2,
-        block = 2,
+        description = "Signature boxer counter. Block 3 and retaliate with 3 damage when attacked.",
+        cost = 3,     -- Higher cost for premium version
+        attack = 0,   -- No offensive attack - purely defensive
+        block = 3,    -- Better block than basic counter
+        effect = "counter_retaliate",
+        counterDamage = 3,  -- Higher counter damage than basic counter
         tags = { "boxer", "signature" },
     },
     {

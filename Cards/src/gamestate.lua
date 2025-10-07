@@ -224,14 +224,31 @@ function GameState:performAoeAttack(attackerIdx, attackValue)
     end
     local enemyIdx = (attackerIdx == 1) and 2 or 1
     local enemy = self.players and self.players[enemyIdx] or nil
-    if not enemy then
+    local attacker = self.players and self.players[attackerIdx] or nil
+    if not enemy or not attacker then
         return
     end
     local hits = 0
+    local totalCounterDamage = 0
+    
     if enemy.boardSlots then
         for _, slot in ipairs(enemy.boardSlots) do
             if slot.card then
                 hits = hits + 1
+                
+                -- CHECK FOR COUNTER RETALIATION: Each counter card hit by AOE retaliates
+                if slot.card.definition and slot.card.definition.effect == "counter_retaliate" then
+                    local counterDamage = slot.card.definition.counterDamage or 0
+                    totalCounterDamage = totalCounterDamage + counterDamage
+                    
+                    if counterDamage > 0 then
+                        self:addLog(string.format(
+                            "Counter: %s retaliates for %d damage!",
+                            slot.card.name or "counter",
+                            counterDamage
+                        ))
+                    end
+                end
             end
         end
     end
@@ -241,6 +258,14 @@ function GameState:performAoeAttack(attackerIdx, attackValue)
     local total = attackValue * hits
     local before = enemy.health or enemy.maxHealth or 20
     enemy.health = math.max(0, before - total)
+    
+    -- Apply total counter damage to attacker
+    if totalCounterDamage > 0 then
+        local beforeCounter = attacker.health or attacker.maxHealth or 20
+        attacker.health = math.max(0, beforeCounter - totalCounterDamage)
+        self:addLog(string.format("Total counter damage: %d", totalCounterDamage))
+    end
+    
     self:addLog(string.format("Ultimate: P%d strikes every foe for %d (total %d)", attackerIdx, attackValue, total))
 end
 

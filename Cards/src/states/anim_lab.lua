@@ -242,7 +242,7 @@ function anim_lab:drawInfoPanels()
   love.graphics.setColor(0.9,0.9,0.9,1)
   love.graphics.print("Up/Down: select card  |  Space: spawn test card  |  1-6: place prop in slot", 20, 38)
   love.graphics.print("Drag test card to any slot to see animation  |  C: clear all props", 20, 54)
-  love.graphics.print("A: toggle auto-refill  |  P: toggle preview  |  T: toggle overrides", 20, 70)
+  love.graphics.print("A: toggle auto-refill  |  P: toggle preview  |  T: toggle overrides  |  R: resolve phase", 20, 70)
   
   -- Animation tweaking workflow
   love.graphics.setColor(1,0.8,0.8,1)
@@ -254,6 +254,11 @@ function anim_lab:drawInfoPanels()
   love.graphics.print("Selected Card: " .. (def and def.id or 'nil'), 20, 108)
   love.graphics.print("Auto-refill: " .. (self.autoRefill and 'ON (when hand empty)' or 'OFF'), 280, 108)
   love.graphics.print("Overrides: " .. (Config.ui.useAnimationOverrides and 'ON' or 'OFF'), 280, 124)
+  
+  -- Game phase status for testing
+  local phase = self.gs and self.gs.phase or "none"
+  love.graphics.setColor(0.8, 1, 0.8, 1)
+  love.graphics.print("Game Phase: " .. phase, 20, 124)
   
   -- Slot layout guide
   love.graphics.setColor(0,0,0,0.8)
@@ -352,6 +357,15 @@ function anim_lab:keypressed(key)
     self.showPreview = not self.showPreview
   elseif key == 't' then
     Config.ui.useAnimationOverrides = not Config.ui.useAnimationOverrides
+  elseif key == 'r' then
+    -- Manual resolve trigger for testing card interactions
+    if self.gs and self.gs.phase ~= "resolve" then
+      print("Animation Lab: Starting manual resolve phase...")
+      local Resolve = require "src.logic.resolve"
+      Resolve.startResolve(self.gs)
+    else
+      print("Animation Lab: Already in resolve phase or no gamestate")
+    end
   -- Number keys for quick prop placement
   elseif key == '1' then
     self:placeProp(1)
