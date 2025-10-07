@@ -105,6 +105,33 @@ function AnimationBuilder._buildImpactAnimation(gameState, card, slotIndex, onAd
             ImpactFX.triggerShake(gameState, impactParams.shakeDur or 0.25, impactParams.shakeMag or 6)
             ImpactFX.triggerDust(gameState, sx + card.w/2, sy + card.h - 8, impactParams.dustCount or 1)
         end
+        
+        -- NEW: Trigger knockback effects
+        local AnimationSpecs = require 'src.animation_specs'
+        local BoardEffects = require 'src.effects.board_effects'
+        local spec = AnimationSpecs.getCardSpec(card.id)
+        if spec and spec.knockback and spec.knockback.enabled then
+            -- CORE LOGIC: Calculate impact coordinates
+            local sx, sy = gameState:getBoardSlotPosition(player.id, slotIndex)
+            local impactX = sx + card.w/2
+            local impactY = sy + card.h/2
+            
+            -- CORE LOGIC: Find opponent board
+            local opponentBoard = nil
+            for _, p in pairs(gameState.players) do
+                if p.id ~= player.id then
+                    opponentBoard = p.boardSlots
+                    break
+                end
+            end
+            
+            if opponentBoard then
+                -- CORE LOGIC: Determine fade behavior
+                local shouldFadeOut = (card.id == 'body_slam')
+                -- CORE LOGIC: Trigger knockback system
+                BoardEffects.triggerKnockback(card, impactX, impactY, opponentBoard, spec.knockback, shouldFadeOut, gameState)
+            end
+        end
     end
     
     local function onImpactComplete()

@@ -137,6 +137,9 @@ function anim_lab:update(dt)
   Input:update(self.gs, dt)
   
   self.gs:update(dt)
+  
+  -- FORCE: Keep player 1 active in animation lab to see knockback effects
+  self.gs.currentPlayer = 1
 end
 
 function anim_lab:draw()

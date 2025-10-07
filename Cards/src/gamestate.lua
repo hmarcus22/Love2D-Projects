@@ -78,6 +78,9 @@ function GameState:resetRoundFlags()
             player.roundPunchCount = 0
         end
     end
+    -- Clear any active board effects (knockback animations)
+    local BoardEffects = require 'src.effects.board_effects'
+    BoardEffects.reset()
 end
 
 function GameState:activateRoundStatuses()
@@ -156,7 +159,18 @@ function GameState:recordSpecialEffectOnPlay(player, card, slotIndex)
         card.effectsTriggered = card.effectsTriggered or {}
         card.effectsTriggered[effect] = true
     elseif effect == "knock_off_board" then
-        -- Immediate: knock the opposing card(s) off the board right away
+        -- Check if this card has knockback animation - if so, defer the removal
+        local AnimSpecs = require 'src.animation_specs'
+        local spec = AnimSpecs.getCardSpec(card.id)
+        local hasKnockback = spec and spec.knockback and spec.knockback.enabled
+        
+        if hasKnockback then
+            -- Defer removal until knockback completes - BoardEffects will handle it
+            self:addLog(string.format("Body Slam crashes through the opposition!"))
+            return -- Don't remove cards now, let knockback animation handle it
+        end
+        
+        -- Immediate: knock the opposing card(s) off the board right away (original logic)
         local applied = false
         if card.id == 'body_slam' then
             -- Enhanced behavior: remove ALL opposing board cards (board wipe)
@@ -484,34 +498,41 @@ function GameState:update(dt)
         end
     end
     if self.phase == "resolve" and self.resolveQueue and self.resolveIndex then
-        -- Set current step for visual indication
-        if self.resolveIndex < #self.resolveQueue then
-            self.resolveCurrentStep = self.resolveQueue[self.resolveIndex + 1]
+        -- Pause resolve while board effects are active
+        local BoardEffects = require 'src.effects.board_effects'
+        if BoardEffects.isActive() then
+            print("[GameState] Pausing resolve phase while board effects are active")
+            -- Don't advance resolve timer while knockback animations are running
         else
-            self.resolveCurrentStep = nil
-        end
-        self.resolveTimer = (self.resolveTimer or 0) + (dt or 0)
-        local stepDuration = self.resolveStepDuration or 0.5
-        while self.resolveIndex < #self.resolveQueue and self.resolveTimer >= stepDuration do
-            self.resolveTimer = self.resolveTimer - stepDuration
-            self.resolveIndex = self.resolveIndex + 1
-            local step = self.resolveQueue[self.resolveIndex]
-            if step then
-                if Config and Config.debug then
-                    print(string.format("[DEBUG] Performing resolve step %d/%d: %s slot %d", self.resolveIndex, #self.resolveQueue, step.kind, step.slot))
-                end
-                Resolve.performResolveStep(self, step)
-            end
-            -- Update current step after performing
+            -- Set current step for visual indication
             if self.resolveIndex < #self.resolveQueue then
                 self.resolveCurrentStep = self.resolveQueue[self.resolveIndex + 1]
             else
                 self.resolveCurrentStep = nil
             end
-        end
+            self.resolveTimer = (self.resolveTimer or 0) + (dt or 0)
+            local stepDuration = self.resolveStepDuration or 0.5
+            while self.resolveIndex < #self.resolveQueue and self.resolveTimer >= stepDuration do
+                self.resolveTimer = self.resolveTimer - stepDuration
+                self.resolveIndex = self.resolveIndex + 1
+                local step = self.resolveQueue[self.resolveIndex]
+                if step then
+                    if Config and Config.debug then
+                        print(string.format("[DEBUG] Performing resolve step %d/%d: %s slot %d", self.resolveIndex, #self.resolveQueue, step.kind, step.slot))
+                    end
+                    Resolve.performResolveStep(self, step)
+                end
+                -- Update current step after performing
+                if self.resolveIndex < #self.resolveQueue then
+                    self.resolveCurrentStep = self.resolveQueue[self.resolveIndex + 1]
+                else
+                    self.resolveCurrentStep = nil
+                end
+            end
 
-        if self.resolveIndex >= #self.resolveQueue then
-            self:finishResolvePhase()
+            if self.resolveIndex >= #self.resolveQueue then
+                self:finishResolvePhase()
+            end
         end
     end
     -- Impact FX update handled centrally
@@ -519,6 +540,9 @@ function GameState:update(dt)
     -- Update impact FX (shake, dust) lifecycle
     local ImpactFX = require 'src.impact_fx'
     ImpactFX.update(self, dt)
+    -- Update board effects (knockback animations)
+    local BoardEffects = require 'src.effects.board_effects'
+    BoardEffects.update(dt)
 end
 
 function GameState:updateCardVisibility()

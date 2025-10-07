@@ -48,6 +48,13 @@ local function autoDrawForPlayers(state, rules)
 end
 
 function RoundManager.finishResolve(state)
+    -- Check if board effects are still active (knockback animations)
+    local BoardEffects = require 'src.effects.board_effects'
+    if BoardEffects.isActive() then
+        -- Don't finish resolve while board effects are running
+        return
+    end
+    
     -- Guard against re-entrancy (e.g., being called multiple frames)
     if state._roundEndProcessing then
         return

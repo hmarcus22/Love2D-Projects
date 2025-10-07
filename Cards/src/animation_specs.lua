@@ -71,6 +71,21 @@ local function normalize(cardId)
   Deep.merge(spec.flight, cFlight)
   Deep.merge(spec.impact, cImpact)
 
+  -- Handle knockback spec
+  local gKnockback = merged.global.knockback or {}
+  local cKnockback = card.knockback or {}
+  spec.knockback = {
+    enabled = false,
+    radius = 80,
+    force = 50,
+    duration = 0.6,
+    falloff = 'linear',
+    direction = 'radial',
+    angle = 0,
+  }
+  Deep.merge(spec.knockback, gKnockback)
+  Deep.merge(spec.knockback, cKnockback)
+
   -- Derived / sanitation
   spec.flight.duration = math.max(0.01, spec.flight.duration or 0.35)
   spec.flight.overshoot = math.max(0, spec.flight.overshoot or 0)
@@ -114,7 +129,7 @@ end
 function AnimationSpecs.setCardSpec(cardId, patch)
   if not merged then AnimationSpecs.load() end
   merged.cards = merged.cards or {}
-  merged.cards[cardId] = merged.cards[cardId] or { flight = {}, impact = {} }
+  merged.cards[cardId] = merged.cards[cardId] or { flight = {}, impact = {}, knockback = {} }
   Deep.merge(merged.cards[cardId], patch)
   cache[cardId] = nil
 end
@@ -187,6 +202,12 @@ end
 -- Get the raw override data for a card (without merging)
 function AnimationSpecs._getCardOverrides(cardId)
   return overrides.cards and overrides.cards[cardId] or {}
+end
+
+-- Convenience function to get just the knockback spec for a card
+function AnimationSpecs.getCardKnockback(cardId)
+  local spec = AnimationSpecs.getCardSpec(cardId)
+  return spec.knockback
 end
 
 return AnimationSpecs

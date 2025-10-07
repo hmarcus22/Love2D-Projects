@@ -77,6 +77,9 @@ end
 -- Main draw function - uses texture cache for consistent scaling
 function CardRenderer.draw(card)
     local useCache = (Config.ui and Config.ui.useCardTextureCache) and not card._suppressShadow
+    
+
+    
     if useCache then
         CardRenderer.drawWithTexture(card)
     else
@@ -115,10 +118,18 @@ function CardRenderer.drawWithTexture(card)
     -- Draw the pre-rendered texture scaled uniformly to fill card frame
     love.graphics.push()
     love.graphics.translate(cx, cy)
+    
+    -- Apply rotation if set (for knockback effects)
+    if card.rotation then
+        love.graphics.rotate(card.rotation)
+    end
+    
     love.graphics.scale(scaleX, scaleY)
     love.graphics.translate(-w/2, -h/2)
     
-    love.graphics.setColor(1, 1, 1, 1)
+    -- Apply card alpha for fade effects
+    local alpha = card.alpha or 1.0
+    love.graphics.setColor(1, 1, 1, alpha)
     love.graphics.draw(texture, 0, 0, 0, scale, scale)
     
     love.graphics.pop()
@@ -266,11 +277,29 @@ function CardRenderer.drawDirect(card)
         end
     end
     
-    if scaleX ~= 1 or scaleY ~= 1 then
+    -- Apply transformations (scale and rotation)
+    local hasTransforms = (scaleX ~= 1 or scaleY ~= 1 or card.rotation)
+    if hasTransforms then
         love.graphics.push()
         love.graphics.translate(cx, cy)
-        love.graphics.scale(scaleX, scaleY)
+        
+        -- Apply rotation if set (for knockback effects)
+        if card.rotation then
+            love.graphics.rotate(card.rotation)
+        end
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.scale(scaleX, scaleY)
+        end
+        
         love.graphics.translate(-cx, -cy)
+    end
+    
+    -- Apply alpha for fade effects
+    local alpha = card.alpha or 1.0
+    if alpha ~= 1.0 then
+        local r, g, b, a = love.graphics.getColor()
+        love.graphics.setColor(r, g, b, alpha)
     end
     
     -- Shadow (only when not suppressed)
@@ -310,7 +339,7 @@ function CardRenderer.drawDirect(card)
     local faceUp = card.faceUp
     if not faceUp then
         if CardRenderer.drawBackArt(card) then 
-            if scaleX ~= 1 or scaleY ~= 1 then love.graphics.pop() end
+            if hasTransforms then love.graphics.pop() end
             restore()
             return 
         end
@@ -319,7 +348,7 @@ function CardRenderer.drawDirect(card)
         love.graphics.setFont(backFont)
         love.graphics.printf("Deck", x, y + h / 2 - 6, w, "center")
         love.graphics.setFont(defaultFont)
-        if scaleX ~= 1 or scaleY ~= 1 then love.graphics.pop() end
+        if hasTransforms then love.graphics.pop() end
         restore()
         return
     end
@@ -394,7 +423,7 @@ function CardRenderer.drawDirect(card)
         CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
     end
 
-    if scaleX ~= 1 or scaleY ~= 1 then
+    if hasTransforms then
         love.graphics.pop()
     end
     restore()

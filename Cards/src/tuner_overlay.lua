@@ -134,6 +134,26 @@ local function build_controls(context)
       addImpactDyn('dustCount', 'Dust Count', impact.dustCount or 1, 0, 5, 1)
       addImpactDyn('holdExtra', 'Hold Extra', impact.holdExtra or 0.1, 0, 1, 0.01)
       
+      -- Knockback controls
+      local knockback = spec.knockback or {}
+      local function addKnockbackDyn(pathKey, label, value, min, max, step)
+        local displayLabel = isOverridden('knockback', pathKey) and (label .. ' *') or label
+        table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='knockback', dynKey=pathKey, label=displayLabel, type='number', min=min, max=max, step=step, value=value })
+      end
+
+      local knockEnabledLabel = isOverridden('knockback', 'enabled') and 'Knockback Enabled *' or 'Knockback Enabled'
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='knockback', dynKey='enabled', label=knockEnabledLabel, type='boolean', value = knockback.enabled or false })
+
+      addKnockbackDyn('radius', 'Knockback Radius', knockback.radius or 80, 20, 200, 5)
+      addKnockbackDyn('force', 'Knockback Force', knockback.force or 50, 10, 150, 5)
+      addKnockbackDyn('duration', 'Knockback Duration', knockback.duration or 0.6, 0.1, 2.0, 0.05)
+
+      local knockDirLabel = isOverridden('knockback', 'direction') and 'Knockback Direction *' or 'Knockback Direction'
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='knockback', dynKey='direction', label=knockDirLabel, type='enum', options={'radial','directional'}, value=knockback.direction or 'radial' })
+
+      local knockFalloffLabel = isOverridden('knockback', 'falloff') and 'Force Falloff *' or 'Force Falloff'
+      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='knockback', dynKey='falloff', label=knockFalloffLabel, type='enum', options={'linear','quadratic'}, value=knockback.falloff or 'linear' })
+      
       -- Save / Reset buttons are represented as hints for now
       table.insert(categories['Anim Card'], { kind='hint', text='Shift+S: save anim overrides | Shift+R: reset this card | * = overridden' })
     end
@@ -585,6 +605,8 @@ function Overlay.applyDynamicChange(owner, def, value)
     AnimationSpecs.setCardSpec(cardDef.id, { flight = { [def.dynKey] = value } })
   elseif def.dynGroup == 'impact' then
     AnimationSpecs.setCardSpec(cardDef.id, { impact = { [def.dynKey] = value } })
+  elseif def.dynGroup == 'knockback' then
+    AnimationSpecs.setCardSpec(cardDef.id, { knockback = { [def.dynKey] = value } })
   end
 end
 
