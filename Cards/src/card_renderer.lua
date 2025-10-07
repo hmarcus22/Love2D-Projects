@@ -89,6 +89,14 @@ end
 
 -- Draw card using pre-rendered texture (scale like card art)
 function CardRenderer.drawWithTexture(card)
+    -- Process resolve animations first
+    CardRenderer.processResolveAnimation(card)
+    
+    -- Ensure card has player reference for combo checking
+    if not card.player then
+        CardRenderer.ensurePlayerReference(card)
+    end
+    
     local x = (card.animX ~= nil) and card.animX or card.x
     local y = (card.animY ~= nil) and card.animY or card.y
     local w, h = card.w, card.h
@@ -127,9 +135,11 @@ function CardRenderer.drawWithTexture(card)
     love.graphics.scale(scaleX, scaleY)
     love.graphics.translate(-w/2, -h/2)
     
-    -- Apply card alpha for fade effects
+    -- Apply card alpha for fade effects (including resolve animation alpha)
     local alpha = card.alpha or 1.0
-    love.graphics.setColor(1, 1, 1, alpha)
+    local animAlpha = card.animAlpha or 1.0
+    local finalAlpha = alpha * animAlpha
+    love.graphics.setColor(1, 1, 1, finalAlpha)
     love.graphics.draw(texture, 0, 0, 0, scale, scale)
     
     love.graphics.pop()
@@ -180,6 +190,42 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
         end
         
         love.graphics.rectangle("line", x - 4, y - 4, w + 8, h + 8, 12, 12)
+        love.graphics.setLineWidth(1)
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.pop()
+        end
+        
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
+    -- Combo glow - green to white cycling animation when combo is available
+    if card.player and card.player.canPlayCombo and card.player:canPlayCombo(card.definition) then
+        local comboGlowCfg = (Config.layout and Config.layout.comboGlow) or {}
+        local time = love.timer.getTime()
+        local cycle = math.sin(time * (comboGlowCfg.cycleSpeed or 3)) * 0.5 + 0.5  -- 0 to 1 sine wave
+        
+        -- Interpolate between green and white
+        local green = comboGlowCfg.greenColor or {0.2, 1.0, 0.3, 0.9}
+        local white = comboGlowCfg.whiteColor or {1.0, 1.0, 1.0, 0.9}
+        local r = green[1] + (white[1] - green[1]) * cycle
+        local g = green[2] + (white[2] - green[2]) * cycle
+        local b = green[3] + (white[3] - green[3]) * cycle
+        local a = green[4] + (white[4] - green[4]) * cycle
+        
+        love.graphics.setColor(r, g, b, a)
+        love.graphics.setLineWidth(comboGlowCfg.width or 4)
+        
+        if scaleX ~= 1 or scaleY ~= 1 then
+            love.graphics.push()
+            love.graphics.translate(cx, cy)
+            love.graphics.scale(scaleX, scaleY)
+            love.graphics.translate(-cx, -cy)
+        end
+        
+        local offset = comboGlowCfg.borderOffset or 6
+        local radius = comboGlowCfg.borderRadius or 15
+        love.graphics.rectangle("line", x - offset, y - offset, w + offset*2, h + offset*2, radius, radius)
         love.graphics.setLineWidth(1)
         
         if scaleX ~= 1 or scaleY ~= 1 then
@@ -253,6 +299,14 @@ end
 
 -- Direct rendering (for texture generation) - SIMPLIFIED with configurable fonts
 function CardRenderer.drawDirect(card)
+    -- Process resolve animations first  
+    CardRenderer.processResolveAnimation(card)
+    
+    -- Ensure card has player reference for combo checking
+    if not card.player then
+        CardRenderer.ensurePlayerReference(card)
+    end
+    
     local x = (card.animX ~= nil) and card.animX or card.x
     local y = (card.animY ~= nil) and card.animY or card.y
     local w, h = card.w, card.h
@@ -559,6 +613,134 @@ function CardRenderer.drawDebugInfo()
     love.graphics.setColor(1, 1, 1, 1)
     for i, line in ipairs(lines) do
         love.graphics.print(line, x, y + (i - 1) * lineHeight)
+    end
+end
+
+-- Helper function to ensure card has player reference for combo checking
+function CardRenderer.ensurePlayerReference(card)
+    if card.player then return end
+    
+    -- Try to find the player this card belongs to
+    local gameState = _G.gameState or _G.gs
+    if not gameState or not gameState.players then return end
+    
+    for _, player in ipairs(gameState.players) do
+        -- Check board slots
+        if player.boardSlots then
+            for slotIndex, slot in ipairs(player.boardSlots) do
+                if slot.card == card then
+                    card.player = player
+                    return
+                end
+            end
+        end
+        
+        -- Check hand slots
+        if player.slots then
+            for _, slot in ipairs(player.slots) do
+                if slot.card == card then
+                    card.player = player
+                    return
+                end
+            end
+        end
+    end
+end
+
+-- Process resolve animations and update card position
+function CardRenderer.processResolveAnimation(card)
+    if not card.resolveAnimation then return end
+    
+    local anim = card.resolveAnimation
+    local currentTime = love.timer.getTime()
+    local elapsed = currentTime - anim.startTime
+    local progress = math.min(elapsed / anim.duration, 1.0)
+    
+    if progress >= 1.0 then
+        -- Animation complete, clear it
+        card.resolveAnimation = nil
+        card.animX = nil
+        card.animY = nil
+        card.animAlpha = nil  -- Clear alpha override
+        return
+    end
+    
+    -- Apply animation based on type
+    if anim.type == "attack_strike" then
+        -- Ultra-snappy attack animation: lightning strike, brief hold + shake, instant snap back
+        local strikeDistance = 25  -- Increased for more impact
+        
+        -- Determine attack direction based on attacker position
+        -- Current player (bottom) attacks UP toward opponent (top)
+        -- Opponent (top) attacks DOWN toward current player (bottom) 
+        local attackDirection = (anim.attackerIndex == anim.currentPlayerIndex) and -1 or 1
+        
+        if progress < 0.2 then
+            -- Lightning strike forward (0-0.2) - ultra fast
+            local forwardProgress = progress / 0.2
+            local easeOut = 1 - math.pow(1 - forwardProgress, 5)  -- Extremely quick acceleration
+            local offset = strikeDistance * easeOut
+            card.animY = card.y + (offset * attackDirection)
+            card.animAlpha = 1.0  -- Full opacity during strike
+            
+        elseif progress < 0.4 then
+            -- Brief hold with intense shake + fade out (0.2-0.4) - impact moment
+            local shakeProgress = (progress - 0.2) / 0.2
+            local shakeIntensity = 2.5 * (1 - shakeProgress * 0.3)  -- Intense shake with slower fade
+            local shakeOffset = math.sin(shakeProgress * math.pi * 18) * shakeIntensity  -- Very high frequency
+            card.animY = card.y + (strikeDistance * attackDirection) + shakeOffset
+            
+            -- Fade out during shake phase
+            card.animAlpha = 1.0 - (shakeProgress * 0.8)  -- Fade to 20% opacity
+            
+        else
+            -- Immediate return to position with fade in (0.4+) - dramatic reappearance
+            card.animY = card.y
+            
+            -- Quick fade in from the return point
+            local fadeProgress = math.min((progress - 0.4) / 0.1, 1.0)  -- Fade in over 10% of animation
+            card.animAlpha = 0.2 + (fadeProgress * 0.8)  -- From 20% to 100% opacity
+        end
+        
+    elseif anim.type == "defensive_push" then
+        -- Realistic defensive reaction: delay, then push back, hold + shake, recover
+        local pushDistance = 18 * (anim.pushIntensity or 0.5)  -- Slightly increased base distance
+        
+        -- Determine push direction based on defender position
+        -- Current player (bottom) gets pushed DOWN when attacked
+        -- Opponent (top) gets pushed UP when attacked
+        local pushDirection = (anim.defenderIndex == anim.currentPlayerIndex) and 1 or -1
+        
+        if progress < 0.15 then
+            -- Reaction delay (0-0.15) - brief moment before reacting to hit
+            -- Card stays in original position, maybe slight anticipation
+            local anticipation = math.sin(progress / 0.15 * math.pi) * 0.5  -- Tiny pre-movement
+            card.animY = card.y + (anticipation * pushDirection * 0.3)
+            
+        elseif progress < 0.45 then
+            -- Sudden push back (0.15-0.45) - reactive movement after delay
+            local pushProgress = (progress - 0.15) / 0.3
+            local easeOut = 1 - math.pow(1 - pushProgress, 2.5)  -- Quick reactive push
+            local offset = pushDistance * easeOut
+            card.animY = card.y + (offset * pushDirection)
+            card.animAlpha = 1.0  -- Keep full opacity for defensive animations
+            
+        elseif progress < 0.75 then
+            -- Hold with defensive shake (0.45-0.75) - recoiling from impact
+            local shakeProgress = (progress - 0.45) / 0.3
+            local shakeIntensity = 1.8 * (1 - shakeProgress)  -- Slightly more intense shake
+            local shakeOffset = math.sin(shakeProgress * math.pi * 10) * shakeIntensity  -- Higher frequency
+            card.animY = card.y + (pushDistance * pushDirection) + (shakeOffset * pushDirection)
+            card.animAlpha = 1.0  -- Keep full opacity for defensive animations
+            
+        else
+            -- Recovery return (0.75-1.0) - gradual recovery
+            local returnProgress = (progress - 0.75) / 0.25
+            local easeIn = math.pow(returnProgress, 2)  -- Smooth recovery
+            local offset = pushDistance * (1 - easeIn)
+            card.animY = card.y + (offset * pushDirection)
+            card.animAlpha = 1.0  -- Keep full opacity for defensive animations
+        end
     end
 end
 

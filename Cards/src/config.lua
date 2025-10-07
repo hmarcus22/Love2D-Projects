@@ -164,6 +164,15 @@ local defaults = {
       width = 3,
       extraWidth = 2,
     },
+    -- Combo glow styling (green to white cycling)
+    comboGlow = {
+      greenColor = {0.2, 1.0, 0.3, 0.9},
+      whiteColor = {1.0, 1.0, 1.0, 0.9},
+      cycleSpeed = 3,  -- cycles per second
+      width = 4,
+      borderRadius = 15,
+      borderOffset = 6,
+    },
     -- Card text panel opacities
     cardNamePanelAlpha = 0.78,
     cardStatsPanelAlpha = 0.66,

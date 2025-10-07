@@ -104,6 +104,9 @@ function Resolve.resolveAttackStep(self, slotIndex)
             local attack = math.floor(baseAttack * mult)
 
             if attack > 0 then
+                -- ATTACK ANIMATION: Card strikes forward toward target
+                Resolve.triggerAttackAnimation(self, srcSlot.card, attackerIndex, slotIndex)
+                
                 local targets = Targeting.collectAttackTargets(self, attackerIndex, slotIndex)
                 for _, target in ipairs(targets) do
                     local defenderIndex = target.player
@@ -140,6 +143,11 @@ function Resolve.resolveAttackStep(self, slotIndex)
                                 local damage = math.max(0, attack - absorbed)
                                 if damage > 0 then
                                     defender.health = math.max(0, (defender.health or defender.maxHealth or 20) - damage)
+                                end
+                                
+                                -- DEFENSIVE ANIMATION: Push back when taking damage, intensity based on block absorbed
+                                if defenderSlot and defenderSlot.card then
+                                    Resolve.triggerDefensiveAnimation(self, defenderSlot.card, defenderIndex, target.slot, absorbed, damage)
                                 end
 
                                 if self.addLog then
@@ -405,5 +413,72 @@ end
         return total
     end
 
-    return Resolve
+-- Animation functions for resolve combat
+function Resolve.triggerAttackAnimation(gameState, card, attackerIndex, slotIndex)
+    if not card then return end
+    
+    -- ATTACK STRIKE: Card moves forward toward enemy, then snaps back
+    local animationData = {
+        type = "attack_strike",
+        duration = 0.3,  -- Quicker, snappier timing
+        startTime = love.timer.getTime(),
+        attackerIndex = attackerIndex,
+        slotIndex = slotIndex,
+        currentPlayerIndex = gameState.currentPlayer or 1
+    }
+    
+    -- Add to card for rendering
+    card.resolveAnimation = animationData
+    
+    if gameState.addLog then
+        gameState:addLog(string.format(">> %s strikes!", card.name or "Card"))
+    end
+end
 
+function Resolve.triggerDefensiveAnimation(gameState, card, defenderIndex, slotIndex, blockAbsorbed, damageDealt)
+    if not card then return end
+    
+    -- Don't override attack animations that are still playing
+    if card.resolveAnimation and card.resolveAnimation.type == "attack_strike" then
+        local elapsed = love.timer.getTime() - card.resolveAnimation.startTime
+        local attackProgress = elapsed / card.resolveAnimation.duration
+        
+        -- Only override if attack animation is nearly complete (>90%)
+        if attackProgress < 0.9 then
+            if gameState.addLog then
+                gameState:addLog(string.format(">> %s strikes and takes damage!", card.name or "Card"))
+            end
+            return  -- Don't override the attack animation
+        end
+    end
+    
+    -- DEFENSIVE PUSH: Card gets pushed back based on damage taken
+    -- More block absorbed = less push back, more damage = more push back
+    local pushIntensity = 0.3 + (damageDealt * 0.1)  -- Base 0.3, +0.1 per damage
+    if blockAbsorbed > 0 then
+        pushIntensity = pushIntensity * 0.7  -- Reduce push if block absorbed some damage
+    end
+    
+    local animationData = {
+        type = "defensive_push",
+        duration = 0.35,  -- Slightly longer to accommodate reaction delay
+        startTime = love.timer.getTime(),
+        defenderIndex = defenderIndex,
+        slotIndex = slotIndex,
+        pushIntensity = math.min(pushIntensity, 1.0),  -- Cap at 1.0
+        currentPlayerIndex = gameState.currentPlayer or 1
+    }
+    
+    -- Add to card for rendering
+    card.resolveAnimation = animationData
+    
+    if gameState.addLog then
+        if blockAbsorbed > 0 then
+            gameState:addLog(string.format(">> %s blocks and staggers!", card.name or "Card"))
+        else
+            gameState:addLog(string.format(">> %s is pushed back!", card.name or "Card"))
+        end
+    end
+end
+
+return Resolve

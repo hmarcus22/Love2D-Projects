@@ -36,7 +36,7 @@
     {
         id = "counter",
         name = "Counter",
-        description = "Gain 2 guard. When this card is attacked, deal 2 damage back to the attacker.",
+        description = "DEFENSIVE: Block 2 damage. COUNTER: Deal 2 damage back when attacked.",
         cost = 2,
         attack = 0,  -- No offensive attack - purely defensive
         block = 2,   -- Primary purpose: always provides 2 block
@@ -119,7 +119,7 @@ local fighterCards = {
     {
         id = "ground_pound",
         name = "Ground Pound",
-        description = "Combo: Play after Guard Hands for +3 attack.",
+        description = "COMBO: Play after Guard Hands for 3+3=6 attack.",
         cost = 2,
         attack = 3,
         combo = { after = "block", bonus = { attack = 3 } },
@@ -138,7 +138,7 @@ local fighterCards = {
     {
         id = "counterplay",
         name = "Counterplay",
-        description = "Combo: Play after Feint for +2 attack and +2 guard.",
+        description = "COMBO: Play after Feint for 2+2=4 attack AND 2+2=4 block.",
         cost = 2,
         attack = 2,
         block = 2,
@@ -158,7 +158,7 @@ local fighterCards = {
     {
         id = "wild_swing",
         name = "Wild Swing",
-        description = "Combo: Play after Corner Rally for +2 attack (but -1 block next round).",
+        description = "COMBO: Play after Corner Rally for 2+2=4 attack, but -1 block next round.",
         cost = 2,
         attack = 2,
         combo = { after = "rally", bonus = { attack = 2 }, penalty = { block = -1, nextRound = true } },
@@ -181,7 +181,7 @@ local extraFighterCards = {
     {
         id = "shadow_step",
         name = "Shadow Step",
-        description = "Combo: Play after Feint for a free attack.",
+        description = "COMBO: Play after Feint for 3+2=5 attack.",
         cost = 2,
         attack = 3,
         combo = { after = "feint", bonus = { attack = 2 } },
@@ -210,7 +210,7 @@ local extraFighterCards = {
     {
         id = "jab_cross",
         name = "Jab-Cross",
-        description = "Combo: Play after Quick Jab for +2 damage.",
+        description = "COMBO: Play after Quick Jab for 4+2=6 attack.",
         cost = 2,
         attack = 4,
         combo = { after = "punch", bonus = { attack = 2 } },
@@ -219,7 +219,7 @@ local extraFighterCards = {
     {
         id = "counterpunch",
         name = "Counterpunch",
-        description = "Signature boxer counter. Block 3 and retaliate with 3 damage when attacked.",
+        description = "DEFENSIVE: Block 3 damage. COUNTER: Deal 3 damage back when attacked.",
         cost = 3,     -- Higher cost for premium version
         attack = 0,   -- No offensive attack - purely defensive
         block = 3,    -- Better block than basic counter
@@ -241,7 +241,7 @@ local extraFighterCards = {
     {
         id = "suplex",
         name = "Suplex",
-        description = "Combo: Play after Guard Hands for extra damage and guard.",
+        description = "COMBO: Play after Guard Hands for 3+2=5 attack AND 2+2=4 block.",
         cost = 2,
         attack = 3,
         block = 2,
@@ -273,7 +273,7 @@ local extraFighterCards = {
     {
         id = "focus_strike",
         name = "Focus Strike",
-        description = "Combo: Play after Guard Hands for +2 attack.",
+        description = "COMBO: Play after Guard Hands for 3+2=5 attack.",
         cost = 2,
         attack = 3,
         combo = { after = "block", bonus = { attack = 2 } },
@@ -302,7 +302,7 @@ local extraFighterCards = {
     {
         id = "bottle_smash",
         name = "Bottle Smash",
-        description = "Deal 4 damage. If played after Corner Rally, gain +2 attack.",
+        description = "COMBO: Play after Corner Rally for 4+2=6 attack.",
         cost = 2,
         attack = 4,
         combo = { after = "rally", bonus = { attack = 2 } },

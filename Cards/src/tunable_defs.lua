@@ -97,6 +97,9 @@ local defs = {
   -- Layout glow and panels
   { path = 'layout.hoverGlow.width',     label='Glow Width',        type='number', min=0, max=10, step=0.5,         context='all', category='Layout Glow' },
   { path = 'layout.hoverGlow.extraWidth',label='Glow Extra Width',  type='number', min=0, max=10, step=0.5,         context='all', category='Layout Glow' },
+  { path = 'layout.comboGlow.cycleSpeed',label='Combo Cycle Speed', type='number', min=1, max=10, step=0.5,         context='all', category='Layout Glow' },
+  { path = 'layout.comboGlow.width',     label='Combo Glow Width',  type='number', min=1, max=10, step=0.5,         context='all', category='Layout Glow' },
+  { path = 'layout.comboGlow.borderOffset', label='Combo Border Offset', type='number', min=2, max=15, step=1,    context='all', category='Layout Glow' },
   { path = 'layout.cardNamePanelAlpha',  label='Name Panel Alpha',  type='number', min=0, max=1, step=0.01,         context='all', category='Layout Panels' },
   { path = 'layout.cardStatsPanelAlpha', label='Stats Panel Alpha', type='number', min=0, max=1, step=0.01,         context='all', category='Layout Panels' },
   { path = 'layout.cardDescPanelAlpha',  label='Desc Panel Alpha',  type='number', min=0, max=1, step=0.01,         context='all', category='Layout Panels' },
@@ -111,6 +114,8 @@ local defs = {
   { path = 'colors.deckPopupBg',      label = 'Deck Popup BG',      type = 'color',                                 context = 'all',  category = 'Colors' },
   { path = 'colors.deckPopupBorder',  label = 'Deck Popup Border',  type = 'color',                                 context = 'all',  category = 'Colors' },
   { path = 'layout.hoverGlow.color',  label = 'Hover Glow',         type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'layout.comboGlow.greenColor', label = 'Combo Green',    type = 'color',                                 context = 'all',  category = 'Colors' },
+  { path = 'layout.comboGlow.whiteColor', label = 'Combo White',    type = 'color',                                 context = 'all',  category = 'Colors' },
 }
 
 return defs
