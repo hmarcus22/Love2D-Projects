@@ -159,6 +159,7 @@ function anim_lab:setupCombo(setupCardId, comboCardId, comboName, attackCardId)
   if attackCardId then
     local attackCard = CardFactory.createCard(attackCardId)
     if attackCard then
+      attackCard.faceUp = true  -- Ensure card is face-up
       player:addCard(attackCard)
       print("  → Added " .. (attackCard.definition.name or attackCardId) .. " to hand")
     end
@@ -167,6 +168,7 @@ function anim_lab:setupCombo(setupCardId, comboCardId, comboName, attackCardId)
   -- Add setup card to hand
   local setupCard = CardFactory.createCard(setupCardId)
   if setupCard then
+    setupCard.faceUp = true  -- Ensure card is face-up
     player:addCard(setupCard)
     print("  → Added " .. (setupCard.definition.name or setupCardId) .. " to hand")
   end
@@ -174,6 +176,7 @@ function anim_lab:setupCombo(setupCardId, comboCardId, comboName, attackCardId)
   -- Add combo card to hand
   local comboCard = CardFactory.createCard(comboCardId)
   if comboCard then
+    comboCard.faceUp = true  -- Ensure card is face-up
     player:addCard(comboCard)
     print("  → Added " .. (comboCard.definition.name or comboCardId) .. " to hand")
     if attackCardId then
@@ -201,6 +204,19 @@ function anim_lab:update(dt)
   -- Ensure we're in play phase for card playing
   if self.gs.phase ~= "play" then
     self.gs.phase = "play"
+  end
+  
+  -- Force all hand cards to stay face-up (prevent flipping in animation lab)
+  local player = self.gs:getCurrentPlayer()
+  if player and player.slots then
+    for _, slot in ipairs(player.slots) do
+      if slot.card then
+        slot.card.faceUp = true
+        if not slot.card.player then
+          slot.card.player = player
+        end
+      end
+    end
   end
   
   -- Check for auto-refill (only when hand is completely empty)
@@ -512,6 +528,9 @@ function anim_lab:mousereleased(x,y,button)
     end
   end
   
+  -- Store the card being dropped for potential handleCardPlayed call
+  local droppedCard = self.gs.draggingCard
+  
   Input:mousereleased(self.gs, vx, vy, button)
   
   -- Debug: Check if card was successfully played
@@ -519,6 +538,48 @@ function anim_lab:mousereleased(x,y,button)
     print("  Card still dragging - drop failed")
   else
     print("  Card no longer dragging - likely played successfully")
+    
+    -- Animation lab: manually call handleCardPlayed to update prevCardId for combo tracking
+    if droppedCard then
+      print("  DEBUG: droppedCard found:", droppedCard.id)
+      local player = self.gs:getCurrentPlayer()
+      if player then
+        print("  DEBUG: player found, checking if card was played...")
+        
+        -- Check if this was a modifier card (won't appear on board)
+        local def = droppedCard.definition or {}
+        local isModifier = def.mod ~= nil
+        
+        if isModifier then
+          -- Modifier cards don't stay on board, so call handleCardPlayed immediately
+          self.gs:handleCardPlayed(player, droppedCard, nil)
+          print("  *** handleCardPlayed called for modifier card", droppedCard.id)
+          print("  *** prevCardId is now:", player.prevCardId)
+        else
+          -- Regular cards: find which board slot the card was placed in by comparing card IDs
+          local foundSlot = false
+          for slotIndex, slot in ipairs(player.boardSlots or {}) do
+            print("    Slot", slotIndex, "has card:", slot.card and slot.card.id or "none")
+            if slot.card and slot.card.id == droppedCard.id then
+              -- Call handleCardPlayed to update game state for combo tracking
+              self.gs:handleCardPlayed(player, slot.card, slotIndex)
+              print("  *** handleCardPlayed called for", slot.card.id, "in slot", slotIndex)
+              print("  *** prevCardId is now:", player.prevCardId)
+              foundSlot = true
+              break
+            end
+          end
+          if not foundSlot then
+            print("  WARNING: Could not find dropped card on board!")
+          end
+        end
+      else
+        print("  ERROR: No current player found!")
+      end
+    else
+      print("  DEBUG: No droppedCard to process")
+    end
+    
     -- Check where the cards actually are now
     local player = self.gs:getCurrentPlayer()
     if player then
@@ -536,6 +597,29 @@ function anim_lab:mousereleased(x,y,button)
   
   -- Force current player back to original after input (prevents turn switching in lab)
   self.gs.currentPlayer = originalPlayer
+  
+  -- After a successful play, ensure all remaining cards have proper player references
+  local player = self.gs:getCurrentPlayer()
+  if player and player.slots then
+    for _, slot in ipairs(player.slots) do
+      if slot.card then
+        if not slot.card.player then
+          slot.card.player = player
+          print("Fixed missing player reference for card:", slot.card.id)
+        end
+        -- Ensure cards remain face-up in hand
+        if not slot.card.faceUp then
+          slot.card.faceUp = true
+          print("Fixed faceUp state for card:", slot.card.id)
+        end
+      end
+    end
+  end
+  
+  -- Clear any stuck hover states
+  if self.gs.hoveredCard then
+    self.gs.hoveredCard = nil
+  end
   
   -- After a successful play, auto-refill may add new copy next update
 end

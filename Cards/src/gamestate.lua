@@ -128,7 +128,8 @@ function GameState:handleCardPlayed(player, card, slotIndex)
     if not player or not card then
         return
     end
-    player.prevCardId = player.lastCardId
+    -- Set prevCardId to the card that was just played (for combo detection)
+    player.prevCardId = card.id
     player.lastCardId = card.id
     if card.id == "punch" then
         player.roundPunchCount = (player.roundPunchCount or 0) + 1

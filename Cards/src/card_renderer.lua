@@ -201,10 +201,11 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
 
     -- Combo glow - green to white cycling animation when combo is available
     if card.player and card.player.canPlayCombo and card.player:canPlayCombo(card.definition) then
-        -- Debug output (remove this later)
-        if not card._comboDebugLogged then
+        -- Debug output to track combo glow (limited frequency)
+        local currentTime = love.timer.getTime()
+        if not card._lastComboGlowLog or currentTime - card._lastComboGlowLog > 1 then
             print("COMBO GLOW: Rendering for card", card.id or "unknown")
-            card._comboDebugLogged = true
+            card._lastComboGlowLog = currentTime
         end
         
         local comboGlowCfg = (Config.layout and Config.layout.comboGlow) or {}
@@ -241,8 +242,8 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
         love.graphics.setColor(1, 1, 1, 1)
     else
         -- Debug: Check why combo glow is not showing
-        if card.id == "jab_cross" and not card._debugLogged then
-            print("DEBUG jab_cross: player=", card.player and "yes" or "no")
+        if (card.id == "jab_cross" or card.id == "counterplay") then
+            print("DEBUG", card.id, ": player=", card.player and "yes" or "no")
             if card.player then
                 print("  canPlayCombo function=", card.player.canPlayCombo and "yes" or "no")
                 if card.player.canPlayCombo then
@@ -251,10 +252,10 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
                     print("  card.definition=", card.definition and "yes" or "no")
                     if card.definition and card.definition.combo then
                         print("  combo.after=", card.definition.combo.after)
+                        print("  Match?", card.player.prevCardId == card.definition.combo.after)
                     end
                 end
             end
-            card._debugLogged = true
         end
     end
 
