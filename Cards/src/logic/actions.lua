@@ -299,6 +299,12 @@ end
 function Actions.discardCard(self, card)
     local player = card.owner
     if not player then return false end
+    
+    -- UNIFIED: Remove card from board state animation system
+    if self.animations and self.animations.removeCardFromBoard then
+        self.animations:removeCardFromBoard(card)
+    end
+    
     -- Remove card from hand
     if card.slotIndex and player.slots[card.slotIndex] and player.slots[card.slotIndex].card == card then
         player.slots[card.slotIndex].card = nil

@@ -605,4 +605,9 @@ function anim_lab:mousereleased(x,y,button)
   end
 end
 
+function anim_lab:wheelmoved(x, y)
+  -- Pass wheel events to tuner overlay for scrolling
+  TunerOverlay.wheelmoved(x, y)
+end
+
 return anim_lab

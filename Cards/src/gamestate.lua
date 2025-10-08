@@ -11,7 +11,7 @@ local BoardRenderer = require "src.renderers.board_renderer"
 local HudRenderer = require "src.renderers.hud_renderer"
 local ResolveRenderer = require "src.renderers.resolve_renderer"
 local Resolve = require "src.logic.resolve"
-local AnimationManager = require "src.animation_manager"
+local AnimationManager = require "src.unified_animation_adapter" -- UNIFIED: Using new animation system
 local CardRenderer = require "src.card_renderer"
 local RoundManager = require "src.logic.round_manager"
 local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
@@ -727,6 +727,11 @@ function GameState:placeCardWithoutAdvancing(player, card, slotIndex)
     if self.logger then
         self.logger:log_event("card_placed", { player = id, card = card.name or "unknown", slot = slotIndex })
     end
+    
+    -- UNIFIED: Add card to board state animation system
+    if self.animations and self.animations.addCardToBoard then
+        self.animations:addCardToBoard(card)
+    end
 end
 function GameState:onCardPlaced(player, card, slotIndex)
     -- Backwards-compatible wrapper (instant placement path)
@@ -928,9 +933,11 @@ function GameState:playCardFromHand(card, slotIndex)
     if not ok then return false end
     -- Mark slot reserved so other attempts during flight fail fast
     slot._incoming = true
-    -- Temporarily remove from hand visually
-    player.slots[card.slotIndex].card = nil
-    player:compactHand(self)
+    
+    -- DON'T remove from hand yet - keep it for animation rendering
+    -- The animation completion callback will handle the actual move
+    -- player.slots[card.slotIndex].card = nil
+    -- player:compactHand(self)
     
     -- Build turn advancement callback
     local function queueAdvance()

@@ -50,18 +50,42 @@ local defs = {
   { path = 'rules.autoDrawPerRound',  label = 'Auto Draw per Round', type = 'number', min = 0, max = 5, step = 1,   context = 'game', category = 'Rules' },
   { path = 'rules.autoDrawOnTurnStart', label = 'Auto Draw on Turn', type = 'number', min=0, max=5, step=1,         context = 'game', category = 'Rules' },
 
-  -- UI / Animation
-  { path = 'ui.cardFlightEnabled',      label = 'Card Flight Enabled',    type = 'boolean',                          context = 'game', category = 'Animation' },
-  { path = 'ui.cardFlightDuration',     label = 'Flight Duration',        type = 'number', min = 0.05, max = 1.5, step = 0.01, context = 'game', category = 'Animation' },
-  { path = 'ui.cardImpactEnabled',      label = 'Impact Enabled',         type = 'boolean',                          context = 'game', category = 'Animation' },
-  { path = 'ui.cardImpactDuration',     label = 'Impact Duration',        type = 'number', min = 0.05, max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
-  { path = 'ui.cardImpactSquashScale',  label = 'Impact Squash Scale',    type = 'number', min = 0.5,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
-  { path = 'ui.cardImpactFlashAlpha',   label = 'Impact Flash Alpha',     type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
-  { path = 'ui.cardImpactHoldExtra',    label = 'Impact Hold Extra',      type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },
-  { path = 'ui.cardFlightCurve',        label = 'Flight Curve',           type = 'enum',  options = { 'arc', 'linear' },       context = 'game', category = 'Animation' },
-  { path = 'ui.cardFlightArcHeight',    label = 'Flight Arc Height',      type = 'number', min = 0,    max = 400, step = 1,    context = 'game', category = 'Animation' },
-  { path = 'ui.cardFlightOvershoot',    label = 'Flight Overshoot',       type = 'number', min = 0,    max = 0.4, step = 0.01, context = 'game', category = 'Animation' },
-  { path = 'ui.useAnimationOverrides',  label = 'Use Anim Overrides',     type = 'boolean',                                context = 'game', category = 'Animation' },
+  -- UI / Unified Animation System
+  { path = 'ui.unifiedAnimationEnabled',   label = 'Unified Animation Enabled', type = 'boolean',                          context = 'game', category = 'Unified Animation' },
+  { path = 'ui.useUnifiedOverrides',       label = 'Use Unified Overrides',     type = 'boolean',                          context = 'game', category = 'Unified Animation' },
+  
+  -- Preparation Phase
+  { path = 'ui.preparation.enabled',       label = 'Preparation Enabled',       type = 'boolean',                          context = 'game', category = 'Preparation' },
+  { path = 'ui.preparation.duration',      label = 'Preparation Duration',      type = 'number', min = 0.05, max = 1.0, step = 0.01, context = 'game', category = 'Preparation' },
+  { path = 'ui.preparation.scale',         label = 'Preparation Scale',         type = 'number', min = 0.8,  max = 1.5, step = 0.01, context = 'game', category = 'Preparation' },
+  { path = 'ui.preparation.elevation',     label = 'Preparation Elevation',     type = 'number', min = 0,    max = 20,  step = 1,    context = 'game', category = 'Preparation' },
+  
+  -- Launch Phase  
+  { path = 'ui.launch.enabled',            label = 'Launch Enabled',            type = 'boolean',                          context = 'game', category = 'Launch' },
+  { path = 'ui.launch.duration',           label = 'Launch Duration',           type = 'number', min = 0.05, max = 0.8, step = 0.01, context = 'game', category = 'Launch' },
+  { path = 'ui.launch.angle',              label = 'Launch Angle',              type = 'number', min = 0,    max = 60,  step = 1,    context = 'game', category = 'Launch' },
+  { path = 'ui.launch.initialVelocity',    label = 'Initial Velocity',          type = 'number', min = 200,  max = 1200,step = 10,   context = 'game', category = 'Launch' },
+  
+  -- Flight Phase
+  { path = 'ui.flight.enabled',            label = 'Flight Enabled',            type = 'boolean',                          context = 'game', category = 'Flight' },
+  { path = 'ui.flight.duration',           label = 'Flight Duration',           type = 'number', min = 0.05, max = 2.0, step = 0.01, context = 'game', category = 'Flight' },
+  { path = 'ui.flight.gravity',            label = 'Flight Gravity',            type = 'number', min = 200,  max = 2000,step = 10,   context = 'game', category = 'Flight' },
+  { path = 'ui.flight.airResistance',      label = 'Air Resistance',            type = 'number', min = 0.0,  max = 0.1, step = 0.001,context = 'game', category = 'Flight' },
+  { path = 'ui.flight.trajectoryHeight',   label = 'Trajectory Height',         type = 'number', min = 0,    max = 400, step = 5,    context = 'game', category = 'Flight' },
+  
+  -- Impact Phase
+  { path = 'ui.impact.enabled',            label = 'Impact Enabled',            type = 'boolean',                          context = 'game', category = 'Impact' },
+  { path = 'ui.impact.duration',           label = 'Impact Duration',           type = 'number', min = 0.05, max = 1.0, step = 0.01, context = 'game', category = 'Impact' },
+  { path = 'ui.impact.squashScale',        label = 'Impact Squash Scale',       type = 'number', min = 0.5,  max = 1.0, step = 0.01, context = 'game', category = 'Impact' },
+  { path = 'ui.impact.bounceScale',        label = 'Impact Bounce Scale',       type = 'number', min = 1.0,  max = 2.0, step = 0.01, context = 'game', category = 'Impact' },
+  { path = 'ui.impact.shakeIntensity',     label = 'Shake Intensity',           type = 'number', min = 0,    max = 30,  step = 0.5,  context = 'game', category = 'Impact' },
+  { path = 'ui.impact.shakeDuration',      label = 'Shake Duration',            type = 'number', min = 0.0,  max = 1.0, step = 0.01, context = 'game', category = 'Impact' },
+  
+  -- Settle Phase
+  { path = 'ui.settle.enabled',            label = 'Settle Enabled',            type = 'boolean',                          context = 'game', category = 'Settle' },
+  { path = 'ui.settle.duration',           label = 'Settle Duration',           type = 'number', min = 0.05, max = 2.0, step = 0.01, context = 'game', category = 'Settle' },
+  { path = 'ui.settle.elasticity',         label = 'Settle Elasticity',         type = 'number', min = 0.1,  max = 1.0, step = 0.01, context = 'game', category = 'Settle' },
+  { path = 'ui.settle.damping',            label = 'Settle Damping',            type = 'number', min = 0.1,  max = 1.0, step = 0.01, context = 'game', category = 'Settle' },
   { path = 'ui.cardHoverBaseLift',      label = 'Hover Base Lift',        type = 'number', min = 0,    max = 120, step = 1,    context = 'game', category = 'Animation' },
   { path = 'ui.cardDragExtraLift',      label = 'Drag Extra Lift',        type = 'number', min = 0,    max = 160, step = 1,    context = 'game', category = 'Animation' },
   { path = 'ui.cardShadowMinScale',     label = 'Shadow Min Scale',       type = 'number', min = 0.2,  max = 1.0, step = 0.01, context = 'game', category = 'Animation' },

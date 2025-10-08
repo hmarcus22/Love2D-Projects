@@ -2,7 +2,7 @@ local Config = require "src.config"
 local Viewport = require "src.viewport"
 local Deep = require "src.utils.deep"
 local Tunables = require "src.tunable_defs"
-local AnimationSpecs = require 'src.animation_specs'
+local UnifiedSpecs = require 'src.unified_animation_specs'
 
 local Overlay = {
   open = false,
@@ -11,6 +11,7 @@ local Overlay = {
   active = nil,
   context = 'game',
   collapsedCategories = {}, -- Track which categories are collapsed
+  editingDefaults = false, -- Toggle between card-specific and default editing
 }
 
 local function clamp(v, a, b)
@@ -74,88 +75,278 @@ local function build_controls(context)
     end
   end
 
-  -- Inject dynamic per-card animation spec controls in anim_lab context
+  -- Inject dynamic unified animation spec controls in anim_lab context
   if context == 'anim_lab' and Overlay._labOwner and Overlay._labOwner.cards then
     local owner = Overlay._labOwner
     local def = owner.cards[owner.attackerIndex]
     if def then
       local cid = def.id
-      local spec = AnimationSpecs.getCardSpec(cid)
-      local overrides = AnimationSpecs._getCardOverrides(cid)
-      categories['Anim Card'] = categories['Anim Card'] or {}
       
-      -- Profile information header
-      local profileName = spec.flight.profile or "default"
-      local hasOverrides = AnimationSpecs._hasOverrides(cid)
-      local profileStatus = hasOverrides and " (modified)" or ""
+      -- Get base unified spec and card-specific overrides
+      local baseSpec = UnifiedSpecs.unified
+      local cardSpec = UnifiedSpecs[cid] or {}
       
-      table.insert(categories['Anim Card'], { 
+      categories['Unified Animation'] = categories['Unified Animation'] or {}
+      
+      -- Mode toggle header
+      local modeText = Overlay.editingDefaults and "EDITING: Default Animations (affects all cards)" or ("EDITING: " .. cid .. " (card-specific)")
+      table.insert(categories['Unified Animation'], { 
         kind='hint', 
-        text=string.format("Card: %s | Profile: %s%s", cid, profileName, profileStatus)
+        text=modeText
       })
       
-      -- Helper function to check if value is overridden
-      local function isOverridden(section, key)
-        return overrides[section] and overrides[section][key] ~= nil
+      -- Mode toggle button
+      local toggleText = Overlay.editingDefaults and "Switch to Card-Specific" or "Switch to Default Editing"
+      table.insert(categories['Unified Animation'], { 
+        kind='button', 
+        text=toggleText,
+        action='toggle_editing_mode'
+      })
+      
+      -- Helper function to get current value with card override or default based on mode
+      local function getCurrentValue(phase, key, defaultValue)
+        if Overlay.editingDefaults then
+          -- Editing defaults - show base spec values
+          if baseSpec[phase] and baseSpec[phase][key] ~= nil then
+            return baseSpec[phase][key]
+          end
+          return defaultValue
+        else
+          -- Editing card-specific - show card overrides or base
+          if cardSpec[phase] and cardSpec[phase][key] ~= nil then
+            return cardSpec[phase][key]
+          elseif baseSpec[phase] and baseSpec[phase][key] ~= nil then
+            return baseSpec[phase][key]
+          end
+          return defaultValue
+        end
       end
       
-      local flight = spec.flight or {}
-      local impact = spec.impact or {}
-      
-      -- Flight profile selector
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='profile', label='Flight Profile', type='enum', options={'default','slam_body'}, value=flight.profile or 'default' })
-      
-      -- Flight controls with override indicators
-      local function addFlightDyn(pathKey, label, value, min, max, step)
-        local displayLabel = isOverridden('flight', pathKey) and (label .. ' *') or label
-        table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey=pathKey, label=displayLabel, type='number', min=min, max=max, step=step, value=value })
+      -- Helper function to get nested value
+      local function getNestedValue(phase, path, defaultValue)
+        if Overlay.editingDefaults then
+          -- Editing defaults - show base spec values
+          local current = baseSpec[phase]
+          if not current then return defaultValue end
+          
+          for segment in path:gmatch("[^%.]+") do
+            if current[segment] == nil then return defaultValue end
+            current = current[segment]
+          end
+          return current or defaultValue
+        else
+          -- Editing card-specific - show card overrides or base
+          local current = cardSpec[phase] or baseSpec[phase]
+          if not current then return defaultValue end
+          
+          for segment in path:gmatch("[^%.]+") do
+            if current[segment] == nil then
+              current = baseSpec[phase]
+              if not current then return defaultValue end
+              for innerSegment in path:gmatch("[^%.]+") do
+                if current[innerSegment] == nil then return defaultValue end
+                current = current[innerSegment]
+              end
+              return current
+            end
+            current = current[segment]
+          end
+          return current or defaultValue
+        end
       end
       
-      addFlightDyn('duration', 'Duration', flight.duration or 0.35, 0.05, 2.0, 0.01)
-      addFlightDyn('overshoot', 'Overshoot', flight.overshoot or 0, 0, 0.8, 0.01)
-      addFlightDyn('arcScale', 'Arc Scale', flight.arcScale or 1, 0.05, 3.0, 0.01)
+      -- Flight Phase Controls
+      table.insert(categories['Unified Animation'], { 
+        kind='header', 
+        text="Phase 3: Flight"
+      })
       
-      local slamLabel = isOverridden('flight', 'slamStyle') and 'Slam Style *' or 'Slam Style'
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='slamStyle', label=slamLabel, type='boolean', value = flight.slamStyle or false })
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='flight', dynKey='duration', 
+        label='Flight Duration', type='number', min=0.05, max=2.0, step=0.01, 
+        value=getCurrentValue('flight', 'duration', 0.35)
+      })
       
-      local vertModeLabel = isOverridden('flight', 'verticalMode') and 'Vertical Mode *' or 'Vertical Mode'
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='flight', dynKey='verticalMode', label=vertModeLabel, type='enum', options={'standard_arc','hang_drop','plateau_drop'}, value=flight.verticalMode or 'standard_arc' })
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='flight', dynKey='trajectory.height', 
+        label='Trajectory Height', type='number', min=0, max=300, step=5, 
+        value=getNestedValue('flight', 'trajectory.height', 140)
+      })
       
-      -- Impact controls with override indicators
-      local function addImpactDyn(pathKey, label, value, min, max, step)
-        local displayLabel = isOverridden('impact', pathKey) and (label .. ' *') or label
-        table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='impact', dynKey=pathKey, label=displayLabel, type='number', min=min, max=max, step=step, value=value })
-      end
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='flight', dynKey='trajectory.type', 
+        label='Trajectory Type', type='enum', 
+        options={'ballistic', 'guided', 'straight', 'slam_drop'}, 
+        value=getNestedValue('flight', 'trajectory.type', 'ballistic')
+      })
       
-      addImpactDyn('squashScale', 'Squash Scale', impact.squashScale or 0.85, 0.5, 1.0, 0.01)
-      addImpactDyn('flashAlpha', 'Flash Alpha', impact.flashAlpha or 0.55, 0, 1, 0.01)
-      addImpactDyn('shakeMag', 'Shake Mag', impact.shakeMag or 6, 0, 20, 0.1)
-      addImpactDyn('shakeDur', 'Shake Dur', impact.shakeDur or 0.25, 0, 2, 0.01)
-      addImpactDyn('dustCount', 'Dust Count', impact.dustCount or 1, 0, 5, 1)
-      addImpactDyn('holdExtra', 'Hold Extra', impact.holdExtra or 0.1, 0, 1, 0.01)
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='flight', dynKey='physics.gravity', 
+        label='Gravity', type='number', min=200, max=2000, step=10, 
+        value=getNestedValue('flight', 'physics.gravity', 980)
+      })
       
-      -- Knockback controls
-      local knockback = spec.knockback or {}
-      local function addKnockbackDyn(pathKey, label, value, min, max, step)
-        local displayLabel = isOverridden('knockback', pathKey) and (label .. ' *') or label
-        table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='knockback', dynKey=pathKey, label=displayLabel, type='number', min=min, max=max, step=step, value=value })
-      end
-
-      local knockEnabledLabel = isOverridden('knockback', 'enabled') and 'Knockback Enabled *' or 'Knockback Enabled'
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='knockback', dynKey='enabled', label=knockEnabledLabel, type='boolean', value = knockback.enabled or false })
-
-      addKnockbackDyn('radius', 'Knockback Radius', knockback.radius or 80, 20, 200, 5)
-      addKnockbackDyn('force', 'Knockback Force', knockback.force or 50, 10, 150, 5)
-      addKnockbackDyn('duration', 'Knockback Duration', knockback.duration or 0.6, 0.1, 2.0, 0.05)
-
-      local knockDirLabel = isOverridden('knockback', 'direction') and 'Knockback Direction *' or 'Knockback Direction'
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='knockback', dynKey='direction', label=knockDirLabel, type='enum', options={'radial','directional'}, value=knockback.direction or 'radial' })
-
-      local knockFalloffLabel = isOverridden('knockback', 'falloff') and 'Force Falloff *' or 'Force Falloff'
-      table.insert(categories['Anim Card'], { _dynamic=true, dynGroup='knockback', dynKey='falloff', label=knockFalloffLabel, type='enum', options={'linear','quadratic'}, value=knockback.falloff or 'linear' })
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='flight', dynKey='physics.airResistance', 
+        label='Air Resistance', type='number', min=0.0, max=0.1, step=0.001, 
+        value=getNestedValue('flight', 'physics.airResistance', 0.02)
+      })
       
-      -- Save / Reset buttons are represented as hints for now
-      table.insert(categories['Anim Card'], { kind='hint', text='Shift+S: save anim overrides | Shift+R: reset this card | * = overridden' })
+      -- Preparation Phase Controls
+      table.insert(categories['Unified Animation'], { 
+        kind='header', 
+        text="Phase 1: Preparation"
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='preparation', dynKey='duration', 
+        label='Prep Duration', type='number', min=0.05, max=1.0, step=0.01, 
+        value=getCurrentValue('preparation', 'duration', 0.3)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='preparation', dynKey='scale', 
+        label='Prep Scale', type='number', min=0.8, max=1.5, step=0.01, 
+        value=getCurrentValue('preparation', 'scale', 1.1)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='preparation', dynKey='elevation', 
+        label='Prep Elevation', type='number', min=0, max=20, step=1, 
+        value=getCurrentValue('preparation', 'elevation', 5)
+      })
+      
+      -- Launch Phase Controls
+      table.insert(categories['Unified Animation'], { 
+        kind='header', 
+        text="Phase 2: Launch"
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='launch', dynKey='duration', 
+        label='Launch Duration', type='number', min=0.05, max=0.8, step=0.01, 
+        value=getCurrentValue('launch', 'duration', 0.2)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='launch', dynKey='angle', 
+        label='Launch Angle', type='number', min=0, max=60, step=1, 
+        value=getCurrentValue('launch', 'angle', 25)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='launch', dynKey='initialVelocity', 
+        label='Initial Velocity', type='number', min=200, max=1200, step=10, 
+        value=getCurrentValue('launch', 'initialVelocity', 800)
+      })
+      
+      -- Impact Phase Controls  
+      table.insert(categories['Unified Animation'], { 
+        kind='header', 
+        text="Phase 5: Impact"
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='impact', dynKey='duration', 
+        label='Impact Duration', type='number', min=0.05, max=1.0, step=0.01, 
+        value=getCurrentValue('impact', 'duration', 0.4)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='impact', dynKey='collision.squash', 
+        label='Squash Scale', type='number', min=0.5, max=1.0, step=0.01, 
+        value=getNestedValue('impact', 'collision.squash', 0.85)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='impact', dynKey='collision.bounce', 
+        label='Bounce Scale', type='number', min=1.0, max=2.0, step=0.01, 
+        value=getNestedValue('impact', 'collision.bounce', 1.3)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='impact', dynKey='effects.screen.shake.intensity', 
+        label='Shake Intensity', type='number', min=0, max=20, step=0.5, 
+        value=getNestedValue('impact', 'effects.screen.shake.intensity', 6)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='impact', dynKey='effects.screen.shake.duration', 
+        label='Shake Duration', type='number', min=0, max=1, step=0.01, 
+        value=getNestedValue('impact', 'effects.screen.shake.duration', 0.25)
+      })
+      
+      -- Settle Phase Controls
+      table.insert(categories['Unified Animation'], { 
+        kind='header', 
+        text="Phase 6: Settle"
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='settle', dynKey='duration', 
+        label='Settle Duration', type='number', min=0.05, max=2.0, step=0.01, 
+        value=getCurrentValue('settle', 'duration', 0.6)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='settle', dynKey='elasticity', 
+        label='Elasticity', type='number', min=0.1, max=1.0, step=0.01, 
+        value=getCurrentValue('settle', 'elasticity', 0.8)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='settle', dynKey='damping', 
+        label='Damping', type='number', min=0.1, max=1.0, step=0.01, 
+        value=getCurrentValue('settle', 'damping', 0.9)
+      })
+      
+      -- Board State Phase Controls
+      table.insert(categories['Unified Animation'], { 
+        kind='header', 
+        text="Board State Phase"
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='board_state', dynKey='idle.breathing.enabled', 
+        label='Breathing Enabled', type='boolean', 
+        value=getNestedValue('board_state', 'idle.breathing.enabled', true)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='board_state', dynKey='idle.breathing.amplitude', 
+        label='Breathing Amplitude', type='number', min=0, max=0.1, step=0.001, 
+        value=getNestedValue('board_state', 'idle.breathing.amplitude', 0.02)
+      })
+      
+      -- Game Resolve Phase Controls (for knockback-style effects)
+      table.insert(categories['Unified Animation'], { 
+        kind='header', 
+        text="Game Resolve Phase"
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='game_resolve', dynKey='area_knockback.enabled', 
+        label='Area Knockback Enabled', type='boolean', 
+        value=getNestedValue('game_resolve', 'area_knockback.enabled', false)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='game_resolve', dynKey='area_knockback.radius', 
+        label='Knockback Radius', type='number', min=50, max=800, step=10, 
+        value=getNestedValue('game_resolve', 'area_knockback.radius', 80)
+      })
+      
+      table.insert(categories['Unified Animation'], { 
+        _dynamic=true, dynGroup='game_resolve', dynKey='area_knockback.force', 
+        label='Knockback Force', type='number', min=10, max=600, step=10, 
+        value=getNestedValue('game_resolve', 'area_knockback.force', 50)
+      })
+      
+      -- Save / Reset buttons hint
+      table.insert(categories['Unified Animation'], { 
+        kind='hint', 
+        text='Shift+S: save unified anim overrides | Shift+R: reset this card'
+      })
     end
   end
 
@@ -204,6 +395,9 @@ local function build_controls(context)
           elseif d.kind == 'hint' then
             table.insert(controls, { kind='hint', text=d.text, x=innerX, y=y, w=innerW, h=rowH })
             y = y + rowH; panelH = panelH + rowH
+          elseif d.kind == 'button' then
+            table.insert(controls, { kind='button', text=d.text, action=d.action, x=innerX, y=y, w=innerW, h=rowH })
+            y = y + rowH; panelH = panelH + rowH
           end
         elseif d.type == 'number' then
           table.insert(controls, { kind='slider', def=d, value=val, x=innerX, y=y, w=innerW, h=rowH })
@@ -225,6 +419,10 @@ local function build_controls(context)
           table.insert(controls, { kind='enum', def=d, value=val, x=innerX, y=y, w=innerW, h=rowH, options=d.options or {} })
           y = y + rowH
           panelH = panelH + rowH
+        elseif d.kind == 'button' then
+          table.insert(controls, { kind='button', text=d.text, action=d.action, x=innerX, y=y, w=innerW, h=rowH })
+          y = y + rowH
+          panelH = panelH + rowH
         end
       end
     end
@@ -243,6 +441,13 @@ local function build_controls(context)
   -- Update panel height
   controls[1].h = panelH
   return controls
+end
+
+-- Toggle editing mode between defaults and card-specific
+function Overlay.toggleEditingMode()
+  Overlay.editingDefaults = not Overlay.editingDefaults
+  -- Rebuild controls to reflect new mode
+  Overlay.controls = build_controls(Overlay.context)
 end
 
 local function pointIn(x, y, r)
@@ -444,6 +649,15 @@ function Overlay.draw(context)
       love.graphics.setColor(0.85,0.85,0.85,1)
       love.graphics.printf(c.text or '', c.x, y + 6, c.w, 'center')
       love.graphics.setColor(1,1,1,1)
+    elseif c.kind == 'button' then
+      -- Draw button background
+      local bg_color = c.pressed and {0.4, 0.6, 0.4, 1} or {0.3, 0.3, 0.3, 1}
+      love.graphics.setColor(bg_color[1], bg_color[2], bg_color[3], bg_color[4])
+      love.graphics.rectangle('fill', c.x, y + 2, c.w, c.h - 4, 4, 4)
+      love.graphics.setColor(1, 1, 1, 1)
+      love.graphics.rectangle('line', c.x, y + 2, c.w, c.h - 4, 4, 4)
+      -- Draw button text
+      love.graphics.printf(c.text or '', c.x, y + 6, c.w, 'center')
     end
   end
 end
@@ -516,6 +730,18 @@ function Overlay.mousepressed(x, y, button, context, owner)
           return true
         end
       end
+    elseif c.kind == 'button' then
+      local cy = c.y - (Overlay.scroll or 0)
+      local r = { x = c.x, y = cy, w = c.w, h = c.h }
+      if pointIn(x, y, r) then
+        c.pressed = true
+        if c.action == 'toggle_editing_mode' then
+          Overlay.toggleEditingMode()
+        elseif c.action and type(c.action) == 'function' then
+          c.action()
+        end
+        return true
+      end
     elseif c.kind == 'panel' then
       local r = { x=c.x, y=c.y, w=c.w, h=c.h }
       if pointIn(x, y, r) then return true end
@@ -526,8 +752,32 @@ end
 
 function Overlay.mousereleased(x, y, button)
   if not Overlay.open then return false end
-  Overlay.active = nil
-  return true
+  
+  -- Clear button pressed states
+  for _, c in ipairs(Overlay.controls) do
+    if c.kind == 'button' then
+      c.pressed = false
+    end
+  end
+  
+  -- If we have an active control being dragged, handle it
+  if Overlay.active then
+    Overlay.active = nil
+    return true -- Consume the event since we were interacting with a control
+  end
+  
+  -- Check if the release is within the overlay panel area
+  for i = #Overlay.controls, 1, -1 do
+    local c = Overlay.controls[i]
+    if c.kind == 'panel' then
+      local r = { x=c.x, y=c.y, w=c.w, h=c.h }
+      if pointIn(x, y, r) then 
+        return true -- Consume event if released within overlay panel
+      end
+    end
+  end
+  
+  return false -- Don't consume the event, let it pass through to game systems
 end
 
 function Overlay.wheelmoved(dx, dy)
@@ -546,9 +796,9 @@ function Overlay.keypressed(key, context, owner)
   local shift = love.keyboard.isDown('lshift') or love.keyboard.isDown('rshift')
   if ctrl and (key == 's') then
     if context == 'anim_lab' and shift then
-      -- Save animation overrides
-      local AnimationSpecs = require 'src.animation_specs'
-      AnimationSpecs.saveOverrides()
+      -- Save unified animation overrides
+      local UnifiedSpecs = require 'src.unified_animation_specs'
+      UnifiedSpecs.saveOverrides()
     else
       Config.saveOverrides()
     end
@@ -557,12 +807,12 @@ function Overlay.keypressed(key, context, owner)
     -- Reset all visible tunables
     local visible = {}
     if context == 'anim_lab' and shift then
-      -- Reset current card animation spec
+      -- Reset current card unified animation spec
       if owner and owner.cards then
         local def = owner.cards[owner.attackerIndex]
         if def then
-          local AnimationSpecs = require 'src.animation_specs'
-          AnimationSpecs.resetCard(def.id)
+          local UnifiedSpecs = require 'src.unified_animation_specs'
+          UnifiedSpecs.resetCard(def.id)
         end
       end
     else
@@ -593,20 +843,37 @@ function Overlay.keypressed(key, context, owner)
   return false
 end
 
--- Apply dynamic (per-card animation) changes from overlay
+-- Apply dynamic (unified animation) changes from overlay
 function Overlay.applyDynamicChange(owner, def, value)
   if not owner or not owner.cards then return end
   local cardDef = owner.cards[owner.attackerIndex]
   if not cardDef then return end
-  local cardDef = owner.cards[owner.attackerIndex]
-  if not cardDef then return end
-  local AnimationSpecs = require 'src.animation_specs'
-  if def.dynGroup == 'flight' then
-    AnimationSpecs.setCardSpec(cardDef.id, { flight = { [def.dynKey] = value } })
-  elseif def.dynGroup == 'impact' then
-    AnimationSpecs.setCardSpec(cardDef.id, { impact = { [def.dynKey] = value } })
-  elseif def.dynGroup == 'knockback' then
-    AnimationSpecs.setCardSpec(cardDef.id, { knockback = { [def.dynKey] = value } })
+  
+  local UnifiedSpecs = require 'src.unified_animation_specs'
+  
+  -- Apply change to unified specs
+  if Overlay.editingDefaults then
+    -- Editing defaults - modify base spec
+    if def.dynGroup == 'flight' then
+      UnifiedSpecs.setDefaultProperty('flight', def.dynKey, value)
+    elseif def.dynGroup == 'impact' then
+      UnifiedSpecs.setDefaultProperty('impact', def.dynKey, value)
+    elseif def.dynGroup == 'board_state' then
+      UnifiedSpecs.setDefaultProperty('board_state', def.dynKey, value)
+    elseif def.dynGroup == 'game_resolve' then
+      UnifiedSpecs.setDefaultProperty('game_resolve', def.dynKey, value)
+    end
+  else
+    -- Editing card-specific - modify card overrides
+    if def.dynGroup == 'flight' then
+      UnifiedSpecs.setCardProperty(cardDef.id, 'flight', def.dynKey, value)
+    elseif def.dynGroup == 'impact' then
+      UnifiedSpecs.setCardProperty(cardDef.id, 'impact', def.dynKey, value)
+    elseif def.dynGroup == 'board_state' then
+      UnifiedSpecs.setCardProperty(cardDef.id, 'board_state', def.dynKey, value)
+    elseif def.dynGroup == 'game_resolve' then
+      UnifiedSpecs.setCardProperty(cardDef.id, 'game_resolve', def.dynKey, value)
+    end
   end
 end
 

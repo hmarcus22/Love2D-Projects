@@ -417,7 +417,21 @@ end
 function Resolve.triggerAttackAnimation(gameState, card, attackerIndex, slotIndex)
     if not card then return end
     
-    -- ATTACK STRIKE: Card moves forward toward enemy, then snaps back
+    -- UNIFIED: Trigger unified attack animation if available
+    if gameState.animations and gameState.animations.startAttackAnimation then
+        -- Find target card for enhanced visual effects
+        local targetCard = nil
+        if gameState.players and gameState.players[3 - attackerIndex] then
+            local enemyPlayer = gameState.players[3 - attackerIndex]
+            if enemyPlayer.boardSlots and enemyPlayer.boardSlots[slotIndex] then
+                targetCard = enemyPlayer.boardSlots[slotIndex].card
+            end
+        end
+        
+        gameState.animations:startAttackAnimation(card, targetCard)
+    end
+    
+    -- ATTACK STRIKE: Card moves forward toward enemy, then snaps back (LEGACY)
     local animationData = {
         type = "attack_strike",
         duration = 0.3,  -- Quicker, snappier timing
@@ -438,7 +452,21 @@ end
 function Resolve.triggerDefensiveAnimation(gameState, card, defenderIndex, slotIndex, blockAbsorbed, damageDealt)
     if not card then return end
     
-    -- Don't override attack animations that are still playing
+    -- UNIFIED: Trigger unified defensive animation if available
+    if gameState.animations and gameState.animations.startDefenseAnimation then
+        -- Find attacking card for enhanced visual effects
+        local attackCard = nil
+        if gameState.players and gameState.players[3 - defenderIndex] then
+            local enemyPlayer = gameState.players[3 - defenderIndex]
+            if enemyPlayer.boardSlots and enemyPlayer.boardSlots[slotIndex] then
+                attackCard = enemyPlayer.boardSlots[slotIndex].card
+            end
+        end
+        
+        gameState.animations:startDefenseAnimation(card, attackCard)
+    end
+    
+    -- Don't override attack animations that are still playing (LEGACY)
     if card.resolveAnimation and card.resolveAnimation.type == "attack_strike" then
         local elapsed = love.timer.getTime() - card.resolveAnimation.startTime
         local attackProgress = elapsed / card.resolveAnimation.duration

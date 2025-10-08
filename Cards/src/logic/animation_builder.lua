@@ -4,7 +4,7 @@
 local AnimationBuilder = {}
 local Config = require "src.config"
 
--- Build complete animation sequence for card play (flight -> impact -> glow -> optional delay)
+-- Build complete animation sequence for card play using unified animation system
 function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAdvanceTurn)
     local player = card.owner
     local slot = player.boardSlots[slotIndex]
@@ -12,9 +12,6 @@ function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAd
     -- Get positions
     local fromX, fromY = card.x, card.y
     local targetX, targetY = gameState:getBoardSlotPosition(player.id, slotIndex)
-    
-    -- Build flight parameters from config + specs
-    local flightParams = AnimationBuilder._buildFlightParams(card)
     
     -- Create placement completion handler
     local placed = false
@@ -24,69 +21,71 @@ function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAd
         slot._incoming = nil
         slot.card = card
         card.animX = nil; card.animY = nil
-        gameState:placeCardWithoutAdvancing(player, card, slotIndex)
-        gameState.currentPlayer = player.id
-        gameState:updateCardVisibility()
         
-        -- Queue impact sequence if enabled
-        if Config.ui.cardImpactEnabled and gameState.animations then
-            local impactAnim = AnimationBuilder._buildImpactAnimation(gameState, card, slotIndex, onAdvanceTurn)
-            gameState.animations:add(impactAnim)
-        else
-            onAdvanceTurn()
+        -- Remove card from hand now that animation is complete
+        if card.slotIndex and player.slots[card.slotIndex] then
+            player.slots[card.slotIndex].card = nil
+            -- Compact hand after card removal
+            for i = card.slotIndex + 1, #player.slots do
+                if player.slots[i].card then
+                    player.slots[i].card.slotIndex = i - 1
+                    player.slots[i - 1].card = player.slots[i].card
+                    player.slots[i].card = nil
+                end
+            end
         end
+        
+        if onAdvanceTurn then onAdvanceTurn() end
     end
     
-    -- Build flight animation
-    local flightAnim = {
-        type = "card_flight",
-        card = card,
-        fromX = fromX, fromY = fromY,
-        toX = targetX, toY = targetY,
-        duration = flightParams.duration,
-        arcHeight = flightParams.arcHeight,
-        overshootFactor = flightParams.overshoot,
-        slamStyle = flightParams.slamStyle,
-        verticalMode = flightParams.verticalMode,
-        onComplete = onFlightComplete
-    }
+    -- Build unified animation sequence
+    local unifiedAnim = AnimationBuilder._buildUnifiedCardPlayAnimation(card, fromX, fromY, targetX, targetY, onFlightComplete)
     
-    return { flightAnim }
+    return { unifiedAnim }
 end
 
--- Build flight parameters from config + animation specs
+-- Build flight parameters from unified animation specs (legacy function, kept for compatibility)
 function AnimationBuilder._buildFlightParams(card)
-    local duration = (Config.ui and Config.ui.cardFlightDuration) or 0.35
-    local overshoot = (Config.ui and Config.ui.cardFlightOvershoot) or 0
-    local arcHeightBase = (Config.ui and Config.ui.cardFlightArcHeight) or 140
+    local UnifiedSpecs = require 'src.unified_animation_specs'
+    
+    -- Get base unified spec
+    local baseSpec = UnifiedSpecs.unified
+    local duration = baseSpec.flight.duration
+    local arcHeight = baseSpec.flight.trajectory.height
+    local overshoot = 0 -- Will be handled by approach phase
     local slamStyle = false
     local verticalMode = nil
     
-    -- Apply per-card spec overrides if enabled
-    if Config.ui.useAnimationOverrides then
-        local AnimSpecs = require 'src.animation_specs'
-        local spec = AnimSpecs.getCardSpec(card.id)
-        if spec and spec.flight then
-            duration = spec.flight.duration or duration
-            overshoot = spec.flight.overshoot or overshoot
-            if spec.flight.arcScale and spec.flight.arcScale ~= 1 then
-                arcHeightBase = arcHeightBase * spec.flight.arcScale
+    -- Apply card-specific overrides if they exist
+    local cardSpec = UnifiedSpecs[card.id]
+    if cardSpec and cardSpec.flight then
+        duration = cardSpec.flight.duration or duration
+        if cardSpec.flight.trajectory then
+            arcHeight = cardSpec.flight.trajectory.height or arcHeight
+            if cardSpec.flight.trajectory.type == "slam_drop" then
+                slamStyle = true
             end
-            if spec.flight.slamStyle then slamStyle = true end
-            verticalMode = spec.flight.verticalMode
         end
     end
     
-    -- Determine final arc height
-    local arcHeight = 0
-    if (Config.ui and Config.ui.cardFlightCurve == 'arc') or slamStyle then
-        arcHeight = arcHeightBase
+    -- Apply any dynamic overrides from tuner overlay
+    if UnifiedSpecs._cardOverrides and UnifiedSpecs._cardOverrides[card.id] then
+        local overrides = UnifiedSpecs._cardOverrides[card.id]
+        if overrides.flight then
+            duration = overrides.flight.duration or duration
+            if overrides.flight.trajectory then
+                arcHeight = overrides.flight.trajectory.height or arcHeight
+            end
+        end
     end
+    
+    -- Determine final arc height (always use arc for now to match old behavior)
+    local finalArcHeight = arcHeight
     
     return {
         duration = duration,
         overshoot = overshoot,
-        arcHeight = arcHeight,
+        arcHeight = finalArcHeight,
         slamStyle = slamStyle,
         verticalMode = verticalMode
     }
@@ -200,6 +199,152 @@ function AnimationBuilder._buildImpactParams(card)
         shakeDur = shakeDur,
         shakeMag = shakeMag,
         dustCount = dustCount
+    }
+end
+
+-- Build unified animation sequence using the 8-phase system
+function AnimationBuilder._buildUnifiedCardPlayAnimation(card, fromX, fromY, targetX, targetY, onComplete)
+    local UnifiedSpecs = require 'src.unified_animation_specs'
+    
+    -- Get base unified spec
+    local baseSpec = UnifiedSpecs.unified
+    local cardSpec = UnifiedSpecs[card.id] or {}
+    
+    -- Apply any dynamic overrides from tuner overlay
+    local dynamicOverrides = {}
+    if UnifiedSpecs._cardOverrides and UnifiedSpecs._cardOverrides[card.id] then
+        dynamicOverrides = UnifiedSpecs._cardOverrides[card.id]
+    end
+    
+    -- Helper function to get effective value with priority: dynamic > card-specific > base
+    local function getValue(phase, path, defaultValue)
+        -- Check dynamic overrides first
+        if dynamicOverrides[phase] then
+            local current = dynamicOverrides[phase]
+            for segment in path:gmatch("[^%.]+") do
+                if current[segment] == nil then break end
+                current = current[segment]
+            end
+            if current ~= nil then return current end
+        end
+        
+        -- Check card-specific overrides
+        if cardSpec[phase] then
+            local current = cardSpec[phase]
+            for segment in path:gmatch("[^%.]+") do
+                if current[segment] == nil then break end
+                current = current[segment]
+            end
+            if current ~= nil then return current end
+        end
+        
+        -- Check base spec
+        if baseSpec[phase] then
+            local current = baseSpec[phase]
+            for segment in path:gmatch("[^%.]+") do
+                if current[segment] == nil then return defaultValue end
+                current = current[segment]
+            end
+            return current
+        end
+        
+        return defaultValue
+    end
+    
+    -- Build unified animation configuration
+    return {
+        type = "unified_card_play",
+        card = card,
+        fromX = fromX,
+        fromY = fromY,
+        targetX = targetX,
+        targetY = targetY,
+        onComplete = onComplete,
+        
+        -- Phase configurations
+        preparation = {
+            duration = getValue('preparation', 'duration', 0.3),
+            scale = getValue('preparation', 'scale', 1.1),
+            elevation = getValue('preparation', 'elevation', 5),
+            rotation = getValue('preparation', 'rotation', -5),
+            easing = getValue('preparation', 'easing', "easeOutQuad")
+        },
+        
+        launch = {
+            duration = getValue('launch', 'duration', 0.2),
+            angle = getValue('launch', 'angle', 25),
+            initialVelocity = getValue('launch', 'initialVelocity', 800),
+            acceleration = getValue('launch', 'acceleration', 200),
+            easing = getValue('launch', 'easing', "easeOutCubic")
+        },
+        
+        flight = {
+            duration = getValue('flight', 'duration', 0.35),
+            physics = {
+                gravity = getValue('flight', 'physics.gravity', 980),
+                airResistance = getValue('flight', 'physics.airResistance', 0.02),
+                mass = getValue('flight', 'physics.mass', 1.0)
+            },
+            trajectory = {
+                type = getValue('flight', 'trajectory.type', "ballistic"),
+                height = getValue('flight', 'trajectory.height', 140)
+            },
+            effects = {
+                trail = {
+                    enabled = getValue('flight', 'effects.trail.enabled', true),
+                    length = getValue('flight', 'effects.trail.length', 5),
+                    fadeTime = getValue('flight', 'effects.trail.fadeTime', 0.3)
+                },
+                rotation = {
+                    tumble = getValue('flight', 'effects.rotation.tumble', true),
+                    speed = getValue('flight', 'effects.rotation.speed', 1.5)
+                }
+            }
+        },
+        
+        approach = {
+            duration = getValue('approach', 'duration', 0.3),
+            guidingFactor = getValue('approach', 'guidingFactor', 0.5),
+            anticipation = {
+                scale = getValue('approach', 'anticipation.scale', 1.2),
+                rotation = getValue('approach', 'anticipation.rotation', 10)
+            },
+            easing = getValue('approach', 'easing', "easeOutQuart")
+        },
+        
+        impact = {
+            duration = getValue('impact', 'duration', 0.4),
+            collision = {
+                squash = getValue('impact', 'collision.squash', 0.85),
+                bounce = getValue('impact', 'collision.bounce', 1.3),
+                restitution = getValue('impact', 'collision.restitution', 0.6)
+            },
+            effects = {
+                screen = {
+                    shake = {
+                        intensity = getValue('impact', 'effects.screen.shake.intensity', 6),
+                        duration = getValue('impact', 'effects.screen.shake.duration', 0.25),
+                        frequency = getValue('impact', 'effects.screen.shake.frequency', 30)
+                    }
+                },
+                particles = {
+                    type = getValue('impact', 'effects.particles.type', "impact_sparks"),
+                    count = getValue('impact', 'effects.particles.count', 15),
+                    spread = getValue('impact', 'effects.particles.spread', 45),
+                    velocity = getValue('impact', 'effects.particles.velocity', 200)
+                }
+            }
+        },
+        
+        settle = {
+            duration = getValue('settle', 'duration', 0.6),
+            elasticity = getValue('settle', 'elasticity', 0.8),
+            damping = getValue('settle', 'damping', 0.9),
+            finalScale = getValue('settle', 'finalScale', 1.0),
+            finalRotation = getValue('settle', 'finalRotation', 0),
+            finalElevation = getValue('settle', 'finalElevation', 0),
+            easing = getValue('settle', 'easing', "easeOutElastic")
+        }
     }
 end
 

@@ -78,8 +78,6 @@ end
 function CardRenderer.draw(card)
     local useCache = (Config.ui and Config.ui.useCardTextureCache) and not card._suppressShadow
     
-
-    
     if useCache then
         CardRenderer.drawWithTexture(card)
     else
@@ -99,6 +97,11 @@ function CardRenderer.drawWithTexture(card)
     
     local x = (card.animX ~= nil) and card.animX or card.x
     local y = (card.animY ~= nil) and card.animY or card.y
+    
+    -- Debug: Show position during animations
+    if card._unifiedAnimationActive then
+        print("[CardRenderer] Drawing animated card at x=" .. x .. " y=" .. y .. " (animX=" .. (card.animX or "nil") .. " animY=" .. (card.animY or "nil") .. ")")
+    end
     local w, h = card.w, card.h
     local scaleX = card.impactScaleX or 1
     local scaleY = card.impactScaleY or 1
@@ -283,6 +286,11 @@ function CardRenderer.drawDirect(card)
     
     local x = (card.animX ~= nil) and card.animX or card.x
     local y = (card.animY ~= nil) and card.animY or card.y
+    
+    -- Debug: Show position during animations
+    if card._unifiedAnimationActive then
+        print("[CardRenderer-Direct] Drawing animated card at x=" .. x .. " y=" .. y .. " (animX=" .. (card.animX or "nil") .. " animY=" .. (card.animY or "nil") .. ")")
+    end
     local w, h = card.w, card.h
     local scaleX = card.impactScaleX or 1
     local scaleY = card.impactScaleY or 1
@@ -633,8 +641,14 @@ function CardRenderer.processResolveAnimation(card)
     if progress >= 1.0 then
         -- Animation complete, clear it
         card.resolveAnimation = nil
-        card.animX = nil
-        card.animY = nil
+        
+        -- Only clear animX/animY if they're not being managed by unified animation system
+        -- Check if card has unified animation markers that indicate active animation
+        if not (card._unifiedAnimationActive or card._animationPhase) then
+            card.animX = nil
+            card.animY = nil
+        end
+        
         card.animAlpha = nil  -- Clear alpha override
         return
     end

@@ -35,8 +35,9 @@ Every animation follows intuitive real-world phases:
 3. **Flight** - 3D trajectory simulation  
 4. **Approach** - Final targeting
 5. **Impact** - Collision and effects
-6. **Settle** - Return to rest state
-7. **Resolve** - Game logic execution
+6. **Settle** - Card reaches final position
+7. **Board State** - Ongoing animations while cards are on the board
+8. **Game Resolve** - Visual effects for game logic (damage numbers, health bars, status effects)
 
 ### ✅ Intuitive Physics Parameters
 ```lua
@@ -98,6 +99,7 @@ body_slam = {
 - **Phase-by-phase preview** in animation lab
 - **Real-time parameter tuning** for each phase
 - **Visual physics debugging** (trajectory paths, forces)
+- **Resolve animation testing** (damage numbers, health bars, status effects)
 - **A/B testing** different animation styles
 
 ## Migration Strategy
