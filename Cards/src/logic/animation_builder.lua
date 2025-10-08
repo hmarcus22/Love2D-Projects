@@ -106,10 +106,18 @@ function AnimationBuilder._buildImpactAnimation(gameState, card, slotIndex, onAd
         end
         
         -- NEW: Trigger knockback effects
-        local AnimationSpecs = require 'src.animation_specs'
+        local UnifiedSpecs = require 'src.unified_animation_specs'
         local BoardEffects = require 'src.effects.board_effects'
-        local spec = AnimationSpecs.getCardSpec(card.id)
-        if spec and spec.knockback and spec.knockback.enabled then
+        local hasKnockback = false
+        
+        -- Check unified specs for knockback capability
+        if UnifiedSpecs.cards and UnifiedSpecs.cards[card.id] and 
+           UnifiedSpecs.cards[card.id].game_resolve and 
+           UnifiedSpecs.cards[card.id].game_resolve.area_knockback then
+            hasKnockback = UnifiedSpecs.cards[card.id].game_resolve.area_knockback.enabled
+        end
+        
+        if hasKnockback then
             -- CORE LOGIC: Calculate impact coordinates
             local sx, sy = gameState:getBoardSlotPosition(player.id, slotIndex)
             local impactX = sx + card.w/2
@@ -178,8 +186,16 @@ function AnimationBuilder._buildImpactParams(card)
     
     -- Apply per-card spec overrides if enabled
     if Config.ui.useAnimationOverrides then
-        local AnimSpecs = require 'src.animation_specs'
-        local spec = AnimSpecs.getCardSpec(card.id)
+        local UnifiedSpecs = require 'src.unified_animation_specs'
+        local spec = nil
+        
+        -- Check unified specs for impact parameters
+        if UnifiedSpecs.cards and UnifiedSpecs.cards[card.id] and 
+           UnifiedSpecs.cards[card.id].impact then
+            spec = UnifiedSpecs.cards[card.id].impact
+        elseif UnifiedSpecs.unified and UnifiedSpecs.unified.impact then
+            spec = UnifiedSpecs.unified.impact
+        end
         if spec and spec.impact then
             duration = spec.impact.duration or duration
             squashScale = spec.impact.squashScale or squashScale
@@ -206,9 +222,67 @@ end
 function AnimationBuilder._buildUnifiedCardPlayAnimation(card, fromX, fromY, targetX, targetY, onComplete)
     local UnifiedSpecs = require 'src.unified_animation_specs'
     
-    -- Get base unified spec
+    -- Get base unified spec and card-specific spec
     local baseSpec = UnifiedSpecs.unified
-    local cardSpec = UnifiedSpecs[card.id] or {}
+    local cardSpec = (UnifiedSpecs.cards and UnifiedSpecs.cards[card.id]) or {}
+    
+    -- Handle baseStyle merging if present
+    local resolvedSpec = baseSpec
+    if cardSpec.baseStyle and UnifiedSpecs.styles and UnifiedSpecs.styles[cardSpec.baseStyle] then
+        -- Merge base style with card-specific overrides
+        local styleSpec = UnifiedSpecs.styles[cardSpec.baseStyle]
+        resolvedSpec = {}
+        
+        -- Deep copy base spec
+        for phase, phaseData in pairs(baseSpec) do
+            resolvedSpec[phase] = {}
+            for key, value in pairs(phaseData) do
+                if type(value) == "table" then
+                    resolvedSpec[phase][key] = {}
+                    for subKey, subValue in pairs(value) do
+                        resolvedSpec[phase][key][subKey] = subValue
+                    end
+                else
+                    resolvedSpec[phase][key] = value
+                end
+            end
+        end
+        
+        -- Apply style spec overrides
+        for phase, phaseData in pairs(styleSpec) do
+            if not resolvedSpec[phase] then resolvedSpec[phase] = {} end
+            for key, value in pairs(phaseData) do
+                if type(value) == "table" then
+                    if not resolvedSpec[phase][key] then resolvedSpec[phase][key] = {} end
+                    for subKey, subValue in pairs(value) do
+                        resolvedSpec[phase][key][subKey] = subValue
+                    end
+                else
+                    resolvedSpec[phase][key] = value
+                end
+            end
+        end
+        
+        -- Apply card-specific overrides on top
+        for phase, phaseData in pairs(cardSpec) do
+            if phase ~= "baseStyle" then -- Skip the baseStyle property itself
+                if not resolvedSpec[phase] then resolvedSpec[phase] = {} end
+                for key, value in pairs(phaseData) do
+                    if type(value) == "table" then
+                        if not resolvedSpec[phase][key] then resolvedSpec[phase][key] = {} end
+                        for subKey, subValue in pairs(value) do
+                            resolvedSpec[phase][key][subKey] = subValue
+                        end
+                    else
+                        resolvedSpec[phase][key] = value
+                    end
+                end
+            end
+        end
+    elseif cardSpec and next(cardSpec) then
+        -- No baseStyle, just use card-specific overrides on base
+        resolvedSpec = cardSpec
+    end
     
     -- Apply any dynamic overrides from tuner overlay
     local dynamicOverrides = {}
@@ -216,7 +290,7 @@ function AnimationBuilder._buildUnifiedCardPlayAnimation(card, fromX, fromY, tar
         dynamicOverrides = UnifiedSpecs._cardOverrides[card.id]
     end
     
-    -- Helper function to get effective value with priority: dynamic > card-specific > base
+    -- Helper function to get effective value with priority: dynamic > resolved spec > default
     local function getValue(phase, path, defaultValue)
         -- Check dynamic overrides first
         if dynamicOverrides[phase] then
@@ -228,19 +302,9 @@ function AnimationBuilder._buildUnifiedCardPlayAnimation(card, fromX, fromY, tar
             if current ~= nil then return current end
         end
         
-        -- Check card-specific overrides
-        if cardSpec[phase] then
-            local current = cardSpec[phase]
-            for segment in path:gmatch("[^%.]+") do
-                if current[segment] == nil then break end
-                current = current[segment]
-            end
-            if current ~= nil then return current end
-        end
-        
-        -- Check base spec
-        if baseSpec[phase] then
-            local current = baseSpec[phase]
+        -- Check resolved spec (includes baseStyle merging)
+        if resolvedSpec[phase] then
+            local current = resolvedSpec[phase]
             for segment in path:gmatch("[^%.]+") do
                 if current[segment] == nil then return defaultValue end
                 current = current[segment]

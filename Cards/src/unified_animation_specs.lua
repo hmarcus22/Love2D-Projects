@@ -192,35 +192,115 @@ specs.unified = {
 specs.styles = {
     -- Aggressive cards (attacks)
     aggressive = {
+        -- Use default flight animation (explicitly defined for compatibility)
         preparation = {
-            duration = 0.2, -- Quicker preparation
-            scale = 1.15,
-            rotation = -8
+            duration = 0.3,
+            scale = 1.1,
+            elevation = 5,
+            rotation = -5,
+            easing = "easeOutQuad"
         },
         launch = {
-            angle = 20, -- Lower angle, more direct
-            initialVelocity = 900,
-            acceleration = 300
+            duration = 0.2,
+            angle = 25,
+            initialVelocity = 800,
+            acceleration = 200,
+            easing = "easeOutCubic"
         },
         flight = {
+            duration = 0.35,
+            physics = {
+                gravity = 980,
+                airResistance = 0.02,
+                mass = 1.0
+            },
+            trajectory = {
+                type = "ballistic",
+                height = 140
+            },
             effects = {
+                trail = {
+                    enabled = true,
+                    length = 5,
+                    fadeTime = 0.3
+                },
                 rotation = {
                     tumble = true,
-                    speed = 2.0 -- Faster tumbling
+                    speed = 1.5
+                },
+                scale = {
+                    breathing = true,
+                    min = 0.95,
+                    max = 1.05
                 }
             }
         },
+        approach = {
+            duration = 0.3,
+            guidingFactor = 0.5,
+            anticipation = {
+                scale = 1.2,
+                rotation = 10
+            },
+            easing = "easeOutQuart"
+        },
         impact = {
+            duration = 0.4,
             collision = {
-                squash = 0.6, -- More dramatic squash
-                bounce = 1.4
+                squash = 0.85,
+                bounce = 1.3,
+                restitution = 0.6
             },
             effects = {
                 screen = {
                     shake = {
-                        intensity = 12, -- More screen shake
-                        duration = 0.3
+                        intensity = 6,
+                        duration = 0.25,
+                        frequency = 30
                     }
+                },
+                particles = {
+                    type = "impact_sparks",
+                    count = 15,
+                    spread = 45,
+                    velocity = 200
+                },
+                sound = "card_impact"
+            }
+        },
+        settle = {
+            duration = 0.6,
+            elasticity = 0.8,
+            damping = 0.9,
+            finalScale = 1.0,
+            finalRotation = 0,
+            finalElevation = 0,
+            easing = "easeOutElastic"
+        },
+        -- Special aggressive resolve animations
+        game_resolve = {
+            attack_strike = {
+                duration = 0.6,
+                phases = {
+                    windup = {duration = 0.2, scale = 1.15, rotation = -15},
+                    strike = {duration = 0.2, velocity = 400, target_offset = {x = 20, y = 0}},
+                    recoil = {duration = 0.2, easing = "easeOutBack"}
+                }
+            },
+            heavy_slam = {
+                duration = 0.8,
+                phases = {
+                    charge = {duration = 0.3, scale = 1.2, rotation = -20},
+                    slam = {duration = 0.3, velocity = 600, target_offset = {x = 30, y = 5}},
+                    recover = {duration = 0.2, easing = "easeOutElastic"}
+                }
+            },
+            combo_strike = {
+                duration = 1.0,
+                phases = {
+                    first_hit = {duration = 0.2, velocity = 300, target_offset = {x = 15, y = -5}},
+                    second_hit = {duration = 0.2, velocity = 350, target_offset = {x = 25, y = 5}},
+                    finish = {duration = 0.6, scale = 1.1, easing = "easeOutBack"}
                 }
             }
         }
@@ -228,39 +308,107 @@ specs.styles = {
     
     -- Defensive cards (blocks, counters)
     defensive = {
+        -- Use default flight animation (explicitly defined for compatibility)
         preparation = {
-            duration = 0.4, -- Slower, more deliberate
-            scale = 1.05,
-            elevation = 3
+            duration = 0.3,
+            scale = 1.1,
+            elevation = 5,
+            rotation = -5,
+            easing = "easeOutQuad"
         },
         launch = {
-            angle = 35, -- Higher arc
-            initialVelocity = 600,
-            acceleration = 150
+            duration = 0.2,
+            angle = 25,
+            initialVelocity = 800,
+            acceleration = 200,
+            easing = "easeOutCubic"
         },
         flight = {
+            duration = 0.35,
+            physics = {
+                gravity = 980,
+                airResistance = 0.02,
+                mass = 1.0
+            },
             trajectory = {
-                type = "guided", -- More controlled flight
-                height = 120
+                type = "ballistic",
+                height = 140
             },
             effects = {
+                trail = {
+                    enabled = true,
+                    length = 5,
+                    fadeTime = 0.3
+                },
                 rotation = {
-                    tumble = false, -- No tumbling, more stable
-                    speed = 0.5
+                    tumble = true,
+                    speed = 1.5
+                },
+                scale = {
+                    breathing = true,
+                    min = 0.95,
+                    max = 1.05
                 }
             }
         },
+        approach = {
+            duration = 0.3,
+            guidingFactor = 0.5,
+            anticipation = {
+                scale = 1.2,
+                rotation = 10
+            },
+            easing = "easeOutQuart"
+        },
         impact = {
+            duration = 0.4,
             collision = {
-                squash = 0.8, -- Less dramatic impact
-                bounce = 1.1
+                squash = 0.85,
+                bounce = 1.3,
+                restitution = 0.6
             },
             effects = {
                 screen = {
                     shake = {
-                        intensity = 4,
-                        duration = 0.15
+                        intensity = 6,
+                        duration = 0.25,
+                        frequency = 30
                     }
+                },
+                particles = {
+                    type = "impact_sparks",
+                    count = 15,
+                    spread = 45,
+                    velocity = 200
+                },
+                sound = "card_impact"
+            }
+        },
+        settle = {
+            duration = 0.6,
+            elasticity = 0.8,
+            damping = 0.9,
+            finalScale = 1.0,
+            finalRotation = 0,
+            finalElevation = 0,
+            easing = "easeOutElastic"
+        },
+        -- Special defensive resolve animations
+        game_resolve = {
+            defensive_push = {
+                duration = 0.5,
+                phases = {
+                    brace = {duration = 0.15, scale = 0.95},
+                    push = {duration = 0.2, velocity = -200},
+                    settle = {duration = 0.15, easing = "easeOutElastic"}
+                }
+            },
+            counter_stance = {
+                duration = 0.4,
+                phases = {
+                    ready = {duration = 0.1, scale = 1.05, rotation = -5},
+                    counter = {duration = 0.2, velocity = 300, target_offset = {x = -15, y = 0}},
+                    retract = {duration = 0.1, easing = "easeOutBack"}
                 }
             }
         }
@@ -414,9 +562,8 @@ specs.cards = {
         }
     },
     
-    -- Card-specific overrides (migrated from old animation_specs)
+    -- Body Slam - heavy slam attack
     body_slam = {
-        -- Use slam_body profile equivalent
         preparation = {
             duration = 0.3,
             scale = 1.2, -- More dramatic preparation
@@ -497,15 +644,15 @@ function specs.setCardProperty(cardId, phase, path, value)
     
     current[pathParts[#pathParts]] = value
     
-    -- Apply override to main specs table
-    if not specs[cardId] then
-        specs[cardId] = {}
+    -- Apply override to main specs.cards table
+    if not specs.cards[cardId] then
+        specs.cards[cardId] = {}
     end
-    if not specs[cardId][phase] then
-        specs[cardId][phase] = {}
+    if not specs.cards[cardId][phase] then
+        specs.cards[cardId][phase] = {}
     end
     
-    local target = specs[cardId][phase]
+    local target = specs.cards[cardId][phase]
     for i = 1, #pathParts - 1 do
         local part = pathParts[i]
         if not target[part] then
@@ -542,8 +689,8 @@ end
 
 function specs.getCardProperty(cardId, phase, path, defaultValue)
     -- First check card-specific overrides
-    if specs[cardId] and specs[cardId][phase] then
-        local current = specs[cardId][phase]
+    if specs.cards[cardId] and specs.cards[cardId][phase] then
+        local current = specs.cards[cardId][phase]
         for part in path:gmatch("[^%.]+") do
             if current[part] == nil then
                 break

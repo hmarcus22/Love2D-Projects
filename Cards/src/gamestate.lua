@@ -181,9 +181,15 @@ function GameState:recordSpecialEffectOnPlay(player, card, slotIndex)
         card.effectsTriggered[effect] = true
     elseif effect == "knock_off_board" then
         -- Check if this card has knockback animation - if so, defer the removal
-        local AnimSpecs = require 'src.animation_specs'
-        local spec = AnimSpecs.getCardSpec(card.id)
-        local hasKnockback = spec and spec.knockback and spec.knockback.enabled
+        local UnifiedSpecs = require 'src.unified_animation_specs'
+        local hasKnockback = false
+        
+        -- Check unified specs for knockback capability
+        if UnifiedSpecs.cards and UnifiedSpecs.cards[card.id] and 
+           UnifiedSpecs.cards[card.id].game_resolve and 
+           UnifiedSpecs.cards[card.id].game_resolve.area_knockback then
+            hasKnockback = UnifiedSpecs.cards[card.id].game_resolve.area_knockback.enabled
+        end
         
         if hasKnockback then
             -- Defer removal until knockback completes - BoardEffects will handle it

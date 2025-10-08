@@ -438,8 +438,16 @@ function anim_lab:drawCardPreview(def)
   CardRenderer.draw(previewCard)
   
   -- Animation spec info
-  local AnimSpecs = require 'src.animation_specs'
-  local spec = AnimSpecs.getCardSpec(def.id)
+  local UnifiedSpecs = require 'src.unified_animation_specs'
+  local spec = nil
+  
+  -- Get unified spec for this card
+  if UnifiedSpecs.cards and UnifiedSpecs.cards[def.id] then
+    spec = UnifiedSpecs.cards[def.id]
+  else
+    spec = UnifiedSpecs.unified
+  end
+  
   love.graphics.setColor(1,1,0.8,1)
   love.graphics.print("Animation Info:", panelX + 120, panelY + 15)
   love.graphics.setColor(0.9,0.9,0.9,1)
@@ -447,14 +455,16 @@ function anim_lab:drawCardPreview(def)
   if spec and spec.flight then
     love.graphics.print("Duration: " .. (spec.flight.duration or 'default'), panelX + 120, y)
     y = y + 15
-    love.graphics.print("Overshoot: " .. (spec.flight.overshoot or 'default'), panelX + 120, y)
+    local trajectory = spec.flight.trajectory or {}
+    love.graphics.print("Arc Height: " .. (trajectory.height or 'default'), panelX + 120, y)
     y = y + 15
-    love.graphics.print("Arc Scale: " .. (spec.flight.arcScale or 'default'), panelX + 120, y)
+    local physics = spec.flight.physics or {}
+    love.graphics.print("Gravity: " .. (physics.gravity or 'default'), panelX + 120, y)
     y = y + 15
-    love.graphics.print("Profile: " .. (spec.flight.profile or 'default'), panelX + 120, y)
+    love.graphics.print("Trajectory: " .. (trajectory.type or 'ballistic'), panelX + 120, y)
     y = y + 15
-    if spec.flight.verticalMode then
-      love.graphics.print("V-Mode: " .. spec.flight.verticalMode, panelX + 120, y)
+    if spec.baseStyle then
+      love.graphics.print("Style: " .. spec.baseStyle, panelX + 120, y)
       y = y + 15
     end
   else
