@@ -128,6 +128,11 @@ function GameState:handleCardPlayed(player, card, slotIndex)
     if not player or not card then
         return
     end
+    
+    -- Clear hover state when card is played to prevent hover highlight from persisting
+    card.handHoverTarget = 0
+    card.handHoverAmount = 0
+    
     -- Set prevCardId to the card that was just played (for combo detection)
     player.prevCardId = card.id
     player.lastCardId = card.id

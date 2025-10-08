@@ -23,17 +23,22 @@ function anim_lab:init()
   self.attackerIndex = 1
   
   -- Create single neutral player for the testing hand area
-  local testPlayer = Player{ id=1, maxHandSize=10, maxBoardCards=3 }
+  local testPlayer = Player{ id=1, maxHandSize=6, maxBoardCards=3 }
   testPlayer.deck = {}
   testPlayer.energy = 99
   
   -- Create dummy second player to maintain GameState structure
-  local dummyPlayer = Player{ id=2, maxHandSize=10, maxBoardCards=3 }
+  local dummyPlayer = Player{ id=2, maxHandSize=6, maxBoardCards=3 }
   dummyPlayer.deck = {}
   dummyPlayer.energy = 99
   
   self.gs = GameState:newFromDraft({testPlayer, dummyPlayer})
   self.gs.currentPlayer = 1 -- Always use player 1 as the "thrower"
+  
+  -- Ensure layout is properly initialized for animation lab
+  local Layout = require 'src.game_layout'
+  Layout.buildCache(self.gs)
+  self.gs:refreshLayoutPositions()
   
   -- Lab flags
   self.autoRefill = true -- auto keep a test copy in current player's hand
@@ -208,7 +213,7 @@ function anim_lab:update(dt)
   end
   
   -- Check for auto-refill (only when hand is completely empty)
-  -- Temporarily disabled for debugging: self:ensureTestCard()
+  self:ensureTestCard()
   TunerOverlay.update(dt, 'anim_lab', self)
   
   -- Update input for drag behavior (tension calculation, etc.)
@@ -236,7 +241,11 @@ end
 
 -- Draw game elements without the player info HUD
 function anim_lab:drawGameWithoutHUD()
+  -- Ensure layout cache is built and positions are current
+  local Layout = require 'src.game_layout'
+  Layout.buildCache(self.gs)
   self.gs:refreshLayoutPositions()
+  
   local r, g, b = self.gs:getTurnBackgroundColor()
   love.graphics.clear(r, g, b, 1)
   
@@ -316,29 +325,28 @@ function anim_lab:drawInfoPanels()
   
   -- Instructions
   love.graphics.setColor(1,1,0.8,1)
-  love.graphics.print("Animation Lab - Bowling Ball Style Testing", 20, 20)
+  love.graphics.print("Animation Lab - Card Interaction & Animation Testing", 20, 20)
   love.graphics.setColor(0.9,0.9,0.9,1)
   love.graphics.print("Up/Down: select card  |  Space: spawn test card  |  1-6: place prop in slot", 20, 38)
   love.graphics.print("Drag test card to any slot to see animation  |  C: clear all props", 20, 54)
   love.graphics.print("A: toggle auto-refill  |  P: toggle preview  |  T: toggle overrides  |  R: resolve phase", 20, 70)
-  love.graphics.print("7: Quick Jab → Jab-Cross  |  8: Feint → Counterplay  |  9: Rally → Wild Swing", 20, 86)
-  love.graphics.print("0: Guard → Suplex  |  -/=: More combos  |  W: show all combos", 20, 102)
+  love.graphics.print("Combo shortcuts: 7-9, 0, -, =, [  |  W: show all combos", 20, 86)
   
   -- Animation tweaking workflow
   love.graphics.setColor(1,0.8,0.8,1)
-  love.graphics.print("F10: open tuner  |  Shift+S: save custom animation  |  Shift+R: reset card", 20, 118)
+  love.graphics.print("F10: open tuner  |  Shift+S: save custom animation  |  Shift+R: reset card", 20, 102)
   
   -- Selected card info
   local def = self.cards[self.attackerIndex]
   love.graphics.setColor(1,1,1,1)
-  love.graphics.print("Selected Card: " .. (def and def.id or 'nil'), 20, 124)
-  love.graphics.print("Auto-refill: " .. (self.autoRefill and 'ON (when hand empty)' or 'OFF'), 280, 124)
-  love.graphics.print("Overrides: " .. (Config.ui.useAnimationOverrides and 'ON' or 'OFF'), 280, 140)
+  love.graphics.print("Selected Card: " .. (def and def.id or 'nil'), 20, 118)
+  love.graphics.print("Auto-refill: " .. (self.autoRefill and 'ON (when hand empty)' or 'OFF'), 280, 118)
+  love.graphics.print("Overrides: " .. (Config.ui.useAnimationOverrides and 'ON' or 'OFF'), 280, 134)
   
   -- Game phase status for testing
   local phase = self.gs and self.gs.phase or "none"
   love.graphics.setColor(0.8, 1, 0.8, 1)
-  love.graphics.print("Game Phase: " .. phase, 20, 140)
+  love.graphics.print("Game Phase: " .. phase, 20, 134)
   
   -- Slot layout guide
   love.graphics.setColor(0,0,0,0.8)
@@ -495,45 +503,19 @@ function anim_lab:mousereleased(x,y,button)
   -- Store current player before input handling
   local originalPlayer = self.gs.currentPlayer
   
-  -- Debug: Check if we're dropping a card
-  if self.gs.draggingCard then
-    print("Animation Lab: Dropping card", self.gs.draggingCard.id, "at", vx, vy)
-    print("  Phase:", self.gs.phase or "unknown")
-    print("  Current player:", self.gs.currentPlayer)
-    print("  Player energy:", self.gs:getCurrentPlayer() and self.gs:getCurrentPlayer().energy or "unknown")
-    print("  Card cost:", self.gs.draggingCard.definition and self.gs.draggingCard.definition.cost or "unknown")
-    
-    -- Check what board slots exist and their positions
-    local player = self.gs:getCurrentPlayer()
-    if player and player.boardSlots then
-      local cardW, cardH = self.gs:getCardDimensions()
-      print("  Card dimensions:", cardW, "x", cardH)
-      for i, slot in ipairs(player.boardSlots) do
-        local x, y = self.gs:getBoardSlotPosition(self.gs.currentPlayer, i)
-        local occupied = slot.card and "occupied" or "empty"
-        print("  Board slot", i, "at", x, y, "to", x+cardW, y+cardH, occupied)
-      end
-    end
-  end
-  
   -- Store the card being dropped for potential handleCardPlayed call
   local droppedCard = self.gs.draggingCard
   
   Input:mousereleased(self.gs, vx, vy, button)
   
-  -- Debug: Check if card was successfully played
+  -- Handle card placement for combo tracking
   if self.gs.draggingCard then
-    print("  Card still dragging - drop failed")
+    -- Card still dragging - drop failed
   else
-    print("  Card no longer dragging - likely played successfully")
-    
-    -- Animation lab: manually call handleCardPlayed to update prevCardId for combo tracking
+    -- Card no longer dragging - likely played successfully
     if droppedCard then
-      print("  DEBUG: droppedCard found:", droppedCard.id)
       local player = self.gs:getCurrentPlayer()
       if player then
-        print("  DEBUG: player found, checking if card was played...")
-        
         -- Check if this was a modifier card (won't appear on board)
         local def = droppedCard.definition or {}
         local isModifier = def.mod ~= nil
@@ -541,55 +523,17 @@ function anim_lab:mousereleased(x,y,button)
         if isModifier then
           -- Modifier cards don't stay on board, so call handleCardPlayed immediately
           self.gs:handleCardPlayed(player, droppedCard, nil)
-          print("  *** handleCardPlayed called for modifier card", droppedCard.id)
-          print("  *** prevCardId is now:", player.prevCardId)
         else
-          -- Regular cards: find which board slot the card was placed in by comparing card IDs
-          -- Add a small delay to ensure card placement has completed
-          love.timer.sleep(0.05) -- 50ms delay (increased)
-          local foundSlot = false
-          print("  DEBUG: Searching for card", droppedCard.id, "on board...")
+          -- Regular cards: find which board slot the card was placed in
+          love.timer.sleep(0.05) -- Small delay to ensure card placement has completed
           for slotIndex, slot in ipairs(player.boardSlots or {}) do
-            local cardInfo = slot.card and slot.card.id or "none"
-            print("    Slot", slotIndex, "has card:", cardInfo)
             if slot.card and slot.card.id == droppedCard.id then
-              -- Call handleCardPlayed to update game state for combo tracking
               self.gs:handleCardPlayed(player, slot.card, slotIndex)
-              print("  *** handleCardPlayed called for", slot.card.id, "in slot", slotIndex)
-              print("  *** prevCardId is now:", player.prevCardId)
-              foundSlot = true
               break
             end
           end
-          if not foundSlot then
-            print("  WARNING: Could not find dropped card", droppedCard.id, "on board!")
-            -- Additional debug: check if card went somewhere else
-            print("  DEBUG: Final board state check...")
-            for slotIndex, slot in ipairs(player.boardSlots or {}) do
-              local cardInfo = slot.card and slot.card.id or "none"
-              print("    Final slot", slotIndex, ":", cardInfo)
-            end
-          end
         end
-      else
-        print("  ERROR: No current player found!")
       end
-    else
-      print("  DEBUG: No droppedCard to process")
-    end
-    
-    -- Check where the cards actually are now
-    local player = self.gs:getCurrentPlayer()
-    if player then
-      local handCount = 0
-      local boardCount = 0
-      for _, slot in ipairs(player.slots or {}) do
-        if slot.card then handCount = handCount + 1 end
-      end
-      for _, slot in ipairs(player.boardSlots or {}) do
-        if slot.card then boardCount = boardCount + 1 end
-      end
-      print("  Hand cards:", handCount, "Board cards:", boardCount)
     end
   end
   
@@ -603,12 +547,10 @@ function anim_lab:mousereleased(x,y,button)
       if slot.card then
         if not slot.card.player then
           slot.card.player = player
-          print("Fixed missing player reference for card:", slot.card.id)
         end
         -- Ensure cards remain face-up in hand
         if not slot.card.faceUp then
           slot.card.faceUp = true
-          print("Fixed faceUp state for card:", slot.card.id)
         end
       end
     end
@@ -618,8 +560,6 @@ function anim_lab:mousereleased(x,y,button)
   if self.gs.hoveredCard then
     self.gs.hoveredCard = nil
   end
-  
-  -- After a successful play, auto-refill may add new copy next update
 end
 
 return anim_lab
