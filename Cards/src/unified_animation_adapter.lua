@@ -9,11 +9,18 @@ local Config = require('src.config')
 local UnifiedAnimationAdapter = Class{}
 
 function UnifiedAnimationAdapter:init()
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Starting adapter initialization...")
+    end
+    
     self.unifiedManager = UnifiedAnimationManager()
     self.legacyManager = nil
     self.migrationEnabled = true -- Re-enabled after confirming legacy system works
     
     -- HUMP timer for animation monitoring
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Creating adapter timer...")
+    end
     self.timer = Timer.new()
     
     -- Create compatibility layer for existing AnimationManager interface
@@ -24,12 +31,19 @@ function UnifiedAnimationAdapter:init()
         self:createMinimalLegacyManager()
     end
     
-    print("[UnifiedAdapter] Initialized animation adapter")
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Initialized animation adapter")
+    end
 end
 
 -- Legacy AnimationManager.new() compatibility
 function UnifiedAnimationAdapter.new()
     return UnifiedAnimationAdapter()
+end
+
+-- Set gameState reference for impact effects
+function UnifiedAnimationAdapter:setGameState(gameState)
+    self.unifiedManager:setGameState(gameState)
 end
 
 -- Update both systems
@@ -46,7 +60,9 @@ end
 
 -- Legacy add() method - convert to unified system or pass to legacy
 function UnifiedAnimationAdapter:add(anim)
-    print("[UnifiedAdapter] ADD CALLED! Type:", anim.type, "Migration enabled:", self.migrationEnabled)
+    if Config and Config.debug then
+        print("[UnifiedAdapter] ADD CALLED! Type:", anim.type, "Migration enabled:", self.migrationEnabled)
+    end
     
     if not self.migrationEnabled and self.legacyManager then
         return self.legacyManager:add(anim)
@@ -54,15 +70,21 @@ function UnifiedAnimationAdapter:add(anim)
     
     -- Handle different animation types
     if anim.type == "card_flight" then
-        print("[UnifiedAdapter] Routing to handleCardFlightAnimation")
+        if Config and Config.debug then
+            print("[UnifiedAdapter] Routing to handleCardFlightAnimation")
+        end
         self:handleCardFlightAnimation(anim)
     elseif anim.type == "unified_card_play" then
-        print("[UnifiedAdapter] Routing to handleUnifiedCardPlayAnimation")
+        if Config and Config.debug then
+            print("[UnifiedAdapter] Routing to handleUnifiedCardPlayAnimation")
+        end
         self:handleUnifiedCardPlayAnimation(anim)
     elseif anim.type == "slot_glow" then
         self:handleSlotGlowAnimation(anim)
     else
-        print("[UnifiedAdapter] Unknown animation type:", anim.type)
+        if Config and Config.debug then
+            print("[UnifiedAdapter] Unknown animation type:", anim.type)
+        end
         -- Unknown type, pass to legacy if available
         if self.legacyManager then
             return self.legacyManager:add(anim)
@@ -78,12 +100,16 @@ function UnifiedAnimationAdapter:handleCardFlightAnimation(anim)
         return 
     end
     
-    print("[UnifiedAdapter] Converting card_flight animation for card:", card.id or "unknown")
-    print("  From:", anim.fromX, anim.fromY, "To:", anim.toX, anim.toY)
-    print("  Migration enabled:", self.migrationEnabled)
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Converting card_flight animation for card:", card.id or "unknown")
+        print("  From:", anim.fromX, anim.fromY, "To:", anim.toX, anim.toY)
+        print("  Migration enabled:", self.migrationEnabled)
+    end
     
     if not self.migrationEnabled then
-        print("[UnifiedAdapter] Migration disabled - using legacy system")
+        if Config and Config.debug then
+            print("[UnifiedAdapter] Migration disabled - using legacy system")
+        end
         if self.legacyManager then
             return self.legacyManager:add(anim)
         else
@@ -95,7 +121,9 @@ function UnifiedAnimationAdapter:handleCardFlightAnimation(anim)
     -- Start unified animation with callback
     local animation = self.unifiedManager:playCard(card, anim.toX, anim.toY, "card_flight", anim.onComplete)
     
-    print("[UnifiedAdapter] Started unified animation:", animation and "SUCCESS" or "FAILED")
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Started unified animation:", animation and "SUCCESS" or "FAILED")
+    end
 end
 
 -- Handle new unified card play animation with full 8-phase system
@@ -106,12 +134,16 @@ function UnifiedAnimationAdapter:handleUnifiedCardPlayAnimation(anim)
         return 
     end
     
-    print("[UnifiedAdapter] Starting unified card play animation for card:", card.id or "unknown")
-    print("  Full 8-phase pipeline enabled")
-    print("  From:", anim.fromX, anim.fromY, "To:", anim.targetX, anim.targetY)
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Starting unified card play animation for card:", card.id or "unknown")
+        print("  Full 8-phase pipeline enabled")
+        print("  From:", anim.fromX, anim.fromY, "To:", anim.targetX, anim.targetY)
+    end
     
     if not self.migrationEnabled then
-        print("[UnifiedAdapter] Migration disabled - falling back to legacy flight")
+        if Config and Config.debug then
+            print("[UnifiedAdapter] Migration disabled - falling back to legacy flight")
+        end
         -- Convert to legacy card_flight format
         local legacyAnim = {
             type = "card_flight",
@@ -130,7 +162,9 @@ function UnifiedAnimationAdapter:handleUnifiedCardPlayAnimation(anim)
     -- Start full unified animation pipeline
     local animation = self.unifiedManager:playCard(card, anim.targetX, anim.targetY, "unified", anim.onComplete)
     
-    print("[UnifiedAdapter] Started full unified animation:", animation and "SUCCESS" or "FAILED")
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Started full unified animation:", animation and "SUCCESS" or "FAILED")
+    end
 end
 
 -- Monitor flight animation completion and trigger callback
@@ -169,7 +203,9 @@ end
 function UnifiedAnimationAdapter:createMinimalLegacyManager()
     local AnimationManager = require('src.animation_manager')
     self.legacyManager = AnimationManager.new()
-    print("[UnifiedAdapter] Created minimal legacy manager for unsupported animations")
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Created minimal legacy manager for unsupported animations")
+    end
 end
 
 -- Legacy isBusy() compatibility
@@ -235,13 +271,16 @@ end
 function UnifiedAnimationAdapter:enableMigration(enabled)
     self.migrationEnabled = enabled
     
-    if enabled then
-        print("[UnifiedAdapter] Migration enabled - using unified animation system")
-    else
-        print("[UnifiedAdapter] Migration disabled - falling back to legacy system")
-        if not self.legacyManager then
-            self:createMinimalLegacyManager()
+    if Config and Config.debug then
+        if enabled then
+            print("[UnifiedAdapter] Migration enabled - using unified animation system")
+        else
+            print("[UnifiedAdapter] Migration disabled - falling back to legacy system")
         end
+    end
+    
+    if not enabled and not self.legacyManager then
+        self:createMinimalLegacyManager()
     end
 end
 
@@ -294,15 +333,29 @@ function UnifiedAnimationAdapter:playCardToBoard(card, slotIndex, gameState, onC
     
     -- Enhanced callback that handles board state
     local enhancedCallback = function()
+        if Config and Config.debug then
+            print("[UnifiedAdapter] Animation completed, executing callback")
+        end
+        
         -- Place card normally
         if onComplete then
-            onComplete()
+            local success, err = pcall(onComplete)
+            if not success then
+                print("[UnifiedAdapter] ERROR in original onComplete callback:", err)
+            end
         end
         
         -- Add to unified board state system
-        self:addCardToBoard(card)
-        
-        print("[UnifiedAdapter] Card placed and added to board state system")
+        local success, err = pcall(function()
+            self:addCardToBoard(card)
+        end)
+        if not success then
+            print("[UnifiedAdapter] ERROR in addCardToBoard:", err)
+        else
+            if Config and Config.debug then
+                print("[UnifiedAdapter] Card placed and added to board state system")
+            end
+        end
     end
     
     -- Create flight animation with enhanced callback

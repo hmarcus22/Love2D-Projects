@@ -398,7 +398,17 @@ function GameState:new()
     gs:refreshLayoutPositions()
 
     gs.logger:log_event("game_start", { players = { gs.players[1].id, gs.players[2].id } })
+    if Config and Config.debug then
+        print("[GameState] Creating animation manager...")
+    end
     gs.animations = AnimationManager.new()
+    if Config and Config.debug then
+        print("[GameState] Setting gameState reference...")
+    end
+    gs.animations:setGameState(gs) -- Set gameState reference for impact effects
+    if Config and Config.debug then
+        print("[GameState] Gamestate creation complete")
+    end
     return gs
 end
 
@@ -428,7 +438,17 @@ function GameState:newFromDraft(draftedPlayers)
     gs.pendingRetarget = nil
     gs:updateCardVisibility()
     gs:refreshLayoutPositions()
+    if Config and Config.debug then
+        print("[GameState] Creating animation manager...")
+    end
     gs.animations = AnimationManager.new()
+    if Config and Config.debug then
+        print("[GameState] Setting gameState reference...")
+    end
+    gs.animations:setGameState(gs) -- Set gameState reference for impact effects
+    if Config and Config.debug then
+        print("[GameState] Gamestate creation complete")
+    end
     return gs
 end
 

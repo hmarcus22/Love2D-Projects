@@ -3,6 +3,7 @@
 
 local Class = require 'libs.HUMP.class'
 local Timer = require 'libs.HUMP.timer'
+local Config = require 'src.config'
 local UnifiedAnimationEngine = require('src.unified_animation_engine')
 local BoardStateAnimator = require('src.board_state_animator')
 local ResolveAnimator = require('src.resolve_animator')
@@ -10,22 +11,48 @@ local ResolveAnimator = require('src.resolve_animator')
 local UnifiedAnimationManager = Class{}
 
 function UnifiedAnimationManager:init()
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] Starting initialization...")
+    end
+    
     -- Initialize sub-systems
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] Creating flight engine...")
+    end
     self.flightEngine = UnifiedAnimationEngine()
+    
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] Creating board state animator...")
+    end
     self.boardStateAnimator = BoardStateAnimator()
+    
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] Creating resolve animator...")
+    end
     self.resolveAnimator = ResolveAnimator()
     
     -- HUMP timer for animation sequencing
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] Creating HUMP timer...")
+    end
     self.timer = Timer.new()
     
     -- Global settings
     self.debugMode = false
     self.enabled = true
+    self.gameState = nil -- Will be set by adapter for impact effects
     
     -- Integration with existing animation manager
     self.legacyAnimationManager = nil -- Set during migration
     
-    print("[UnifiedAnimManager] Initialized unified animation system")
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] Initialized unified animation system")
+    end
+end
+
+-- Set gameState reference for impact effects
+function UnifiedAnimationManager:setGameState(gameState)
+    self.gameState = gameState
 end
 
 -- Update all animation systems
@@ -44,20 +71,25 @@ end
 function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType, callback)
     animationType = animationType or "unified" -- Use unified spec by default
     
-    print("[UnifiedAnimManager] playCard called:")
-    print("  Card:", card and card.id or "nil")
-    print("  Target:", targetX, targetY)
-    print("  Type:", animationType)
-    print("  Callback:", callback and "present" or "nil")
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] playCard called:")
+        print("  Card:", card and card.id or "nil")
+        print("  Target:", targetX, targetY)
+        print("  Type:", animationType)
+        print("  Callback:", callback and "present" or "nil")
+    end
     
     local config = {
         targetX = targetX,
         targetY = targetY,
+        gameState = self.gameState, -- Include gameState for impact effects
         onComplete = callback
     }
     
     local result = self.flightEngine:startAnimation(card, animationType, config)
-    print("  Result:", result and "SUCCESS" or "FAILED")
+    if Config and Config.debug then
+        print("  Result:", result and "SUCCESS" or "FAILED")
+    end
     
     return result
 end
@@ -126,13 +158,17 @@ end
 
 function UnifiedAnimationManager:setLegacyManager(legacyManager)
     self.legacyAnimationManager = legacyManager
-    print("[UnifiedAnimManager] Connected to legacy animation manager")
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] Connected to legacy animation manager")
+    end
 end
 
 -- Fallback to legacy system if unified animation not available
 function UnifiedAnimationManager:playCardLegacy(card, targetX, targetY, callback)
     if self.legacyAnimationManager then
-        print("[UnifiedAnimManager] Falling back to legacy animation")
+        if Config and Config.debug then
+            print("[UnifiedAnimManager] Falling back to legacy animation")
+        end
         return self.legacyAnimationManager:playCard(card, targetX, targetY, callback)
     else
         print("[UnifiedAnimManager] No legacy manager available")
@@ -145,10 +181,14 @@ end
 
 function UnifiedAnimationManager:migrateFromLegacy(enabled)
     if enabled then
-        print("[UnifiedAnimManager] Migration enabled - using unified system")
+        if Config and Config.debug then
+            print("[UnifiedAnimManager] Migration enabled - using unified system")
+        end
         self.enabled = true
     else
-        print("[UnifiedAnimManager] Migration disabled - using legacy system")
+        if Config and Config.debug then
+            print("[UnifiedAnimManager] Migration disabled - using legacy system")
+        end
         self.enabled = false
     end
 end
@@ -182,9 +222,13 @@ function UnifiedAnimationManager:setDebugMode(enabled)
     self.resolveAnimator:setDebugMode(enabled)
     
     if enabled then
-        print("[UnifiedAnimManager] Debug mode enabled")
+        if Config and Config.debug then
+            print("[UnifiedAnimManager] Debug mode enabled")
+        end
     else
-        print("[UnifiedAnimManager] Debug mode disabled")
+        if Config and Config.debug then
+            print("[UnifiedAnimManager] Debug mode disabled")
+        end
     end
 end
 
@@ -195,32 +239,44 @@ function UnifiedAnimationManager:runAnimationTest(card)
         return
     end
     
-    print("[UnifiedAnimManager] Running animation test sequence...")
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] Running animation test sequence...")
+    end
     
     -- Test flight animation
     local targetX = card.x + 200
     local targetY = card.y - 50
     
     self:playCard(card, targetX, targetY, "test_flight")
-    print("[UnifiedAnimManager] Started flight animation")
+    if Config and Config.debug then
+        print("[UnifiedAnimManager] Started flight animation")
+    end
     
     -- After flight completes, add to board
     self.timer:after(2.0, function()
         self:addCardToBoard(card)
-        print("[UnifiedAnimManager] Added to board state")
+        if Config and Config.debug then
+            print("[UnifiedAnimManager] Added to board state")
+        end
         
         -- Test interaction states with proper timing
         self.timer:after(1.0, function()
             self:setCardHover(card, true)
-            print("[UnifiedAnimManager] Applied hover state")
+            if Config and Config.debug then
+                print("[UnifiedAnimManager] Applied hover state")
+            end
             
             self.timer:after(0.5, function()
                 self:setCardSelected(card, true)
-                print("[UnifiedAnimManager] Applied selected state")
+                if Config and Config.debug then
+                    print("[UnifiedAnimManager] Applied selected state")
+                end
                 
                 self.timer:after(0.5, function()
                     self:setCardDragging(card, true)
-                    print("[UnifiedAnimManager] Applied dragging state")
+                    if Config and Config.debug then
+                        print("[UnifiedAnimManager] Applied dragging state")
+                    end
                     
                     self.timer:after(1.0, function()
                         self:setCardDragging(card, false)

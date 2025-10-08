@@ -4,6 +4,7 @@ local Serialize = require "src.utils.serialize"
 
 -- Defaults (original values)
 local defaults = {
+  debug = false, -- Debug logging for development (set to true when debugging)
   window = {
     width = 1000,
     height = 600,

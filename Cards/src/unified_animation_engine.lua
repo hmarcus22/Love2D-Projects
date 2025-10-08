@@ -2,6 +2,7 @@
 -- Core 3D animation system with physics simulation and phase management
 
 local Class = require 'libs.HUMP.class'
+local Config = require 'src.config'
 local UnifiedAnimationEngine = Class{}
 
 -- Animation phase constants
@@ -53,7 +54,9 @@ end
 
 -- Start a new animation sequence for a card
 function UnifiedAnimationEngine:startAnimation(card, animationType, config)
-    print("[UnifiedEngine] startAnimation called - Card:", card and card.id or "nil", "Type:", animationType)
+    if Config and Config.debug then
+        print("[UnifiedEngine] startAnimation called - Card:", card and card.id or "nil", "Type:", animationType)
+    end
     
     if not card or not animationType then 
         print("[UnifiedEngine] ERROR: Missing card or animationType")
@@ -67,7 +70,9 @@ function UnifiedAnimationEngine:startAnimation(card, animationType, config)
         return
     end
     
-    print("[UnifiedEngine] Found spec for", card.id or "unknown", "- phases:", #(spec.phases or {}))
+    if Config and Config.debug then
+        print("[UnifiedEngine] Found spec for", card.id or "unknown", "- phases:", #(spec.phases or {}))
+    end
     
     -- Create animation instance
     local animation = {
@@ -83,14 +88,18 @@ function UnifiedAnimationEngine:startAnimation(card, animationType, config)
         onComplete = config and config.onComplete -- Store completion callback
     }
     
-    print("[UnifiedEngine] Created animation instance - Duration:", animation.totalDuration)
+    if Config and Config.debug then
+        print("[UnifiedEngine] Created animation instance - Duration:", animation.totalDuration)
+    end
     
     -- Initialize animation state
     self:initializeAnimationState(animation)
     
     -- Store reference
     self.activeAnimations[card] = animation
-    print("[UnifiedEngine] Animation stored for card:", card.id or "unknown")
+    if Config and Config.debug then
+        print("[UnifiedEngine] Animation stored for card:", card.id or "unknown")
+    end
     
     if self.debugMode then
         print("[UnifiedEngine] Started", animationType, "for", card.id or "unknown")
@@ -107,7 +116,7 @@ function UnifiedAnimationEngine:update(dt)
         self:updateAnimation(animation, dt)
     end
     
-    if activeCount > 0 and self.debugMode then
+    if activeCount > 0 and self.debugMode and Config and Config.debug then
         print("[UnifiedEngine] Updating", activeCount, "active animations")
     end
 end
@@ -118,7 +127,7 @@ function UnifiedAnimationEngine:updateAnimation(animation, dt)
     local elapsed = currentTime - animation.startTime
     local progress = math.min(elapsed / animation.totalDuration, 1.0)
     
-    if self.debugMode then
+    if self.debugMode and Config and Config.debug then
         print("[UnifiedEngine] Updating animation for", animation.card.id or "unknown", 
               "- Elapsed:", string.format("%.2f", elapsed), 
               "- Progress:", string.format("%.2f", progress))
@@ -129,7 +138,7 @@ function UnifiedAnimationEngine:updateAnimation(animation, dt)
     
     -- Handle phase transitions
     if newPhase ~= animation.currentPhase then
-        if self.debugMode then
+        if self.debugMode and Config and Config.debug then
             print("[UnifiedEngine] Phase change:", animation.currentPhase or "nil", "->", newPhase or "nil")
         end
         self:onPhaseChange(animation, animation.currentPhase, newPhase)
@@ -143,8 +152,8 @@ function UnifiedAnimationEngine:updateAnimation(animation, dt)
     end
     
     -- Check for completion
-    if progress >= 1.0 then
-        if self.debugMode then
+    if progress >= 1.0 or animation.forceComplete then
+        if self.debugMode and Config and Config.debug then
             print("[UnifiedEngine] Animation complete for", animation.card.id or "unknown")
         end
         self:completeAnimation(animation)
@@ -158,11 +167,15 @@ function UnifiedAnimationEngine:getAnimationSpec(card, animationType)
     
     -- Debug: Show card ID lookup
     local cardId = card.definition and card.definition.id
-    print("[UnifiedEngine] Spec lookup - card.id:", card.id, "card.definition.id:", cardId)
+    if Config and Config.debug then
+        print("[UnifiedEngine] Spec lookup - card.id:", card.id, "card.definition.id:", cardId)
+    end
     
     -- Check for card-specific override
     if cardId and specs.cards and specs.cards[cardId] then
-        print("[UnifiedEngine] Found card-specific spec for:", cardId)
+        if Config and Config.debug then
+            print("[UnifiedEngine] Found card-specific spec for:", cardId)
+        end
         local cardSpec = specs.cards[cardId]
         if cardSpec.baseStyle then
             -- Use base style with overrides
@@ -175,7 +188,9 @@ function UnifiedAnimationEngine:getAnimationSpec(card, animationType)
         end
     end
     
-    print("[UnifiedEngine] Using default unified spec for:", cardId or card.id or "unknown")
+    if Config and Config.debug then
+        print("[UnifiedEngine] Using default unified spec for:", cardId or card.id or "unknown")
+    end
     -- Use default unified spec
     return specs.unified
 end
@@ -228,7 +243,7 @@ end
 function UnifiedAnimationEngine:getCurrentPhase(animation, elapsed)
     local spec = animation.spec
     local timeAccum = 0
-    local phases = {"preparation", "launch", "flight", "approach", "impact", "settle"}
+    local phases = {"preparation", "launch", "flight", "approach", "impact", "settle", "board_state", "game_resolve"}
     
     for _, phase in ipairs(phases) do
         if spec[phase] and spec[phase].duration then
@@ -239,7 +254,7 @@ function UnifiedAnimationEngine:getCurrentPhase(animation, elapsed)
         end
     end
     
-    return "settle" -- Default final phase
+    return "game_resolve" -- Default final phase (was "settle")
 end
 
 -- Handle phase transitions
@@ -255,6 +270,10 @@ function UnifiedAnimationEngine:onPhaseChange(animation, oldPhase, newPhase)
         self:initializeFlightPhase(animation)
     elseif newPhase == "impact" then
         self:initializeImpactPhase(animation)
+    elseif newPhase == "board_state" then
+        self:initializeBoardStatePhase(animation)
+    elseif newPhase == "game_resolve" then
+        self:initializeGameResolvePhase(animation)
     end
 end
 
@@ -262,8 +281,10 @@ end
 function UnifiedAnimationEngine:initializeAnimationState(animation)
     local card = animation.card
     
-    print("[UnifiedEngine] Initializing animation state for:", card.id or "unknown")
-    print("[UnifiedEngine] Initial card position: x=", card.x, "y=", card.y)
+    if Config and Config.debug then
+        print("[UnifiedEngine] Initializing animation state for:", card.id or "unknown")
+        print("[UnifiedEngine] Initial card position: x=", card.x, "y=", card.y)
+    end
     
     -- Store original position
     animation.state.originalX = card.x
@@ -288,32 +309,48 @@ function UnifiedAnimationEngine:initializeAnimationState(animation)
     -- Mark card as being managed by unified animation system
     card._unifiedAnimationActive = true
     
-    print("[UnifiedEngine] Set animX=", card.animX, "animY=", card.animY, "animZ=", card.animZ)
-    print("[UnifiedEngine] Marked card as unified animation active")
+    if Config and Config.debug then
+        print("[UnifiedEngine] Set animX=", card.animX, "animY=", card.animY, "animZ=", card.animZ)
+        print("[UnifiedEngine] Marked card as unified animation active")
+    end
 end
 
+-- Initialize launch phase
 -- Initialize launch phase
 function UnifiedAnimationEngine:initializeLaunchPhase(animation)
     local spec = animation.spec.launch
     if not spec then return end
     
-    -- Calculate launch vector
-    local config = animation.config
-    local targetX = config.targetX or animation.state.originalX
-    local targetY = config.targetY or animation.state.originalY
-    
-    local dx = targetX - animation.state.originalX
-    local dy = targetY - animation.state.originalY
-    local distance = math.sqrt(dx * dx + dy * dy)
-    
-    if distance > 0 then
-        -- Calculate initial velocity
-        local angle = math.rad(spec.angle or 25)
-        local speed = spec.initialVelocity or 800
+    -- Only calculate velocity for physics-based flight
+    local flightSpec = animation.spec.flight
+    if flightSpec and flightSpec.trajectory and flightSpec.trajectory.type == "physics" then
+        -- Physics-based flight needs velocity calculations
+        local config = animation.config
+        local targetX = config.targetX or animation.state.originalX
+        local targetY = config.targetY or animation.state.originalY
         
-        animation.state.velocity.x = (dx / distance) * speed * math.cos(angle)
-        animation.state.velocity.y = (dy / distance) * speed * math.cos(angle) - speed * math.sin(angle)
-        animation.state.velocity.z = speed * math.sin(angle)
+        local dx = targetX - animation.state.originalX
+        local dy = targetY - animation.state.originalY
+        local distance = math.sqrt(dx * dx + dy * dy)
+        
+        if distance > 0 then
+            -- Use safer velocity values by default
+            local angle = math.rad(spec.angle or 25)
+            local speed = spec.initialVelocity or 400 -- Reduced default
+            
+            -- Normalize direction
+            local dirX = dx / distance
+            local dirY = dy / distance
+            
+            -- Calculate initial velocity
+            animation.state.velocity.x = dirX * speed * math.cos(angle)
+            animation.state.velocity.y = dirY * speed * math.cos(angle)
+            animation.state.velocity.z = speed * math.sin(angle)
+        end
+    end
+    
+    if Config and Config.debug then
+        print("[UnifiedEngine] Launch phase initialized")
     end
 end
 
@@ -335,14 +372,73 @@ function UnifiedAnimationEngine:initializeImpactPhase(animation)
     local spec = animation.spec.impact
     if not spec then return end
     
-    -- Trigger impact effects
+    -- Get gameState reference from config
+    local gameState = animation.config and animation.config.gameState
+    if not gameState then
+        if Config and Config.debug then
+            print("[UnifiedEngine] Warning: No gameState reference for impact effects")
+        end
+        return
+    end
+    
+    -- Trigger impact effects using existing ImpactFX system
     if spec.effects and spec.effects.screen and spec.effects.screen.shake then
-        -- TODO: Trigger screen shake
+        local shake = spec.effects.screen.shake
+        local ImpactFX = require 'src.impact_fx'
+        -- Trigger screen shake with animation parameters
+        ImpactFX.triggerShake(
+            gameState,
+            shake.duration or 0.25,
+            shake.intensity or 6
+        )
+        
+        if Config and Config.debug then
+            print("[UnifiedEngine] Triggered screen shake:", shake.intensity, shake.duration)
+        end
     end
     
     if spec.effects and spec.effects.particles then
-        -- TODO: Trigger particle effects
+        local particles = spec.effects.particles
+        local ImpactFX = require 'src.impact_fx'
+        local card = animation.card
+        -- Trigger particle effects at card position
+        ImpactFX.triggerDust(
+            gameState,
+            (card.animX or card.x) + (card.w or 50) / 2,
+            (card.animY or card.y) + (card.h or 70) - 8,
+            particles.count or 15
+        )
+        
+        if Config and Config.debug then
+            print("[UnifiedEngine] Triggered particle effects:", particles.count, particles.type)
+        end
     end
+end
+
+-- Initialize board state phase
+function UnifiedAnimationEngine:initializeBoardStatePhase(animation)
+    local spec = animation.spec.board_state
+    if not spec then return end
+    
+    if Config and Config.debug then
+        print("[UnifiedEngine] Initializing board state phase")
+    end
+    
+    -- Board state phase setup
+    -- This is where board integration logic would be triggered
+end
+
+-- Initialize game resolve phase
+function UnifiedAnimationEngine:initializeGameResolvePhase(animation)
+    local spec = animation.spec.game_resolve
+    if not spec then return end
+    
+    if Config and Config.debug then
+        print("[UnifiedEngine] Initializing game resolve phase")
+    end
+    
+    -- Game resolve phase setup
+    -- This is where final game logic would be triggered
 end
 
 -- Update specific animation phase
@@ -366,6 +462,10 @@ function UnifiedAnimationEngine:updatePhase(animation, phase, dt)
         self:updateImpactPhase(animation, spec, phaseProgress)
     elseif phase == "settle" then
         self:updateSettlePhase(animation, spec, phaseProgress)
+    elseif phase == "board_state" then
+        self:updateBoardStatePhase(animation, spec, phaseProgress)
+    elseif phase == "game_resolve" then
+        self:updateGameResolvePhase(animation, spec, phaseProgress)
     end
 end
 
@@ -395,17 +495,64 @@ end
 function UnifiedAnimationEngine:updateLaunchPhase(animation, spec, progress, dt)
     local card = animation.card
     
-    -- Apply acceleration
-    if spec.acceleration then
-        local accel = spec.acceleration * dt
-        animation.state.velocity.x = animation.state.velocity.x + accel * dt
-        animation.state.velocity.y = animation.state.velocity.y + accel * dt
+    -- Check if this is physics-based or interpolated flight
+    local flightSpec = animation.spec.flight
+    if flightSpec and flightSpec.trajectory and flightSpec.trajectory.type == "physics" then
+        -- Physics-based launch with acceleration
+        if spec.acceleration then
+            local accel = spec.acceleration * dt
+            animation.state.velocity.x = animation.state.velocity.x + accel * dt
+            animation.state.velocity.y = animation.state.velocity.y + accel * dt
+        end
+        
+        -- Update position based on velocity
+        animation.state.position.x = animation.state.position.x + animation.state.velocity.x * dt
+        animation.state.position.y = animation.state.position.y + animation.state.velocity.y * dt
+        animation.state.position.z = animation.state.position.z + animation.state.velocity.z * dt
+        
+        card.animX = animation.state.position.x
+        card.animY = animation.state.position.y
+        card.animZ = animation.state.position.z
+    else
+        -- Simple launch for interpolated flight (DEFAULT)
+        local config = animation.config
+        if config.targetX and config.targetY then
+            local startX = animation.state.originalX
+            local startY = animation.state.originalY
+            
+            -- Small movement toward target during launch
+            local launchDistance = 0.1
+            local easing = EASING_FUNCTIONS["easeOutCubic"] or function(t) return t end
+            local t = easing(progress) * launchDistance
+            
+            animation.state.position.x = startX + (config.targetX - startX) * t
+            animation.state.position.y = startY + (config.targetY - startY) * t
+            animation.state.position.z = t * 20 -- Small lift
+            
+            card.animX = animation.state.position.x
+            card.animY = animation.state.position.y
+            card.animZ = animation.state.position.z
+        end
+    end
+end
+
+-- Update flight phase with flexible physics and effects system
+function UnifiedAnimationEngine:updateFlightPhase(animation, spec, progress, dt)
+    local card = animation.card
+    
+    -- Choose flight method based on trajectory type (default to safe interpolated)
+    if spec.trajectory and spec.trajectory.type == "physics" then
+        -- Physics-based flight for dynamic cards (Body Slam, etc.)
+        self:updatePhysicsFlight(animation, spec, progress, dt)
+    else
+        -- Simple interpolated flight for smooth cards (SAFE DEFAULT)
+        self:updateInterpolatedFlight(animation, spec, progress, dt)
     end
     
-    -- Update position
-    animation.state.position.x = animation.state.position.x + animation.state.velocity.x * dt
-    animation.state.position.y = animation.state.position.y + animation.state.velocity.y * dt
-    animation.state.position.z = animation.state.position.z + animation.state.velocity.z * dt
+    -- Apply visual effects if specified
+    if spec.effects then
+        self:applyFlightEffects(animation, spec.effects, progress, dt)
+    end
     
     -- Apply to card
     card.animX = animation.state.position.x
@@ -413,9 +560,38 @@ function UnifiedAnimationEngine:updateLaunchPhase(animation, spec, progress, dt)
     card.animZ = animation.state.position.z
 end
 
--- Update flight phase
-function UnifiedAnimationEngine:updateFlightPhase(animation, spec, progress, dt)
-    local card = animation.card
+-- Simple interpolated flight (for default smooth cards)
+function UnifiedAnimationEngine:updateInterpolatedFlight(animation, spec, progress, dt)
+    local config = animation.config
+    
+    if config.targetX and config.targetY then
+        local startX = animation.state.originalX
+        local startY = animation.state.originalY
+        local targetX = config.targetX
+        local targetY = config.targetY
+        
+        -- Eased interpolation from start to target
+        local easing = EASING_FUNCTIONS[spec.easing or "easeOutQuad"] or function(t) return t end
+        local t = easing(progress)
+        
+        -- Calculate position along arc
+        animation.state.position.x = startX + (targetX - startX) * t
+        animation.state.position.y = startY + (targetY - startY) * t
+        
+        -- Add arc height based on spec
+        local arcHeight = spec.trajectory and spec.trajectory.height or 80
+        local arcProgress = math.sin(progress * math.pi) -- Creates arc shape
+        animation.state.position.z = arcProgress * arcHeight
+        
+        -- Keep card properly oriented (no rotation during interpolated flight)
+        local card = animation.card
+        card.rotation = animation.state.originalRotation
+        card.scale = animation.state.originalScale
+    end
+end
+
+-- Physics-based flight (for dynamic cards like Body Slam)
+function UnifiedAnimationEngine:updatePhysicsFlight(animation, spec, progress, dt)
     local physics = animation.state.physics
     
     -- Apply gravity
@@ -425,7 +601,7 @@ function UnifiedAnimationEngine:updateFlightPhase(animation, spec, progress, dt)
     local resistance = physics.airResistance
     animation.state.velocity.x = animation.state.velocity.x * (1 - resistance)
     animation.state.velocity.y = animation.state.velocity.y * (1 - resistance)
-    animation.state.velocity.z = animation.state.velocity.z * (1 - resistance * 0.5) -- Less resistance on Z
+    animation.state.velocity.z = animation.state.velocity.z * (1 - resistance * 0.5)
     
     -- Update position
     animation.state.position.x = animation.state.position.x + animation.state.velocity.x * dt
@@ -438,20 +614,26 @@ function UnifiedAnimationEngine:updateFlightPhase(animation, spec, progress, dt)
         animation.state.velocity.z = 0
     end
     
+    -- Safety bounds checking
+    local screenBounds = 2000
+    if math.abs(animation.state.position.x) > screenBounds or 
+       math.abs(animation.state.position.y) > screenBounds then
+        if Config and Config.debug then
+            print("[UnifiedEngine] Card flew out of bounds, forcing completion")
+        end
+        -- Set position to target
+        if animation.config.targetX and animation.config.targetY then
+            animation.state.position.x = animation.config.targetX
+            animation.state.position.y = animation.config.targetY
+        end
+        animation.state.position.z = 0
+        animation.forceComplete = true
+    end
+    
     -- Apply trajectory shaping
     if spec.trajectory then
         self:applyTrajectoryShaping(animation, spec.trajectory, progress)
     end
-    
-    -- Apply visual effects
-    if spec.effects then
-        self:applyFlightEffects(animation, spec.effects, progress)
-    end
-    
-    -- Apply to card
-    card.animX = animation.state.position.x
-    card.animY = animation.state.position.y
-    card.animZ = animation.state.position.z
 end
 
 -- Apply trajectory shaping
@@ -471,13 +653,15 @@ function UnifiedAnimationEngine:applyTrajectoryShaping(animation, trajectory, pr
 end
 
 -- Apply flight visual effects
-function UnifiedAnimationEngine:applyFlightEffects(animation, effects, progress)
+function UnifiedAnimationEngine:applyFlightEffects(animation, effects, progress, dt)
     local card = animation.card
     
     -- Rotation effects
     if effects.rotation and effects.rotation.tumble then
         local speed = effects.rotation.speed or 1.0
-        card.rotation = (card.rotation or 0) + speed * 2 * math.pi * progress
+        -- Use delta time instead of cumulative progress to prevent exponential rotation
+        local rotationDelta = speed * 2 * math.pi * dt / animation.spec.flight.duration
+        card.rotation = (card.rotation or 0) + rotationDelta
     end
     
     -- Scale breathing
@@ -520,17 +704,25 @@ function UnifiedAnimationEngine:updateApproachPhase(animation, spec, progress)
         end
     end
     
-    -- Apply anticipation effects
+    -- Apply anticipation effects (but skip rotation for interpolated flight cards)
     if spec.anticipation then
         if spec.anticipation.scale then
             local targetScale = animation.state.originalScale * spec.anticipation.scale
             card.scale = animation.state.originalScale + (targetScale - animation.state.originalScale) * t
         end
         
-        if spec.anticipation.rotation then
+        -- Only apply rotation if this is a physics-based card
+        local flightSpec = animation.spec.flight
+        if spec.anticipation.rotation and flightSpec and flightSpec.trajectory and flightSpec.trajectory.type == "physics" then
             local targetRotation = animation.state.originalRotation + math.rad(spec.anticipation.rotation)
             card.rotation = animation.state.originalRotation + (targetRotation - animation.state.originalRotation) * t
         end
+    end
+    
+    -- Ensure interpolated flight cards maintain stable rotation
+    local flightSpec = animation.spec.flight
+    if not flightSpec or not flightSpec.trajectory or flightSpec.trajectory.type ~= "physics" then
+        card.rotation = animation.state.originalRotation or 0.0
     end
 end
 
@@ -583,8 +775,8 @@ function UnifiedAnimationEngine:completeAnimation(animation)
     end
     
     -- Reset to stable state
-    card.scale = animation.state.originalScale
-    card.rotation = animation.state.originalRotation
+    card.scale = animation.state.originalScale or 1.0
+    card.rotation = animation.state.originalRotation or 0.0
     card.animX = nil
     card.animY = nil
     card.animZ = nil
@@ -592,9 +784,17 @@ function UnifiedAnimationEngine:completeAnimation(animation)
     -- Clear unified animation flag
     card._unifiedAnimationActive = nil
     
+    if Config and Config.debug then
+        print("[UnifiedEngine] Reset card to stable state")
+    end
+    
     -- Trigger completion callback if present
     if animation.onComplete then
-        pcall(animation.onComplete)
+        local success, err = pcall(animation.onComplete)
+        if not success then
+            print("[UnifiedEngine] ERROR in animation completion callback:", err)
+            -- Don't let callback errors crash the animation system
+        end
     end
     
     -- Remove from active animations
@@ -620,6 +820,42 @@ end
 -- Enable/disable debug mode
 function UnifiedAnimationEngine:setDebugMode(enabled)
     self.debugMode = enabled
+end
+
+-- Update board state phase
+function UnifiedAnimationEngine:updateBoardStatePhase(animation, spec, progress)
+    local card = animation.card
+    
+    -- Board state phase handles card integration into board systems
+    -- This phase is typically very short and mostly for triggering board state updates
+    if Config and Config.debug then
+        print("[UnifiedEngine] Board state phase for:", card.id or "unknown")
+    end
+    
+    -- Ensure card is in final position and stable
+    if animation.config.targetX and animation.config.targetY then
+        card.x = animation.config.targetX
+        card.y = animation.config.targetY
+    end
+    card.animX = nil
+    card.animY = nil
+    card.animZ = nil
+    card.scale = animation.state.originalScale or 1.0
+    card.rotation = animation.state.originalRotation or 0.0
+end
+
+-- Update game resolve phase  
+function UnifiedAnimationEngine:updateGameResolvePhase(animation, spec, progress)
+    local card = animation.card
+    
+    -- Game resolve phase handles final game logic updates
+    -- This is the final phase before animation completion
+    if Config and Config.debug then
+        print("[UnifiedEngine] Game resolve phase for:", card.id or "unknown")
+    end
+    
+    -- Final cleanup and state verification
+    card._unifiedAnimationActive = true -- Keep flag until completion
 end
 
 return UnifiedAnimationEngine

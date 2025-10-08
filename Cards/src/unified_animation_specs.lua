@@ -8,9 +8,9 @@ specs.unified = {
     -- Phase 1: Preparation (card anticipation before throwing)
     preparation = {
         duration = 0.3,
-        scale = 1.1,
-        elevation = 5,
-        rotation = -5, -- degrees
+        scale = 1.05, -- Reduced from 1.1
+        elevation = 3, -- Reduced from 5
+        rotation = 0, -- No rotation during preparation for clean flight
         easing = "easeOutQuad"
     },
     
@@ -18,35 +18,36 @@ specs.unified = {
     launch = {
         duration = 0.2,
         angle = 25, -- degrees above horizontal
-        initialVelocity = 800, -- pixels per second
+        initialVelocity = 600, -- pixels per second (reduced from 800)
         acceleration = 200,
         easing = "easeOutCubic"
     },
     
     -- Phase 3: Flight (projectile motion with physics)
     flight = {
-        duration = 0.35, -- Match current working timing
+        duration = 0.35,
+        easing = "easeOutQuad",
+        trajectory = {
+            type = "interpolated", -- Safe default: "interpolated" or "physics"
+            height = 80 -- Arc height for interpolated flight
+        },
         physics = {
-            gravity = 980, -- pixels per second squared
+            gravity = 600, -- Only used for physics-based flight
             airResistance = 0.02,
             mass = 1.0
         },
-        trajectory = {
-            type = "ballistic", -- "ballistic", "guided", "straight"
-            height = 140 -- Match current working arc height
-        },
         effects = {
             trail = {
-                enabled = true,
+                enabled = false, -- Disabled by default
                 length = 5,
                 fadeTime = 0.3
             },
             rotation = {
-                tumble = true,
-                speed = 1.5 -- rotations per duration
+                tumble = false, -- No spinning by default
+                speed = 0
             },
             scale = {
-                breathing = true,
+                breathing = false, -- Disabled by default
                 min = 0.95,
                 max = 1.05
             }
@@ -103,6 +104,7 @@ specs.unified = {
     
     -- Phase 7: Board State (ongoing animations while on board)
     board_state = {
+        duration = 0.1, -- Quick transition to board integration
         idle = {
             breathing = {
                 enabled = true,
@@ -169,6 +171,7 @@ specs.unified = {
     
     -- Phase 8: Game Resolve (combat animation effects)
     game_resolve = {
+        duration = 0.1, -- Quick final resolution
         attack_strike = {
             duration = 0.6,
             phases = {
@@ -490,18 +493,136 @@ specs.cards = {
         }
     },
     
+    -- Body Slam - powerful physics-based animation demonstrating the system's flexibility
+    body_slam = {
+        baseStyle = "aggressive",
+        preparation = {
+            duration = 0.4, -- Longer windup for power
+            scale = 1.15, -- Bigger preparation
+            elevation = 8,
+            rotation = -10 -- Wind up rotation
+        },
+        launch = {
+            duration = 0.3,
+            angle = 35, -- Higher angle for slam effect
+            initialVelocity = 700,
+            acceleration = 300
+        },
+        flight = {
+            duration = 0.4,
+            trajectory = {
+                type = "physics", -- Use physics-based flight (not interpolated)
+                height = 120 -- Higher arc for dramatic effect
+            },
+            physics = {
+                gravity = 800, -- Stronger gravity for slam effect
+                airResistance = 0.01, -- Less air resistance for power
+                mass = 1.5 -- Heavier feel
+            },
+            effects = {
+                trail = {
+                    enabled = true, -- Enable trail for visual impact
+                    length = 8,
+                    fadeTime = 0.4
+                },
+                rotation = {
+                    tumble = true, -- Enable tumbling for Body Slam
+                    speed = 2.0 -- Aggressive spinning
+                },
+                scale = {
+                    breathing = true, -- Pulsing effect during flight
+                    min = 0.9,
+                    max = 1.1
+                }
+            }
+        },
+        impact = {
+            duration = 0.4,
+            effects = {
+                screen = {
+                    shake = {
+                        intensity = 20, -- Heavy impact shake
+                        duration = 0.5
+                    }
+                }
+            }
+        }
+    },
+    
+    -- Feint - subtle stealth card demonstrating minimal effects
+    feint = {
+        baseStyle = "defensive",
+        preparation = {
+            duration = 0.2, -- Quick and subtle
+            scale = 1.02, -- Barely noticeable preparation
+            elevation = 2,
+            rotation = 0 -- No wind-up rotation
+        },
+        launch = {
+            duration = 0.15,
+            angle = 20,
+            initialVelocity = 350 -- Slower, stealthier
+        },
+        flight = {
+            duration = 0.6, -- Longer, more controlled flight
+            trajectory = {
+                type = "interpolated", -- Smooth, predictable
+                height = 40 -- Very low arc
+            },
+            effects = {
+                trail = {
+                    enabled = false -- No trail for stealth
+                },
+                rotation = {
+                    tumble = false, -- No spinning
+                    speed = 0
+                },
+                scale = {
+                    breathing = false -- No pulsing effects
+                }
+            }
+        },
+        approach = {
+            duration = 0.4, -- Extra long approach for precision
+            guidingFactor = 0.8 -- Strong guidance for accuracy
+        }
+    },
+    
     -- Quick Jab - fast and precise (using card ID "punch")
     punch = {
         baseStyle = "aggressive",
         preparation = {
-            duration = 0.15 -- Extra quick prep
+            duration = 0.15, -- Extra quick prep
+            scale = 1.02, -- Minimal scale change
+            elevation = 2, -- Minimal elevation
+            rotation = 0 -- No rotation during prep for clean landing
         },
         launch = {
-            angle = 15, -- Very direct
-            initialVelocity = 1000
+            duration = 0.1, -- Very quick launch
+            angle = 15 -- Direct angle
         },
         flight = {
-            duration = 0.5 -- Shorter flight time
+            duration = 0.3, -- Quick flight
+            trajectory = {
+                type = "interpolated", -- Use safe interpolated flight
+                height = 60 -- Low, direct arc
+            },
+            effects = {
+                trail = {
+                    enabled = false -- No trail for clean quick jab
+                },
+                rotation = {
+                    tumble = false, -- No spinning for precision
+                    speed = 0
+                },
+                scale = {
+                    breathing = false -- No effects for clean movement
+                }
+            }
+        },
+        approach = {
+            duration = 0.2, -- Quick precise approach
+            guidingFactor = 0.9 -- Strong guidance for accuracy
         }
     },
     

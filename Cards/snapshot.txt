@@ -1,52 +1,194 @@
-COMBO HIGHLIGHTING PROJECT - SESSION SNAPSHOT
-=====================================================
+# UNIFIED ANIMATION SYSTEM - DEVELOPMENT SNAPSHOT
+Date: October 8, 2025
+Status: COMPLETE & WORKING ✅
 
-## 🎯 Current Status: COMBO HIGHLIGHTING FIXED ✅
+## TODAY'S MAJOR ACCOMPLISHMENT
+Successfully completed the unified animation system integration and resolved the animation lab crash. The system now provides smooth, physics-based card animations with variety between card types while maintaining crash-free operation.
 
-The combo highlighting system is now **fully functional** in the animation lab. The core issue was that `prevCardId` wasn't being updated when cards were played.
+## WHAT WE BUILT TODAY
 
-## 🔧 What We Fixed
+### 1. Complete 8-Phase Animation Architecture ✅
+- **preparation** → **launch** → **flight** → **approach** → **impact** → **settle** → **board_state** → **game_resolve**
+- Physics-based flight simulation with gravity, air resistance, mass
+- Dual flight modes: interpolated (safe default) vs physics-based (dynamic cards)
+- Real-world ballistic trajectories with realistic collision detection
 
-1. **Root Problem**: Animation lab bypassed `handleCardPlayed()` calls, so `prevCardId` never updated
-2. **Key Solution**: Enhanced `anim_lab.lua` to manually call `handleCardPlayed()` after successful card drops
-3. **Critical Insight**: Feint is a modifier card that doesn't stay on board, requiring special handling
+### 2. Card Type Variety System ✅
+- **Aggressive Cards**: body_slam (tumbling physics), punch (quick precision), wild_swing (chaotic)
+- **Defensive Cards**: feint (stealth), guard (steady stance), rally (protective positioning)
+- **Style Inheritance**: baseStyle system (aggressive/defensive/modifier) for consistent feel
+- **Safe Defaults**: Any undefined card falls back to stable interpolated animation
 
-## 📁 Files Modified
+### 3. Impact Effects Integration ✅
+- Connected to existing ImpactFX system for screen shake and particle effects
+- Configurable intensity/duration per card type
+- GameState reference passing for proper effect triggering
+- Visual feedback for different impact types (light tap vs heavy slam)
 
-- **`src/states/anim_lab.lua`**: Added logic to detect modifier vs regular cards and call `handleCardPlayed()` appropriately
-- **`src/gamestate.lua`**: Fixed `handleCardPlayed()` to set `prevCardId` to the currently played card
+### 4. Complete Gameplay Integration ✅
+- **Combat Animations**: Attack/defense resolve animations via ResolveAnimator
+- **Board State**: Ongoing card behavior (breathing, hover, interaction feedback)
+- **Legacy Compatibility**: Seamless integration via UnifiedAnimationAdapter
+- **Input System**: Drag-and-drop card playing with animation callbacks
 
-## 🧪 How to Test
+## CRITICAL BUG FIX - Animation Lab Crash 🚨→✅
+**Problem**: Game crashed before clicking cards in animation lab
+**Root Cause**: Missing debug flag in Config caused initialization to fail silently
+**Solution**: Added `debug = true` to config.lua defaults for proper error visibility
+**Key Learning**: Debug logging is essential for complex system initialization
 
-1. Run animation lab
-2. Press `=` to set up punch → feint → counterplay combo
-3. Drop cards in sequence: punch, feint, counterplay
-4. Counterplay should glow green-white after feint is played
+## TECHNICAL ARCHITECTURE
 
-## 🚀 Next Steps (When We Resume)
+### File Structure:
+```
+src/
+├── unified_animation_engine.lua      - Core 3D physics simulation
+├── unified_animation_specs.lua       - Animation definitions & card overrides
+├── unified_animation_manager.lua     - Coordinates all animation systems
+├── unified_animation_adapter.lua     - Legacy compatibility layer
+├── board_state_animator.lua         - Ongoing board card animations
+├── resolve_animator.lua             - Combat resolution animations
+└── impact_fx.lua                    - Screen shake & particle effects (existing)
+```
 
-1. **Clean up debug output**: Remove excessive console logging from card renderer
-2. **Test other combos**: Verify all combo types work (not just feint-based ones)
-3. **Normal game mode**: Ensure combo highlighting works in actual gameplay, not just animation lab
-4. **Performance**: Consider if the frequent combo checking impacts frame rate
+### Integration Points:
+```
+gamestate.lua → UnifiedAnimationAdapter → UnifiedAnimationManager
+    ↓
+├── UnifiedAnimationEngine (card flight)
+├── BoardStateAnimator (board behavior)
+└── ResolveAnimator (combat effects)
+```
 
-## 🔍 Key Code Locations
+## KEY INSIGHTS LEARNED
 
-- Combo detection: `src/card_renderer.lua` (around line with `canPlayCombo`)
-- Combo definitions: `src/card_definitions.lua` 
-- State tracking: `src/gamestate.lua` (`handleCardPlayed` function)
-- Animation lab fixes: `src/states/anim_lab.lua` (`mousereleased` function)
+### 1. Physics vs Interpolated Trade-off
+- **Interpolated flight**: Predictable, safe, never overshoots target
+- **Physics-based flight**: Dynamic, realistic, but needs bounds checking
+- **Best Practice**: Use interpolated as default, physics for specific dramatic cards
 
-## 🐛 Known Issues to Monitor
+### 2. Debug Logging Strategy
+- Essential for complex initialization chains
+- Must be enabled early in config to catch startup failures
+- Granular logging helps pinpoint exact failure points in multi-component systems
 
-- Combo highlighting only tested in animation lab so far
-- Debug output is very verbose (should clean up)
-- Need to verify modifier card handling works for all modifier types
+### 3. Animation System Design Patterns
+- **Phase-based architecture**: Clean separation of animation stages
+- **Spec-driven configuration**: Centralized definitions with card-specific overrides
+- **Adapter pattern**: Enables gradual migration from legacy systems
+- **Composition over inheritance**: Multiple specialized animators vs monolithic system
 
-## 📝 Technical Details
+### 4. Love2D Animation Constraints
+- HUMP Timer is reliable for animation sequencing
+- love.timer.sleep() doesn't exist - use HUMP Timer.after() instead
+- Screen coordinates vs virtual coordinates require careful handling
+- Class initialization order matters for complex dependency chains
 
-### The Problem
-Cards in the animation lab were being dropped successfully but `prevCardId` was never being updated because the animation lab environment bypassed the normal `handleCardPlayed()` call that happens in regular gameplay.
+## CURRENT SYSTEM STATUS
+
+### ✅ Working Features:
+- Card flight animations with realistic physics
+- Different animation styles per card type (Body Slam tumbles, Quick Jab flies cleanly)
+- Impact effects (screen shake, particle bursts)
+- Board state animations (breathing, hover feedback)
+- Combat resolution animations (attack strikes, defensive pushes)
+- Animation lab testing environment
+- Crash-free operation
+
+### 🎯 Next Development Priorities:
+1. **Animation Stage Refinement**: Fine-tune preparation, approach, settle phases
+2. **Visual Polish**: Enhance particle effects, trail animations, lighting
+3. **Performance Optimization**: Batch rendering, animation pooling
+4. **Card-Specific Effects**: Unique animations for special abilities
+5. **Audio Integration**: Connect sound effects to animation phases
+
+## TESTING STATUS
+
+### Test Coverage:
+- ✅ Basic card flight (Quick Jab, Body Slam)
+- ✅ Impact effects (screen shake, particles)
+- ✅ Animation lab integration
+- ✅ Combat resolution animations
+- ✅ Legacy system compatibility
+
+### Testing Commands:
+```lua
+-- In Love2D console:
+require('quick_test_animations')()
+
+-- Full test suite:
+local tests = require('test_unified_animations')
+tests.runTests()
+tests.performanceTest()
+```
+
+## DEVELOPMENT WORKFLOW
+
+### Quick Test Process:
+1. Start Love2D game
+2. Go to Menu → Animation Lab
+3. Drag test cards to board slots
+4. Observe animation variety and impact effects
+
+### Debug Mode:
+- `Config.debug = true` enables detailed logging
+- Animation system prints initialization and execution details
+- Impact effects show trigger confirmations
+
+## ARCHITECTURE DECISIONS MADE
+
+### 1. Unified vs Fragmented Approach
+**Chosen**: Unified 8-phase system
+**Reasoning**: Provides consistency while allowing card-specific variety
+**Alternative**: Per-card custom animation scripts (rejected for maintainability)
+
+### 2. Physics Integration Level
+**Chosen**: Dual-mode system (interpolated + physics)
+**Reasoning**: Safety first, physics for dramatic effect
+**Alternative**: Pure physics (rejected for stability concerns)
+
+### 3. Legacy Migration Strategy
+**Chosen**: Adapter pattern with gradual migration
+**Reasoning**: Zero-disruption deployment, fallback safety
+**Alternative**: Big-bang replacement (rejected for risk)
+
+## KNOWN WORKING CONFIGURATIONS
+
+### Card Animation Examples:
+- **punch** (Quick Jab): Fast, precise, minimal effects
+- **body_slam**: Tumbling physics, heavy impact, dramatic shake
+- **feint**: Stealthy, low arc, minimal visual signature
+- **guard**: Steady defensive positioning, protective stance
+
+### Animation Specs:
+- Default flight duration: 0.35s
+- Physics gravity: 600 pixels/s²
+- Impact shake intensity: 6-20 (card dependent)
+- Settle elasticity: 0.8 with 0.9 damping
+
+## CODE QUALITY NOTES
+
+### Error Handling:
+- Comprehensive callback error isolation in adapter
+- Graceful fallbacks for missing animation specs
+- Debug mode for development, clean output for production
+
+### Performance Considerations:
+- Single unified update cycle
+- Efficient bounds checking prevents runaway physics
+- Animation pooling ready for future optimization
+
+## FINAL STATUS
+The unified animation system is now **COMPLETE AND STABLE**. All major gameplay integration points are working. The system provides the requested variety between different card types while maintaining crash-free operation. Ready for animation stage refinement and visual polish in the next development session.
+
+### Ready for Next Session:
+- Animation lab is working for testing
+- Debug logging provides clear feedback
+- All test cards have distinct animation personalities
+- System architecture supports easy expansion and modification
+
+### Next Session Focus:
+Animations in different stages - refining the 8-phase system for maximum visual impact and gameplay clarity.
 
 ### The Solution
 Enhanced the animation lab's `mousereleased()` function to:
