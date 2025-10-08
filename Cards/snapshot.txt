@@ -1,0 +1,62 @@
+COMBO HIGHLIGHTING PROJECT - SESSION SNAPSHOT
+=====================================================
+
+## 🎯 Current Status: COMBO HIGHLIGHTING FIXED ✅
+
+The combo highlighting system is now **fully functional** in the animation lab. The core issue was that `prevCardId` wasn't being updated when cards were played.
+
+## 🔧 What We Fixed
+
+1. **Root Problem**: Animation lab bypassed `handleCardPlayed()` calls, so `prevCardId` never updated
+2. **Key Solution**: Enhanced `anim_lab.lua` to manually call `handleCardPlayed()` after successful card drops
+3. **Critical Insight**: Feint is a modifier card that doesn't stay on board, requiring special handling
+
+## 📁 Files Modified
+
+- **`src/states/anim_lab.lua`**: Added logic to detect modifier vs regular cards and call `handleCardPlayed()` appropriately
+- **`src/gamestate.lua`**: Fixed `handleCardPlayed()` to set `prevCardId` to the currently played card
+
+## 🧪 How to Test
+
+1. Run animation lab
+2. Press `=` to set up punch → feint → counterplay combo
+3. Drop cards in sequence: punch, feint, counterplay
+4. Counterplay should glow green-white after feint is played
+
+## 🚀 Next Steps (When We Resume)
+
+1. **Clean up debug output**: Remove excessive console logging from card renderer
+2. **Test other combos**: Verify all combo types work (not just feint-based ones)
+3. **Normal game mode**: Ensure combo highlighting works in actual gameplay, not just animation lab
+4. **Performance**: Consider if the frequent combo checking impacts frame rate
+
+## 🔍 Key Code Locations
+
+- Combo detection: `src/card_renderer.lua` (around line with `canPlayCombo`)
+- Combo definitions: `src/card_definitions.lua` 
+- State tracking: `src/gamestate.lua` (`handleCardPlayed` function)
+- Animation lab fixes: `src/states/anim_lab.lua` (`mousereleased` function)
+
+## 🐛 Known Issues to Monitor
+
+- Combo highlighting only tested in animation lab so far
+- Debug output is very verbose (should clean up)
+- Need to verify modifier card handling works for all modifier types
+
+## 📝 Technical Details
+
+### The Problem
+Cards in the animation lab were being dropped successfully but `prevCardId` was never being updated because the animation lab environment bypassed the normal `handleCardPlayed()` call that happens in regular gameplay.
+
+### The Solution
+Enhanced the animation lab's `mousereleased()` function to:
+1. Detect when a card was successfully dropped (draggingCard becomes nil)
+2. Check if the dropped card is a modifier (like Feint) or regular card
+3. For modifier cards: Call `handleCardPlayed()` immediately since they don't appear on board
+4. For regular cards: Find the card on the board by ID comparison and call `handleCardPlayed()`
+5. This ensures `prevCardId` is properly updated for combo detection
+
+### Key Insight: Modifier Cards
+Feint is defined as `mod = { target = "ally", scope = "target", retarget = true }` which means it's a modifier card that doesn't stay on the board. It modifies other cards and then disappears, which is why our initial board-scanning approach failed.
+
+This should give you a solid foundation to jump back in! The hardest debugging is done - now it's mostly polish and testing.

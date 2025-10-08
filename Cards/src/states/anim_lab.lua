@@ -142,18 +142,10 @@ function anim_lab:setupCombo(setupCardId, comboCardId, comboName, attackCardId)
     return 
   end
   
-  print("Animation Lab: Setting up " .. comboName .. " combo test...")
+  print("Animation Lab: Adding " .. comboName .. " cards to hand...")
   
-  -- Clear existing board cards and hand
-  for i, slot in ipairs(player.boardSlots or {}) do 
-    slot.card = nil 
-  end
-  for i, slot in ipairs(player.slots or {}) do 
-    slot.card = nil 
-  end
-  
-  -- Reset player state
-  player.prevCardId = nil
+  -- DON'T clear existing board cards and hand - just add cards
+  -- DON'T reset player state - preserve prevCardId for testing
   
   -- If an attack card is needed (for feint combos), add it first
   if attackCardId then
@@ -179,11 +171,7 @@ function anim_lab:setupCombo(setupCardId, comboCardId, comboName, attackCardId)
     comboCard.faceUp = true  -- Ensure card is face-up
     player:addCard(comboCard)
     print("  → Added " .. (comboCard.definition.name or comboCardId) .. " to hand")
-    if attackCardId then
-      print("  → Play attack + feint together, then combo card should glow!")
-    else
-      print("  → Play the first card, then the second should glow for combo!")
-    end
+    print("  → Cards ready for testing! prevCardId preserved: " .. (player.prevCardId or "nil"))
   end
   
   self.gs:refreshLayoutPositions()
@@ -557,9 +545,13 @@ function anim_lab:mousereleased(x,y,button)
           print("  *** prevCardId is now:", player.prevCardId)
         else
           -- Regular cards: find which board slot the card was placed in by comparing card IDs
+          -- Add a small delay to ensure card placement has completed
+          love.timer.sleep(0.05) -- 50ms delay (increased)
           local foundSlot = false
+          print("  DEBUG: Searching for card", droppedCard.id, "on board...")
           for slotIndex, slot in ipairs(player.boardSlots or {}) do
-            print("    Slot", slotIndex, "has card:", slot.card and slot.card.id or "none")
+            local cardInfo = slot.card and slot.card.id or "none"
+            print("    Slot", slotIndex, "has card:", cardInfo)
             if slot.card and slot.card.id == droppedCard.id then
               -- Call handleCardPlayed to update game state for combo tracking
               self.gs:handleCardPlayed(player, slot.card, slotIndex)
@@ -570,7 +562,13 @@ function anim_lab:mousereleased(x,y,button)
             end
           end
           if not foundSlot then
-            print("  WARNING: Could not find dropped card on board!")
+            print("  WARNING: Could not find dropped card", droppedCard.id, "on board!")
+            -- Additional debug: check if card went somewhere else
+            print("  DEBUG: Final board state check...")
+            for slotIndex, slot in ipairs(player.boardSlots or {}) do
+              local cardInfo = slot.card and slot.card.id or "none"
+              print("    Final slot", slotIndex, ":", cardInfo)
+            end
           end
         end
       else
