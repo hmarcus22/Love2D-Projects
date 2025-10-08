@@ -175,12 +175,7 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
     -- Hover glow
     local amt = card.handHoverAmount or 0
     if amt and amt > 0.01 then
-        local glowCfg = (Config.layout and Config.layout.hoverGlow) or {}
-        local color = glowCfg.color or {1, 1, 0.8, 0.85}
-        local alpha = (color[4] or 0.85) * math.min(1, amt)
-        love.graphics.setColor(color[1], color[2], color[3], alpha)
-        local lw = (glowCfg.width or 3) + (amt * (glowCfg.extraWidth or 2))
-        love.graphics.setLineWidth(lw)
+        local HighlightUtils = require 'src.ui.hover_utils'
         
         if scaleX ~= 1 or scaleY ~= 1 then
             love.graphics.push()
@@ -189,39 +184,18 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
             love.graphics.translate(-cx, -cy)
         end
         
-        love.graphics.rectangle("line", x - 4, y - 4, w + 8, h + 8, 12, 12)
-        love.graphics.setLineWidth(1)
+        HighlightUtils.drawHover(card, x, y, w, h, amt)
         
         if scaleX ~= 1 or scaleY ~= 1 then
             love.graphics.pop()
         end
-        
-        love.graphics.setColor(1, 1, 1, 1)
     end
 
-    -- Combo glow - green to white cycling animation when combo is available
-    if card.player and card.player.canPlayCombo and card.player:canPlayCombo(card.definition) then
-        -- Debug output to track combo glow (limited frequency)
-        local currentTime = love.timer.getTime()
-        if not card._lastComboGlowLog or currentTime - card._lastComboGlowLog > 1 then
-            print("COMBO GLOW: Rendering for card", card.id or "unknown")
-            card._lastComboGlowLog = currentTime
-        end
-        
-        local comboGlowCfg = (Config.layout and Config.layout.comboGlow) or {}
+    -- Combo glow - only show when card is in hand and not being dragged
+    if card.comboGlow and not card.dragging then
+        print("[RENDER] Drawing combo glow for", card.definition and card.definition.name or "unknown")
+        local HighlightUtils = require 'src.ui.hover_utils'
         local time = love.timer.getTime()
-        local cycle = math.sin(time * (comboGlowCfg.cycleSpeed or 3)) * 0.5 + 0.5  -- 0 to 1 sine wave
-        
-        -- Interpolate between green and white
-        local green = comboGlowCfg.greenColor or {0.2, 1.0, 0.3, 0.9}
-        local white = comboGlowCfg.whiteColor or {1.0, 1.0, 1.0, 0.9}
-        local r = green[1] + (white[1] - green[1]) * cycle
-        local g = green[2] + (white[2] - green[2]) * cycle
-        local b = green[3] + (white[3] - green[3]) * cycle
-        local a = green[4] + (white[4] - green[4]) * cycle
-        
-        love.graphics.setColor(r, g, b, a)
-        love.graphics.setLineWidth(comboGlowCfg.width or 4)
         
         if scaleX ~= 1 or scaleY ~= 1 then
             love.graphics.push()
@@ -230,38 +204,16 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
             love.graphics.translate(-cx, -cy)
         end
         
-        local offset = comboGlowCfg.borderOffset or 6
-        local radius = comboGlowCfg.borderRadius or 15
-        love.graphics.rectangle("line", x - offset, y - offset, w + offset*2, h + offset*2, radius, radius)
-        love.graphics.setLineWidth(1)
+        HighlightUtils.drawCombo(card, x, y, w, h, time)
         
         if scaleX ~= 1 or scaleY ~= 1 then
             love.graphics.pop()
-        end
-        
-        love.graphics.setColor(1, 1, 1, 1)
-    else
-        -- Debug: Check why combo glow is not showing
-        if (card.id == "jab_cross" or card.id == "counterplay") then
-            print("DEBUG", card.id, ": player=", card.player and "yes" or "no")
-            if card.player then
-                print("  canPlayCombo function=", card.player.canPlayCombo and "yes" or "no")
-                if card.player.canPlayCombo then
-                    print("  canPlayCombo result=", card.player:canPlayCombo(card.definition))
-                    print("  prevCardId=", card.player.prevCardId)
-                    print("  card.definition=", card.definition and "yes" or "no")
-                    if card.definition and card.definition.combo then
-                        print("  combo.after=", card.definition.combo.after)
-                        print("  Match?", card.player.prevCardId == card.definition.combo.after)
-                    end
-                end
-            end
         end
     end
 
     -- Impact flash
     if card.impactFlash and card.impactFlash > 0.01 then
-        love.graphics.setColor(1, 1, 0.6, card.impactFlash)
+        local HighlightUtils = require 'src.ui.hover_utils'
         
         if scaleX ~= 1 or scaleY ~= 1 then
             love.graphics.push()
@@ -270,13 +222,11 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
             love.graphics.translate(-cx, -cy)
         end
         
-        love.graphics.rectangle("fill", x, y, w, h, 8, 8)
+        HighlightUtils.drawImpact(card, x, y, w, h, card.impactFlash)
         
         if scaleX ~= 1 or scaleY ~= 1 then
             love.graphics.pop()
         end
-        
-        love.graphics.setColor(1, 1, 1, 1)
     end
 end
 

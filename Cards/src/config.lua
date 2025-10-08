@@ -94,36 +94,48 @@ local defaults = {
   -- If false, per-card/profile override metadata (duration/overshoot/arcScale/slamStyle) are ignored;
   -- horizontal shaping still applies but timing falls back to global defaults.
   useAnimationOverrides = true,
-    cardImpactEnabled = true,
-    cardImpactDuration = 0.28,
-    cardImpactSquashScale = 0.85, -- vertical squash minimum
-    cardImpactFlashAlpha = 0.55,
-  cardImpactHoldExtra = 0.1, -- extra pause after impact before advancing turn
+    
+    -- Impact and visual effects (moved to layout.highlights.impact)
+    cardImpactEnabled = true,      -- Use layout.highlights.impact.enabled instead
+    cardImpactDuration = 0.28,     -- Use layout.highlights.impact.duration instead
+    cardImpactSquashScale = 0.85,  -- Use layout.highlights.impact.squashScale instead
+    cardImpactFlashAlpha = 0.55,   -- Use layout.highlights.impact.flashAlpha instead
+  cardImpactHoldExtra = 0.1,       -- Use layout.highlights.impact.holdExtra instead
+  
+  -- Shadow effects (moved to layout.highlights.shadow)
+  cardShadowMinScale = 0.85,       -- Use layout.highlights.shadow.minScale instead
+  cardShadowMaxScale = 1.08,       -- Use layout.highlights.shadow.maxScale instead
+  cardShadowMinAlpha = 0.25,       -- Use layout.highlights.shadow.minAlpha instead
+  cardShadowMaxAlpha = 0.55,       -- Use layout.highlights.shadow.maxAlpha instead
+  
+  -- Slot effects (moved to layout.highlights.slot)
+  cardSlotGlowDuration = 0.35,     -- Use layout.highlights.slot.duration instead
+  cardSlotGlowAlpha = 0.55,        -- Use layout.highlights.slot.alpha instead
+  
+  -- Other visual settings
+  cardHoverBaseLift = 18,
+  cardDragExtraLift = 24,
+  
   -- Card rendering system
   useCardTextureCache = true, -- Pre-render cards to textures for consistent scaling
   cardTextureDebugInfo = false, -- Show cache statistics overlay
+  
   -- Card text sizing
   cardNameFontSize = 10,        -- Card name text size
   cardCostFontSize = 8,         -- Energy cost number size  
   cardStatFontSize = 8,         -- Attack/Block/Heal stat text size
   cardDescFontSize = 7,         -- Description text size
   cardBackFontSize = 10,        -- "Deck" text on card backs
+  
   -- Text background panel sizing
   cardNamePanelHeight = 26,     -- Height of name background panel
   cardStatsPanelHeight = 18,    -- Height per line for stats background panel
   cardDescPanelPadding = 8,     -- Padding around description background panel
+  
   -- Text vertical positioning
   cardNameYOffset = 8,          -- Vertical offset for card name from top
   cardStatsYOffset = 44,        -- Vertical offset for stats area from top
   cardDescYOffset = 60,         -- Vertical offset for description from bottom
-  cardHoverBaseLift = 18,
-  cardDragExtraLift = 24,
-  cardShadowMinScale = 0.85,
-  cardShadowMaxScale = 1.08,
-  cardShadowMinAlpha = 0.25,
-  cardShadowMaxAlpha = 0.55,
-  cardSlotGlowDuration = 0.35,
-  cardSlotGlowAlpha = 0.55,
     deckPopupW = 320,
     deckPopupH = 240,
     arrowHeadSize = 16,
@@ -158,29 +170,68 @@ local defaults = {
     handHoverScale = 0.2,
     -- Use the visually scaled hover size for hand hit-testing (hover/click)
     handHoverHitScaled = false,
-    -- Hover glow styling (used across states)
-    hoverGlow = {
-      color = {1, 1, 0.8, 0.85},
-      width = 3,
-      extraWidth = 2,
-    },
-    -- Combo glow styling (green to white cycling)
-    comboGlow = {
-      greenColor = {0.0, 1.0, 0.0, 1.0},  -- Pure bright green, full opacity
-      whiteColor = {1.0, 1.0, 1.0, 1.0},  -- Pure white, full opacity
-      cycleSpeed = 4,  -- Slightly slower for better visibility
-      width = 6,       -- Thicker border
-      borderRadius = 15,
-      borderOffset = 4,  -- Closer to card edge
+    
+    -- Consolidated highlight system configuration
+    highlights = {
+      -- Hover highlights (mouse over cards in hand)
+      hover = {
+        color = {1, 1, 0.8, 0.85},  -- Warm yellow-white
+        width = 3,
+        extraWidth = 2,  -- Additional width when fully hovered
+        lift = 56,       -- Vertical lift amount
+        scale = 0.2,     -- Scale factor for hover growth
+        speed = 14,      -- Animation speed
+        inSpeed = 14,    -- Speed when hovering in
+        outSpeed = 20,   -- Speed when hovering out
+      },
+      -- Combo highlights (green-white cycling when combo available)
+      combo = {
+        greenColor = {0.0, 1.0, 0.0, 1.0},  -- Pure bright green
+        whiteColor = {1.0, 1.0, 1.0, 1.0},  -- Pure white
+        cycleSpeed = 4,   -- Sine wave cycle speed
+        width = 6,        -- Thicker than hover
+        borderRadius = 15,
+        borderOffset = 4, -- Distance from card edge
+      },
+      -- Impact effects (when cards hit the board)
+      impact = {
+        enabled = true,
+        flashColor = {1, 1, 0.6},  -- Yellow-white flash
+        flashAlpha = 0.55,         -- Flash opacity
+        duration = 0.28,           -- Total impact duration
+        squashScale = 0.85,        -- Vertical compression amount
+        holdExtra = 0.1,           -- Extra pause after impact
+      },
+      -- Board slot highlights (valid drop targets)
+      slot = {
+        duration = 0.35,
+        alpha = 0.55,
+      },
+      -- Shadow effects (elevation-based shadows)
+      shadow = {
+        minScale = 0.85,
+        maxScale = 1.08,
+        minAlpha = 0.25,
+        maxAlpha = 0.55,
+      },
     },
     -- Card text panel opacities
     cardNamePanelAlpha = 0.78,
     cardStatsPanelAlpha = 0.66,
     cardDescPanelAlpha = 0.78,
+    
+    -- Layout positioning
     boardTopMargin = 36,
     boardHandGap = 64,
     boardRowMinGap = 20,
     sideGap = 30,
+    
+    -- Legacy compatibility (moved to highlights section above)
+    handHoverLift = 56,        -- Use highlights.hover.lift instead
+    handHoverSpeed = 14,       -- Use highlights.hover.speed instead
+    handHoverInSpeed = 14,     -- Use highlights.hover.inSpeed instead
+    handHoverOutSpeed = 20,    -- Use highlights.hover.outSpeed instead
+    handHoverScale = 0.2,      -- Use highlights.hover.scale instead
   }
 }
 

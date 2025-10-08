@@ -46,3 +46,13 @@ These points are considered ideas that need further discussion and refinement be
 
     Sounds can be tied to specific cards
 
+COMPLETED: Animation Lab Combo Testing Framework
+    ✅ Cross-player combo detection for testing sequences
+    ✅ Player advancement control to prevent forced turn switches
+    ✅ Maintains game rule integrity while enabling comprehensive testing
+    ✅ Works for testing "Quick Jab → Corner Rally → Wild Swing" scenarios
+    
+    Implementation: Two key flags in animation lab
+    - gs.isAnimationLab = true (enables cross-player combo detection)
+    - gs.suppressPlayerAdvance = true (prevents automatic nextPlayer() calls)
+

@@ -46,3 +46,37 @@ Adding Features
 - New targeting patterns: add to logic/targeting.lua and consume in both resolver and renderers.
 - New states: place under src/states/ and keep transitions in the current state or via Gamestate.
 
+## Animation Lab & Combo Testing Framework
+
+### Purpose
+The Animation Lab (`src/states/anim_lab.lua`) serves as a controlled testing environment for card sequences, combos, and animations while maintaining game rule integrity.
+
+### Key Features & Implementation
+
+**Combo Detection Across Players:**
+- `Player:canPlayCombo(card, gs)` checks all players' `prevCardId` in animation lab mode
+- Normal games enforce per-player combo rules (no cross-player combos)
+- Enables testing sequences like "Quick Jab → Corner Rally → Wild Swing" where cards are played by different players
+
+**Player Advancement Control:**
+- Flag: `gs.suppressPlayerAdvance = true` prevents automatic `nextPlayer()` calls
+- Modified in `logic/actions.lua`: `playCardFromHand()`, `playModifierOnSlot()`, `advanceTurn()`
+- Animation lab manually controls `currentPlayer` for testing scenarios
+- Normal games continue standard turn progression
+
+**Special Flags:**
+- `gs.isAnimationLab = true` — Enables cross-player combo detection
+- `gs.suppressPlayerAdvance = true` — Prevents automatic player switching
+- Both flags are false/undefined in normal games
+
+### Testing Workflow
+1. Add test cards to hand via animation lab UI
+2. Play sequence without forced player switches
+3. Combo highlighting works across all players' previous cards
+4. Manual player control allows testing complex scenarios
+
+### Maintaining Game Rules
+- Animation lab preserves individual player `prevCardId` tracking
+- Cross-player combos are only allowed in testing environment
+- Real games maintain strict per-player combo enforcement
+

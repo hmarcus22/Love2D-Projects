@@ -61,7 +61,7 @@ function Actions.prevalidatePlayCard(self, card, slotIndex)
     local def = card.definition or {}
     local comboApplied = false
     if player and player.applyComboBonus then
-        comboApplied = player:applyComboBonus(card)
+        comboApplied = player:applyComboBonus(card, self)
     end
     local fighter = player and player.getFighter and player:getFighter() or nil
     local passives = fighter and fighter.passives or nil
@@ -102,7 +102,14 @@ function Actions.playCardFromHand(self, card, slotIndex)
     player:compactHand(self)
     self:placeCardWithoutAdvancing(player, card, slotIndex)
     self.lastActionWasPass = false
-    self:nextPlayer()
+    
+    -- ANIMATION LAB: Suppress automatic player advancement for testing
+    -- Flag set in anim_lab.lua enables playing card sequences without forced player switches
+    -- Normal games advance players normally for proper turn-based gameplay
+    if not self.suppressPlayerAdvance then
+        self:nextPlayer()
+    end
+    
     self:maybeFinishPlayPhase()
     return true
 end
@@ -267,7 +274,10 @@ function Actions.playModifierOnSlot(self, card, targetPlayerIndex, slotIndex, re
     self:registerTurnAction()
     self.lastActionWasPass = false
 
-    self:nextPlayer()
+    -- ANIMATION LAB: Suppress automatic player advancement for testing
+    if not self.suppressPlayerAdvance then
+        self:nextPlayer()
+    end
 
     self:maybeFinishPlayPhase()
 
@@ -280,7 +290,10 @@ function Actions.advanceTurn(self)
 
     self.lastActionWasPass = false
 
-    self:nextPlayer()
+    -- ANIMATION LAB: Suppress automatic player advancement for testing
+    if not self.suppressPlayerAdvance then
+        self:nextPlayer()
+    end
 end
 
 function Actions.discardCard(self, card)

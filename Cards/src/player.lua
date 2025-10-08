@@ -17,28 +17,59 @@ function Player:init(args)
     self.id = args.id
     self.maxHandSize = args.maxHandSize or 5
     self.maxBoardCards = args.maxBoardCards or 3
-    self.maxHealth = args.maxHealth or 20
-    self.health = args.health or self.maxHealth
-    self.block = 0
-    self.slots = {}
     self.deck = {}
+    self.slots = {}
     self.boardSlots = {}
-    self.prevCardId = nil
-    self.lastCardId = nil
-    self.roundPunchCount = 0
-
-    self.fighterId = nil
-    self.fighter = nil
-    if args.fighter or args.fighterId then
-        self:setFighter(args.fighter or args.fighterId)
-    end
-
+    self.energy = 0
+    self.maxEnergy = 0
+    self.comboHighlightEnabled = true  -- Enable combo highlighting
+    
+    -- Initialize hand slots
     for i = 1, self.maxHandSize do
-        self.slots[i] = { x = 0, y = 0, card = nil }
+        self.slots[i] = { card = nil }
     end
-
+    
+    -- Initialize board slots
     for i = 1, self.maxBoardCards do
-        self.boardSlots[i] = { x = 0, y = 0, card = nil, block = 0 }
+        self.boardSlots[i] = { card = nil }
+    end
+    
+    -- Set fighter if provided
+    if args.fighter then
+        self.fighter = args.fighter
+        self.fighterId = args.fighterId or (args.fighter.id)
+    elseif args.fighterId then
+        self.fighterId = args.fighterId
+        self:setFighter(args.fighterId)
+    end
+end
+
+-- Update combo glow state for all cards in hand
+function Player:updateComboStates(gs)
+    if not self.comboHighlightEnabled then return end
+    
+    print("[COMBO] Player", self.id, "updateComboStates - prevCardId:", self.prevCardId)
+    
+    for i, slot in ipairs(self.slots) do
+        local card = slot.card
+        if card then
+            local cardName = card.definition and card.definition.name or "unknown"
+            local canCombo = self:canPlayCombo(card.definition, gs)
+            local dragging = card.dragging
+            
+            print("[COMBO] Slot", i, cardName, "- canCombo:", canCombo, "dragging:", dragging)
+            
+            -- Only show combo glow when card is in hand (not dragging/on board)
+            if not card.dragging and self:canPlayCombo(card.definition, gs) then
+                print("[COMBO] Setting glow=true for", cardName, "prevCardId:", self.prevCardId)
+                card.comboGlow = true
+            else
+                if card.comboGlow then -- Only print when clearing
+                    print("[COMBO] Clearing glow for", cardName, "dragging:", card.dragging)
+                end
+                card.comboGlow = false
+            end
+        end
     end
 end
 
@@ -76,10 +107,26 @@ function Player:setFighter(fighter)
     end
 end
 -- Combo and ultimate logic
-function Player:canPlayCombo(card)
+function Player:canPlayCombo(card, gs)
     if not card or not card.combo then
         return false
     end
+    
+    -- ANIMATION LAB: Check all players' prevCardId for combo chains
+    -- This enables testing sequences like "Player1: Quick Jab → Player2: Corner Rally → Player1: Wild Swing"
+    -- while maintaining game rule integrity in normal play
+    if gs and gs.isAnimationLab then
+        if gs.players then
+            for _, player in ipairs(gs.players) do
+                if player.prevCardId == card.combo.after then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+    
+    -- NORMAL GAMES: Only check current player's prevCardId (enforces per-player combos)
     return self.prevCardId ~= nil and self.prevCardId == card.combo.after
 end
 
@@ -87,11 +134,11 @@ function Player:canPlayUltimate(card)
     return card.ultimate == true
 end
 
-function Player:applyComboBonus(card)
+function Player:applyComboBonus(card, gs)
     if not card or not card.combo then
         return false
     end
-    if card.comboApplied or not self:canPlayCombo(card) then
+    if card.comboApplied or not self:canPlayCombo(card, gs) then
         return false
     end
 
@@ -414,9 +461,19 @@ function Player:drawHand(isCurrent, gs)
 end
 
 -- Smoothly tween hand hover amount toward target for each card
-function Player:updateHandHover(gs, dt)
+function Player:updateHandHover(gs, dt, isCurrentPlayer)
     if not gs or not self.slots then return end
     local layout = gs:getLayout() or {}
+    
+    -- In animation lab, always update combo states (not just for current player)
+    -- This allows proper combo detection when cards are played by different players
+    local isAnimLab = gs and gs.isAnimationLab
+    if isCurrentPlayer or isAnimLab then
+        self:updateComboStates(gs)
+    end
+    
+    -- Use highlight utils for consistent hover animation
+    local HighlightUtils = require 'src.ui.hover_utils'
     local inSpeed = layout.handHoverInSpeed or layout.handHoverSpeed or 12
     local outSpeed = layout.handHoverOutSpeed or layout.handHoverSpeed or 12
     if (inSpeed <= 0 and outSpeed <= 0) then return end
@@ -424,9 +481,7 @@ function Player:updateHandHover(gs, dt)
         local card = slot.card
         if card then
             local target = card.handHoverTarget or 0
-            local amt = card.handHoverAmount or 0
-            amt = HoverUtils.stepAmount(amt, target, dt, inSpeed, outSpeed)
-            card.handHoverAmount = amt
+            HighlightUtils.updateHoverAmount(card, target, dt)
         end
     end
 end

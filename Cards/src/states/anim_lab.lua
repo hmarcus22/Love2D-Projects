@@ -10,6 +10,45 @@ local Input = require 'src.input'
 
 local anim_lab = {}
 
+--[[
+ANIMATION LAB - COMBO TESTING FRAMEWORK
+
+This module provides a controlled testing environment for card sequences, combos, 
+and animations while maintaining game rule integrity.
+
+KEY FEATURES:
+
+1. CROSS-PLAYER COMBO DETECTION
+   - Sets `gs.isAnimationLab = true` to enable special combo behavior
+   - Player:canPlayCombo() checks ALL players' prevCardId in lab mode
+   - Allows testing sequences like "Quick Jab → Corner Rally → Wild Swing"
+   - Normal games still enforce per-player combo rules
+
+2. PLAYER ADVANCEMENT CONTROL  
+   - Sets `gs.suppressPlayerAdvance = true` to prevent automatic nextPlayer()
+   - Modified logic/actions.lua respects this flag in playCardFromHand(), etc.
+   - Animation lab manually controls currentPlayer for testing scenarios
+   - Enables playing card sequences without forced player switches
+
+3. TESTING WORKFLOW
+   - Add cards to hand via UI
+   - Play sequences while maintaining combo state across players
+   - Manual player control allows complex scenario testing
+   - Real-time combo highlighting shows valid chains
+
+GAME RULE INTEGRITY:
+- Individual player prevCardId tracking is preserved
+- Cross-player combos only allowed in testing environment  
+- Real games maintain strict per-player combo enforcement
+- Animation lab serves as reliable testing proxy for actual gameplay
+
+USAGE:
+- Access via main menu → Animation Lab
+- Add test cards using interface
+- Play sequences to test combo chains and interactions
+- Lab behavior mirrors real game rules while enabling comprehensive testing
+--]]
+
 -- Build & cache card definitions list (for tuner / selection)
 local function buildDefList()
   local list = {}
@@ -34,6 +73,10 @@ function anim_lab:init()
   
   self.gs = GameState:newFromDraft({testPlayer, dummyPlayer})
   self.gs.currentPlayer = 1 -- Always use player 1 as the "thrower"
+  
+  -- CRITICAL FLAGS FOR ANIMATION LAB BEHAVIOR:
+  self.gs.isAnimationLab = true -- Enables cross-player combo detection in Player:canPlayCombo()
+  self.gs.suppressPlayerAdvance = true -- Prevents automatic nextPlayer() calls in Actions methods
   
   -- Ensure layout is properly initialized for animation lab
   local Layout = require 'src.game_layout'

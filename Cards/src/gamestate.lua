@@ -16,6 +16,16 @@ local CardRenderer = require "src.card_renderer"
 local RoundManager = require "src.logic.round_manager"
 local DEFAULT_BACKGROUND_COLOR = { 0.2, 0.5, 0.2 }
 
+--[[
+GAMESTATE SPECIAL FLAGS:
+
+Animation Lab Testing Flags:
+- gs.isAnimationLab = true       -- Enables cross-player combo detection
+- gs.suppressPlayerAdvance = true -- Prevents automatic nextPlayer() calls
+
+These flags allow the animation lab to test card sequences and combos
+while maintaining game rule integrity in normal gameplay.
+--]]
 
 local GameState = {}
 GameState.__index = GameState
@@ -73,7 +83,8 @@ function GameState:resetRoundFlags()
         self.skipTurnActive[i] = false
         local player = self.players and self.players[i] or nil
         if player then
-            player.prevCardId = nil
+            -- Note: prevCardId is NOT reset here - it should persist during a fight for combo detection
+            -- Only reset lastCardId and roundPunchCount between rounds
             player.lastCardId = nil
             player.roundPunchCount = 0
         end
@@ -129,12 +140,16 @@ function GameState:handleCardPlayed(player, card, slotIndex)
         return
     end
     
-    -- Clear hover state when card is played to prevent hover highlight from persisting
+    -- Clear hover and combo state when card is played to prevent highlights from persisting
     card.handHoverTarget = 0
     card.handHoverAmount = 0
+    print("[PLAY] Clearing comboGlow for played card:", card.definition and card.definition.name or "unknown")
+    card.comboGlow = false
     
     -- Set prevCardId to the card that was just played (for combo detection)
+    print("[PLAY] Player", player.id, "Setting prevCardId from", player.prevCardId, "to", card.id, "for card:", card.definition and card.definition.name or "unknown")
     player.prevCardId = card.id
+    print("[PLAY] Player", player.id, "prevCardId confirmed set to:", player.prevCardId)
     player.lastCardId = card.id
     if card.id == "punch" then
         player.roundPunchCount = (player.roundPunchCount or 0) + 1
@@ -524,8 +539,12 @@ function GameState:update(dt)
     -- Add per-frame game update logic here if needed
     -- Update hand hover tweening for players during play phase
     if self.phase == 'play' and self.players then
-        for _, p in ipairs(self.players) do
-            if p.updateHandHover then p:updateHandHover(self, dt) end
+        for i, p in ipairs(self.players) do
+            if p.updateHandHover then 
+                -- Only update combo states for the current player
+                local isCurrentPlayer = (self.currentPlayer == i)
+                p:updateHandHover(self, dt, isCurrentPlayer)
+            end
         end
     end
     if self.phase == "resolve" and self.resolveQueue and self.resolveIndex then
