@@ -44,6 +44,27 @@ function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAd
     return { unifiedAnim }
 end
 
+-- Build animation sequence for modifier cards (fly to target, then disappear)
+function AnimationBuilder.buildModifierPlaySequence(gameState, card, targetX, targetY, onComplete)
+    -- Get positions
+    local fromX, fromY = card.x, card.y
+    
+    -- Create completion handler that doesn't place the card
+    local function onModifierFlightComplete()
+        -- Remove any visual references to the card
+        card.animX = nil
+        card.animY = nil
+        
+        -- Call the provided completion callback
+        if onComplete then onComplete() end
+    end
+    
+    -- Build unified animation sequence (but don't place card in slot)
+    local unifiedAnim = AnimationBuilder._buildUnifiedCardPlayAnimation(card, fromX, fromY, targetX, targetY, onModifierFlightComplete)
+    
+    return { unifiedAnim }
+end
+
 -- Build flight parameters from unified animation specs (legacy function, kept for compatibility)
 function AnimationBuilder._buildFlightParams(card)
     local UnifiedSpecs = require 'src.unified_animation_specs'

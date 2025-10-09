@@ -110,8 +110,27 @@ end
 
 -- Update all active animations
 function UnifiedAnimationEngine:update(dt)
+    -- Safety check for abnormal dt values
+    if dt > 1.0 or dt <= 0 then
+        if Config and Config.debug then
+            print("[UnifiedEngine] Skipping update - invalid dt:", dt)
+        end
+        return
+    end
+    
     local activeCount = 0
+    local maxIterations = 100 -- Prevent infinite loops
+    local iterations = 0
+    
     for card, animation in pairs(self.activeAnimations) do
+        iterations = iterations + 1
+        if iterations > maxIterations then
+            if Config and Config.debug then
+                print("[UnifiedEngine] Warning: Too many animations detected, breaking loop")
+            end
+            break
+        end
+        
         activeCount = activeCount + 1
         self:updateAnimation(animation, dt)
     end

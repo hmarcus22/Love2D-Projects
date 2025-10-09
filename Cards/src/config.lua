@@ -4,7 +4,13 @@ local Serialize = require "src.utils.serialize"
 
 -- Defaults (original values)
 local defaults = {
-  debug = false, -- Debug logging for development (set to true when debugging)
+  debug = true, -- Master debug flag
+  debugCategories = {
+    animations = false,      -- Animation system debug (disabled for cleaner output)
+    animationInit = true,    -- Animation initialization only
+    animationErrors = true,  -- Animation errors only
+    general = true,          -- General debug info
+  },
   window = {
     width = 1000,
     height = 600,

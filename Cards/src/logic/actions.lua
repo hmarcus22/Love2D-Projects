@@ -231,8 +231,148 @@ function Actions.playModifierOnSlot(self, card, targetPlayerIndex, slotIndex, re
             self:addLog("Not enough energy")
             return false
         end
-        owner.energy = energy - cost
     end
+
+    -- Get modifier definition
+    local m = card.definition and card.definition.mod
+    if not m then
+        dprint("[playModifierOnSlot] No modifier definition")
+        return false
+    end
+
+    -- Build and trigger flight animation for modifier cards
+    local targetX, targetY = self:getBoardSlotPosition(targetPlayerIndex, slotIndex)
+    print("[DEBUG] Building modifier animation. Target position:", targetX, targetY)
+    if targetX and targetY then
+        local AnimationBuilder = require('src.logic.animation_builder')
+        
+        -- Create completion handler for modifier
+        local function onModifierFlightComplete()
+            print("[DEBUG] ANIMATION COMPLETED - calling completeModifierApplication")
+            -- Complete the modifier application after flight animation
+            Actions.completeModifierApplication(self, card, targetPlayerIndex, slotIndex, retargetOffset, m)
+        end
+        
+        -- Build flight animation using specialized modifier sequence
+        print("[DEBUG] Building modifier play sequence...")
+        local animations = AnimationBuilder.buildModifierPlaySequence(self, card, targetX, targetY, onModifierFlightComplete)
+        print("[DEBUG] Animation built. Animation count:", animations and #animations or "none")
+        
+        -- Start animation
+        if self.animations and animations and #animations > 0 then
+            print("[DEBUG] Adding animations to animation system...")
+            for _, anim in ipairs(animations) do
+                self.animations:add(anim)
+                print("[DEBUG] Added animation type:", anim.type)
+            end
+            print("[DEBUG] All animations added. Returning true.")
+        else
+            -- Fallback if no animation system
+            print("[DEBUG] No animation system available, calling completion immediately")
+            onModifierFlightComplete()
+        end
+        
+        return true
+    end
+
+    -- Fallback: complete immediately if no position found
+    return Actions.completeModifierApplication(self, card, targetPlayerIndex, slotIndex, retargetOffset, m)
+end
+
+-- Complete modifier application (extracted from original playModifierOnSlot)
+function Actions.completeModifierApplication(self, card, targetPlayerIndex, slotIndex, retargetOffset, m)
+    local owner = card.owner
+    print("[DEBUG] completeModifierApplication called for", card.name or "unknown")
+    print("[DEBUG] targetPlayerIndex:", targetPlayerIndex, "slotIndex:", slotIndex)
+
+    -- Re-validate target and modifier compatibility (since time has passed during animation)
+    local targetPlayer = self.players[targetPlayerIndex]
+    if not targetPlayer then
+        print("[DEBUG] FAILED: Target player no longer exists")
+        dprint("[completeModifierApplication] Target player no longer exists")
+        if owner then owner:snapCard(card, self) end
+        return false
+    end
+
+    local slot = targetPlayer.boardSlots[slotIndex]
+    if not slot or not slot.card then
+        print("[DEBUG] FAILED: Target slot no longer has card")
+        dprint("[completeModifierApplication] Target slot no longer has card")
+        if owner then owner:snapCard(card, self) end
+        return false
+    end
+
+    print("[DEBUG] Target card:", slot.card.name or "unknown")
+
+    -- enforce target allegiance
+    local isEnemy = (targetPlayer ~= owner)
+    local targetOk = (m.target == "enemy" and isEnemy) or (m.target == "ally" or m.target == nil) and (not isEnemy)
+    if not targetOk then
+        print("[DEBUG] FAILED: Target not valid for modifier. isEnemy:", isEnemy, "m.target:", m.target)
+        dprint("[completeModifierApplication] Target not valid for modifier")
+        if owner then owner:snapCard(card, self) end
+        return false
+    end
+
+    print("[DEBUG] Target allegiance check passed")
+
+    print("[DEBUG] Target allegiance check passed")
+
+    -- Restrict +block modifiers to block cards, +attack modifiers to attack cards
+    if m.block and m.block > 0 then
+        local baseBlock = (slot.card.definition and slot.card.definition.block) or 0
+        print("[DEBUG] Checking block modifier: m.block =", m.block, "baseBlock =", baseBlock)
+        if baseBlock <= 0 then
+            print("[DEBUG] FAILED: Block modifier can only target a card with block")
+            dprint("[completeModifierApplication] Block modifier can only target a card with block")
+            if owner then owner:snapCard(card, self) end
+            self:addLog("Block modifier can only target a card with block")
+            return false
+        end
+    end
+    if m.attack and m.attack > 0 then
+        local baseAttack = (slot.card.definition and slot.card.definition.attack) or 0
+        print("[DEBUG] Checking attack modifier: m.attack =", m.attack, "baseAttack =", baseAttack)
+        if baseAttack <= 0 then
+            print("[DEBUG] FAILED: Attack modifier can only target a card with attack")
+            dprint("[completeModifierApplication] Attack modifier can only target a card with attack")
+            if owner then owner:snapCard(card, self) end
+            self:addLog("Attack modifier can only target a card with attack")
+            return false
+        end
+    end
+    if m.feint then
+        local baseAttack = (slot.card.definition and slot.card.definition.attack) or 0
+        print("[DEBUG] Checking feint modifier: m.feint =", m.feint, "baseAttack =", baseAttack)
+        if baseAttack <= 0 then
+            print("[DEBUG] FAILED: Feint can only target a card with attack")
+            dprint("[completeModifierApplication] Feint can only target a card with attack")
+            if owner then owner:snapCard(card, self) end
+            return false
+        end
+    end
+
+    print("[DEBUG] Card compatibility checks passed")
+
+    print("[DEBUG] Card compatibility checks passed")
+
+    -- cost check (re-check in case energy changed during animation)
+    if Config.rules.energyEnabled ~= false then
+        local cost = self:getEffectiveCardCost(owner, card)
+        local energy = owner.energy or 0
+        print("[DEBUG] Energy check: cost =", cost, "energy =", energy)
+        if cost > energy then
+            print("[DEBUG] FAILED: Not enough energy")
+            dprint(string.format("[completeModifierApplication] Not enough energy: cost=%d, energy=%d", cost, energy))
+            if owner then owner:snapCard(card, self) end
+            self:addLog("Not enough energy")
+            return false
+        end
+        owner.energy = energy - cost
+        print("[DEBUG] Energy deducted. New energy:", owner.energy)
+    end
+
+    print("[DEBUG] Starting modifier application process...")
 
     -- record attachment to the target slot for this round
     self.attachments[targetPlayerIndex][slotIndex] = self.attachments[targetPlayerIndex][slotIndex] or {}
@@ -241,6 +381,8 @@ function Actions.playModifierOnSlot(self, card, targetPlayerIndex, slotIndex, re
     local cardName = card.name or "modifier"
     local directionLabel
     local selectionPending = false
+
+    print("[DEBUG] Modifier stored:", cardName, "with properties:", stored.attack or "no attack", stored.block or "no block")
 
     if m.retarget then
         if retargetOffset ~= nil then
@@ -256,11 +398,15 @@ function Actions.playModifierOnSlot(self, card, targetPlayerIndex, slotIndex, re
     end
 
     table.insert(self.attachments[targetPlayerIndex][slotIndex], stored)
+    print("[DEBUG] Modifier attached to slot")
 
     -- discard the modifier card (modifiers do not occupy board slots)
+    print("[DEBUG] Discarding modifier card:", card.name)
     self:discardCard(card)
+    print("[DEBUG] Modifier card discarded")
 
     if selectionPending then
+        print("[DEBUG] Selection pending, initiating retarget")
         self:initiateRetargetSelection(owner, targetPlayerIndex, slotIndex, stored, cardName)
         return true
     end
@@ -270,16 +416,22 @@ function Actions.playModifierOnSlot(self, card, targetPlayerIndex, slotIndex, re
     else
         self:addLog(string.format("P%d plays %s on P%d slot %d", owner.id or 0, cardName, targetPlayerIndex, slotIndex))
     end
+    print("[DEBUG] Log added")
 
     self:registerTurnAction()
     self.lastActionWasPass = false
+    print("[DEBUG] Turn action registered")
 
     -- ANIMATION LAB: Suppress automatic player advancement for testing
     if not self.suppressPlayerAdvance then
         self:nextPlayer()
+        print("[DEBUG] Player advanced")
+    else
+        print("[DEBUG] Player advance suppressed (animation lab)")
     end
 
     self:maybeFinishPlayPhase()
+    print("[DEBUG] completeModifierApplication finished successfully")
 
     return true
 end

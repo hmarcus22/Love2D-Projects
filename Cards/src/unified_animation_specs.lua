@@ -7,29 +7,29 @@ local specs = {}
 specs.unified = {
     -- Phase 1: Preparation (card anticipation before throwing)
     preparation = {
-        duration = 0.3,
-        scale = 1.05, -- Reduced from 1.1
-        elevation = 3, -- Reduced from 5
+        duration = 0.05, -- Minimal preparation for immediate responsiveness
+        scale = 1.01, -- Very subtle anticipation
+        elevation = 1, -- Minimal lift
         rotation = 0, -- No rotation during preparation for clean flight
         easing = "easeOutQuad"
     },
     
     -- Phase 2: Launch (initial throwing motion)
     launch = {
-        duration = 0.2,
+        duration = 0.1, -- Much faster launch
         angle = 25, -- degrees above horizontal
-        initialVelocity = 600, -- pixels per second (reduced from 800)
-        acceleration = 200,
+        initialVelocity = 700, -- Increased speed to compensate for shorter duration
+        acceleration = 250,
         easing = "easeOutCubic"
     },
     
     -- Phase 3: Flight (projectile motion with physics)
     flight = {
-        duration = 0.35,
+        duration = 0.25, -- Reduced from 0.35 for quicker flight
         easing = "easeOutQuad",
         trajectory = {
             type = "interpolated", -- Safe default: "interpolated" or "physics"
-            height = 80 -- Arc height for interpolated flight
+            height = 60 -- Reduced arc height for faster travel
         },
         physics = {
             gravity = 600, -- Only used for physics-based flight
@@ -56,22 +56,22 @@ specs.unified = {
     
     -- Phase 4: Approach (final targeting/homing)
     approach = {
-        duration = 0.3,
-        guidingFactor = 0.5, -- how much to correct toward target
+        duration = 0.15, -- Much faster approach
+        guidingFactor = 0.6, -- Slightly more correction for accuracy
         anticipation = {
-            scale = 1.2,
-            rotation = 10 -- degrees
+            scale = 1.1, -- Reduced for subtlety
+            rotation = 5 -- Less dramatic rotation
         },
         easing = "easeOutQuart"
     },
     
     -- Phase 5: Impact (collision with target/board)
     impact = {
-        duration = 0.4,
+        duration = 0.2, -- Much shorter impact for responsiveness
         collision = {
-            squash = 0.85, -- Match current working scale
-            bounce = 1.3, -- scale during rebound
-            restitution = 0.6 -- energy retained after collision
+            squash = 0.9, -- Less dramatic squash
+            bounce = 1.15, -- Smaller bounce
+            restitution = 0.7 -- More energy retained
         },
         effects = {
             screen = {
@@ -93,9 +93,9 @@ specs.unified = {
     
     -- Phase 6: Settle (elastic settling into final position)
     settle = {
-        duration = 0.6,
-        elasticity = 0.8, -- spring strength
-        damping = 0.9, -- energy loss per oscillation
+        duration = 0.25,
+        elasticity = 0.9, -- spring strength (more responsive)
+        damping = 0.8, -- energy loss per oscillation (faster settling)
         finalScale = 1.0,
         finalRotation = 0,
         finalElevation = 0,
@@ -173,15 +173,15 @@ specs.unified = {
     game_resolve = {
         duration = 0.1, -- Quick final resolution
         attack_strike = {
-            duration = 0.6,
+            duration = 0.3,
             phases = {
-                windup = {duration = 0.2, scale = 1.15, rotation = -15},
-                strike = {duration = 0.2, velocity = 400, target_offset = {x = 20, y = 0}},
-                recoil = {duration = 0.2, easing = "easeOutBack"}
+                windup = {duration = 0.1, scale = 1.15, rotation = -15},
+                strike = {duration = 0.1, velocity = 600, target_offset = {x = 20, y = 0}},
+                recoil = {duration = 0.1, easing = "easeOutBack"}
             }
         },
         defensive_push = {
-            duration = 0.5,
+            duration = 0.25,
             phases = {
                 brace = {duration = 0.15, scale = 0.95},
                 push = {duration = 0.2, velocity = -200},
@@ -197,7 +197,7 @@ specs.styles = {
     aggressive = {
         -- Use default flight animation (explicitly defined for compatibility)
         preparation = {
-            duration = 0.3,
+            duration = 0.05, -- Ultra-fast for aggressive responsiveness
             scale = 1.1,
             elevation = 5,
             rotation = -5,
@@ -313,7 +313,7 @@ specs.styles = {
     defensive = {
         -- Use default flight animation (explicitly defined for compatibility)
         preparation = {
-            duration = 0.3,
+            duration = 0.05, -- Instant defensive response
             scale = 1.1,
             elevation = 5,
             rotation = -5,
@@ -420,7 +420,7 @@ specs.styles = {
     -- Modifier cards (buffs, debuffs)
     modifier = {
         preparation = {
-            duration = 0.35,
+            duration = 0.05, -- Instant modifier application
             scale = 1.08,
             elevation = 8,
             rotation = 3
@@ -470,34 +470,11 @@ specs.styles = {
 
 -- Card-specific overrides
 specs.cards = {
-    -- Wild Swing - extra chaotic animation
-    wild_swing = {
-        baseStyle = "aggressive",
-        flight = {
-            effects = {
-                rotation = {
-                    tumble = true,
-                    speed = 3.0 -- Extra chaotic tumbling
-                }
-            }
-        },
-        impact = {
-            effects = {
-                screen = {
-                    shake = {
-                        intensity = 15, -- Maximum chaos
-                        duration = 0.4
-                    }
-                }
-            }
-        }
-    },
-    
-    -- Body Slam - powerful physics-based animation demonstrating the system's flexibility
+    -- Body Slam - the only card with custom animation (all others use default unified)
     body_slam = {
         baseStyle = "aggressive",
         preparation = {
-            duration = 0.4, -- Longer windup for power
+            duration = 0.05, -- Fast power buildup
             scale = 1.15, -- Bigger preparation
             elevation = 8,
             rotation = -10 -- Wind up rotation
@@ -545,192 +522,6 @@ specs.cards = {
                         duration = 0.5
                     }
                 }
-            }
-        }
-    },
-    
-    -- Feint - subtle stealth card demonstrating minimal effects
-    feint = {
-        baseStyle = "defensive",
-        preparation = {
-            duration = 0.2, -- Quick and subtle
-            scale = 1.02, -- Barely noticeable preparation
-            elevation = 2,
-            rotation = 0 -- No wind-up rotation
-        },
-        launch = {
-            duration = 0.15,
-            angle = 20,
-            initialVelocity = 350 -- Slower, stealthier
-        },
-        flight = {
-            duration = 0.6, -- Longer, more controlled flight
-            trajectory = {
-                type = "interpolated", -- Smooth, predictable
-                height = 40 -- Very low arc
-            },
-            effects = {
-                trail = {
-                    enabled = false -- No trail for stealth
-                },
-                rotation = {
-                    tumble = false, -- No spinning
-                    speed = 0
-                },
-                scale = {
-                    breathing = false -- No pulsing effects
-                }
-            }
-        },
-        approach = {
-            duration = 0.4, -- Extra long approach for precision
-            guidingFactor = 0.8 -- Strong guidance for accuracy
-        }
-    },
-    
-    -- Quick Jab - fast and precise (using card ID "punch")
-    punch = {
-        baseStyle = "aggressive",
-        preparation = {
-            duration = 0.15, -- Extra quick prep
-            scale = 1.02, -- Minimal scale change
-            elevation = 2, -- Minimal elevation
-            rotation = 0 -- No rotation during prep for clean landing
-        },
-        launch = {
-            duration = 0.1, -- Very quick launch
-            angle = 15 -- Direct angle
-        },
-        flight = {
-            duration = 0.3, -- Quick flight
-            trajectory = {
-                type = "interpolated", -- Use safe interpolated flight
-                height = 60 -- Low, direct arc
-            },
-            effects = {
-                trail = {
-                    enabled = false -- No trail for clean quick jab
-                },
-                rotation = {
-                    tumble = false, -- No spinning for precision
-                    speed = 0
-                },
-                scale = {
-                    breathing = false -- No effects for clean movement
-                }
-            }
-        },
-        approach = {
-            duration = 0.2, -- Quick precise approach
-            guidingFactor = 0.9 -- Strong guidance for accuracy
-        }
-    },
-    
-    -- Corner Rally - defensive positioning (using card ID "rally")
-    rally = {
-        baseStyle = "defensive",
-        board_state = {
-            conditional = {
-                rally_position = {
-                    protective_stance = {
-                        scale = 1.08,
-                        brightness = 1.1,
-                        pulse_frequency = 0.8
-                    }
-                }
-            }
-        }
-    },
-    
-    -- Guard - steady defensive stance
-    guard = {
-        baseStyle = "defensive",
-        settle = {
-            finalScale = 1.05, -- Stays slightly enlarged
-            easing = "easeOutQuad" -- More solid, less bouncy
-        },
-        board_state = {
-            idle = {
-                breathing = {
-                    amplitude = 0.01 -- Very subtle breathing
-                }
-            }
-        }
-    },
-    
-    -- Adrenaline Rush - energetic modifier
-    adrenaline_rush = {
-        baseStyle = "modifier",
-        flight = {
-            effects = {
-                scale = {
-                    breathing = true,
-                    min = 0.85,
-                    max = 1.25 -- Very pronounced pulsing
-                }
-            }
-        },
-        board_state = {
-            conditional = {
-                adrenaline_active = {
-                    energy_pulse = {
-                        scale_min = 0.9,
-                        scale_max = 1.2,
-                        frequency = 2.5 -- Fast pulsing
-                    }
-                }
-            }
-        }
-    },
-    
-    -- Body Slam - heavy slam attack
-    body_slam = {
-        preparation = {
-            duration = 0.3,
-            scale = 1.2, -- More dramatic preparation
-            rotation = -10
-        },
-        flight = {
-            duration = 0.55, -- Match slam_body profile
-            trajectory = {
-                height = 189, -- 140 * 1.35 arcScale from old system
-                type = "slam_drop" -- Custom slam trajectory
-            },
-            effects = {
-                trail = {
-                    enabled = true,
-                    length = 8, -- More dramatic trail
-                    fadeTime = 0.4
-                }
-            }
-        },
-        impact = {
-            duration = 0.6, -- Longer impact for dramatic effect
-            collision = {
-                squash = 0.7, -- More compression
-                bounce = 1.4
-            },
-            effects = {
-                screen = {
-                    shake = {
-                        intensity = 12, -- Much stronger shake
-                        duration = 0.4
-                    }
-                },
-                particles = {
-                    count = 25, -- More particles
-                    spread = 60
-                }
-            }
-        },
-        -- Add knockback equivalent
-        game_resolve = {
-            area_knockback = {
-                enabled = true,
-                radius = 600,
-                force = 500,
-                duration = 1.0,
-                falloff = "linear"
             }
         }
     }

@@ -12,41 +12,27 @@ local UnifiedAnimationManager = Class{}
 
 function UnifiedAnimationManager:init()
     if Config and Config.debug then
-        print("[UnifiedAnimManager] Starting initialization...")
+        print("[UnifiedAnimManager] Initializing animation system...")
     end
     
     -- Initialize sub-systems
-    if Config and Config.debug then
-        print("[UnifiedAnimManager] Creating flight engine...")
-    end
     self.flightEngine = UnifiedAnimationEngine()
-    
-    if Config and Config.debug then
-        print("[UnifiedAnimManager] Creating board state animator...")
-    end
     self.boardStateAnimator = BoardStateAnimator()
-    
-    if Config and Config.debug then
-        print("[UnifiedAnimManager] Creating resolve animator...")
-    end
     self.resolveAnimator = ResolveAnimator()
     
     -- HUMP timer for animation sequencing
-    if Config and Config.debug then
-        print("[UnifiedAnimManager] Creating HUMP timer...")
-    end
     self.timer = Timer.new()
     
     -- Global settings
     self.debugMode = false
-    self.enabled = true
+    self.enabled = true -- Re-enabled now that freeze issue is resolved
     self.gameState = nil -- Will be set by adapter for impact effects
     
     -- Integration with existing animation manager
     self.legacyAnimationManager = nil -- Set during migration
     
     if Config and Config.debug then
-        print("[UnifiedAnimManager] Initialized unified animation system")
+        print("[UnifiedAnimManager] Animation system initialized and ENABLED")
     end
 end
 
@@ -59,9 +45,25 @@ end
 function UnifiedAnimationManager:update(dt)
     if not self.enabled then return end
     
+    -- Safety check for abnormal dt values that could cause infinite loops
+    if dt > 1.0 then
+        if Config and Config.debug then
+            print("[UnifiedAnimManager] Warning: Large dt value detected:", dt, "- clamping to 1.0")
+        end
+        dt = 1.0
+    end
+    
+    if dt <= 0 then
+        if Config and Config.debug then
+            print("[UnifiedAnimManager] Warning: Invalid dt value:", dt, "- skipping update")
+        end
+        return
+    end
+    
     -- Update HUMP timer for animation sequencing
     self.timer:update(dt)
     
+    -- Update all animation subsystems
     self.flightEngine:update(dt)
     self.boardStateAnimator:update(dt)
     self.resolveAnimator:update(dt)
@@ -70,6 +72,11 @@ end
 -- FLIGHT ANIMATIONS (card throwing)
 function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType, callback)
     animationType = animationType or "unified" -- Use unified spec by default
+    
+    if not self.enabled then
+        if callback then callback() end
+        return false
+    end
     
     if Config and Config.debug then
         print("[UnifiedAnimManager] playCard called:")
