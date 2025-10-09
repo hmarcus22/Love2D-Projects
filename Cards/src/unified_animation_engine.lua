@@ -64,14 +64,14 @@ function UnifiedAnimationEngine:startAnimation(card, animationType, config)
     end
     
     -- Get animation specification for this card/type
-    local spec = self:getAnimationSpec(card, animationType)
+    local spec = self:getAnimationSpec(card, animationType, config)
     if not spec then
         print("[UnifiedEngine] ERROR: No spec found for", card.id or "unknown", animationType)
         return
     end
     
     if Config and Config.debug then
-        print("[UnifiedEngine] Found spec for", card.id or "unknown", "- phases:", #(spec.phases or {}))
+        print("[UnifiedEngine] Found spec for", card.id or "unknown", "- total duration:", self:calculateTotalDuration(spec))
     end
     
     -- Create animation instance
@@ -180,9 +180,24 @@ function UnifiedAnimationEngine:updateAnimation(animation, dt)
 end
 
 -- Get animation specification for a card
-function UnifiedAnimationEngine:getAnimationSpec(card, animationType)
+function UnifiedAnimationEngine:getAnimationSpec(card, animationType, config)
     local specs = self.animationSpecs
     if not specs then return nil end
+    
+    -- Check for style override in config first
+    if config and config.animationStyle and specs.styles and specs.styles[config.animationStyle] then
+        if Config and Config.debug then
+            print("[UnifiedEngine] Using animation style:", config.animationStyle)
+        end
+        local styleSpec = specs.styles[config.animationStyle]
+        if styleSpec.baseStyle then
+            -- Use base style with overrides
+            local baseSpec = specs.styles[styleSpec.baseStyle] or specs.unified
+            return self:mergeSpecs(baseSpec, styleSpec)
+        else
+            return styleSpec
+        end
+    end
     
     -- Debug: Show card ID lookup
     local cardId = card.definition and card.definition.id
@@ -247,7 +262,7 @@ end
 -- Calculate total animation duration
 function UnifiedAnimationEngine:calculateTotalDuration(spec)
     local total = 0
-    local phases = {"preparation", "launch", "flight", "approach", "impact", "settle"}
+    local phases = {"preparation", "launch", "flight", "approach", "impact", "settle", "board_state", "game_resolve"}
     
     for _, phase in ipairs(phases) do
         if spec[phase] and spec[phase].duration then
@@ -324,6 +339,9 @@ function UnifiedAnimationEngine:initializeAnimationState(animation)
     card.animX = card.x
     card.animY = card.y
     card.animZ = card.animZ or 0
+    
+    -- Initialize alpha for animation system
+    card.animAlpha = card.animAlpha or 1.0
     
     -- Mark card as being managed by unified animation system
     card._unifiedAnimationActive = true
@@ -464,10 +482,19 @@ end
 function UnifiedAnimationEngine:updatePhase(animation, phase, dt)
     local card = animation.card
     local spec = animation.spec[phase]
-    if not spec then return end
+    if not spec then 
+        if Config and Config.debug then
+            print("[UnifiedEngine] WARNING: No spec found for phase:", phase, "for card:", card.id or "unknown")
+        end
+        return 
+    end
     
     local phaseElapsed = love.timer.getTime() - animation.phaseStartTime
-    local phaseProgress = math.min(phaseElapsed / (spec.duration or 1.0), 1.0)
+    local phaseProgress = math.min(phaseElapsed / math.max(spec.duration or 1.0, 0.001), 1.0) -- Ensure no division by zero
+    
+    if Config and Config.debug and phaseElapsed > 0.1 and phaseElapsed < 5.0 then -- Only log for reasonable timeframes
+        print("[UnifiedEngine] Phase:", phase, "Progress:", string.format("%.2f", phaseProgress), "Duration:", spec.duration or "nil")
+    end
     
     if phase == "preparation" then
         self:updatePreparationPhase(animation, spec, phaseProgress)
@@ -743,6 +770,13 @@ function UnifiedAnimationEngine:updateApproachPhase(animation, spec, progress)
     if not flightSpec or not flightSpec.trajectory or flightSpec.trajectory.type ~= "physics" then
         card.rotation = animation.state.originalRotation or 0.0
     end
+    
+    -- Apply fade effects if specified
+    if spec.fade then
+        local startAlpha = spec.fade.startAlpha or 1.0
+        local endAlpha = spec.fade.endAlpha or 1.0
+        card.animAlpha = startAlpha + (endAlpha - startAlpha) * t
+    end
 end
 
 -- Update impact phase
@@ -764,6 +798,13 @@ function UnifiedAnimationEngine:updateImpactPhase(animation, spec, progress)
             local peakScale = collision.squash or 0.8
             card.scale = peakScale + (bounce - peakScale) * bounceT
         end
+    end
+    
+    -- Apply fade effects if specified
+    if spec.fade then
+        local startAlpha = spec.fade.startAlpha or 1.0
+        local endAlpha = spec.fade.endAlpha or 1.0
+        card.animAlpha = startAlpha + (endAlpha - startAlpha) * progress
     end
 end
 
@@ -799,6 +840,7 @@ function UnifiedAnimationEngine:completeAnimation(animation)
     card.animX = nil
     card.animY = nil
     card.animZ = nil
+    card.animAlpha = nil  -- Reset alpha to default
     
     -- Clear unified animation flag
     card._unifiedAnimationActive = nil
@@ -859,6 +901,7 @@ function UnifiedAnimationEngine:updateBoardStatePhase(animation, spec, progress)
     card.animX = nil
     card.animY = nil
     card.animZ = nil
+    card.animAlpha = nil  -- Reset alpha to default
     card.scale = animation.state.originalScale or 1.0
     card.rotation = animation.state.originalRotation or 0.0
 end

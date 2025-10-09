@@ -465,6 +465,46 @@ specs.styles = {
             duration = 0.8, -- Longer settle with more flourish
             easing = "easeOutElastic"
         }
+    },
+    
+    -- Modifier cards (special fade effect for application)
+    modifier = {
+        -- Inherit all phases from unified base
+        baseStyle = "unified",
+        
+        -- Override only the phases where we want fade effects
+        approach = {
+            duration = 0.15,
+            guidingFactor = 0.6,
+            anticipation = {
+                scale = 1.1,
+                rotation = 5
+            },
+            easing = "easeOutQuart",
+            fade = {
+                startAlpha = 1.0,
+                endAlpha = 0.3 -- Start fading in approach
+            }
+        },
+        impact = {
+            duration = 0.2,
+            collision = {
+                squash = 0.8,
+                bounce = 1.2
+            },
+            fade = {
+                startAlpha = 0.3,
+                endAlpha = 0.0 -- Fully transparent by impact end
+            },
+            effects = {
+                screen = {
+                    shake = {
+                        intensity = 5, -- Gentle shake for modifier application
+                        duration = 0.15
+                    }
+                }
+            }
+        }
     }
 }
 

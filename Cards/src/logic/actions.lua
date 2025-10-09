@@ -242,19 +242,25 @@ function Actions.playModifierOnSlot(self, card, targetPlayerIndex, slotIndex, re
 
     -- Build and trigger flight animation for modifier cards
     local targetX, targetY = self:getBoardSlotPosition(targetPlayerIndex, slotIndex)
-    print("[DEBUG] Building modifier animation. Target position:", targetX, targetY)
+    if Config and Config.debug then
+        print("[DEBUG] Building modifier animation. Target position:", targetX, targetY)
+    end
     if targetX and targetY then
         local AnimationBuilder = require('src.logic.animation_builder')
         
         -- Create completion handler for modifier
         local function onModifierFlightComplete()
-            print("[DEBUG] ANIMATION COMPLETED - calling completeModifierApplication")
+            if Config and Config.debug then
+                print("[DEBUG] ANIMATION COMPLETED - calling completeModifierApplication")
+            end
             -- Complete the modifier application after flight animation
             Actions.completeModifierApplication(self, card, targetPlayerIndex, slotIndex, retargetOffset, m)
         end
         
         -- Build flight animation using specialized modifier sequence
-        print("[DEBUG] Building modifier play sequence...")
+        if Config and Config.debug then
+            print("[DEBUG] Building modifier play sequence...")
+        end
         local animations = AnimationBuilder.buildModifierPlaySequence(self, card, targetX, targetY, onModifierFlightComplete)
         print("[DEBUG] Animation built. Animation count:", animations and #animations or "none")
         

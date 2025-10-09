@@ -59,8 +59,19 @@ function AnimationBuilder.buildModifierPlaySequence(gameState, card, targetX, ta
         if onComplete then onComplete() end
     end
     
-    -- Build unified animation sequence (but don't place card in slot)
-    local unifiedAnim = AnimationBuilder._buildUnifiedCardPlayAnimation(card, fromX, fromY, targetX, targetY, onModifierFlightComplete)
+    -- Build unified animation sequence with modifier style for fade effects
+    local unifiedAnim = {
+        type = "unified_card_play",
+        card = card,
+        fromX = fromX,
+        fromY = fromY,
+        targetX = targetX,
+        targetY = targetY,
+        onComplete = onModifierFlightComplete,
+        
+        -- Use modifier style for fade effects
+        animationStyle = "modifier"
+    }
     
     return { unifiedAnim }
 end
