@@ -48,7 +48,7 @@ end
 function Player:updateComboStates(gs)
     if not self.comboHighlightEnabled then return end
     
-    print("[COMBO] Player", self.id, "updateComboStates - prevCardId:", self.prevCardId)
+    log("[COMBO] Player", self.id, "updateComboStates - prevCardId:", self.prevCardId)
     
     for i, slot in ipairs(self.slots) do
         local card = slot.card
@@ -57,15 +57,15 @@ function Player:updateComboStates(gs)
             local canCombo = self:canPlayCombo(card.definition, gs)
             local dragging = card.dragging
             
-            print("[COMBO] Slot", i, cardName, "- canCombo:", canCombo, "dragging:", dragging)
+            log("[COMBO] Slot", i, cardName, "- canCombo:", canCombo, "dragging:", dragging)
             
             -- Only show combo glow when card is in hand (not dragging/on board)
             if not card.dragging and self:canPlayCombo(card.definition, gs) then
-                print("[COMBO] Setting glow=true for", cardName, "prevCardId:", self.prevCardId)
+                log("[COMBO] Setting glow=true for", cardName, "prevCardId:", self.prevCardId)
                 card.comboGlow = true
             else
                 if card.comboGlow then -- Only print when clearing
-                    print("[COMBO] Clearing glow for", cardName, "dragging:", card.dragging)
+                    log("[COMBO] Clearing glow for", cardName, "dragging:", card.dragging)
                 end
                 card.comboGlow = false
             end
@@ -457,7 +457,86 @@ function Player:drawHand(isCurrent, gs)
         CardRenderer.draw(hoveredCard)
     end
 
+    -- CRITICAL FIX: Draw animating cards that were removed from hand slots
+    -- When cards are played, they're removed from hand slots but still need to be visible during flight
+    print("[RENDER-DEBUG] Player", self.id, "drawHand called, checking for animating cards...")
+    print("[RENDER-DEBUG] gs exists:", gs and "YES" or "NO")
+    print("[RENDER-DEBUG] gs.animations exists:", gs and gs.animations and "YES" or "NO") 
+    print("[RENDER-DEBUG] gs.animations has getActiveAnimatingCards:", gs and gs.animations and gs.animations.getActiveAnimatingCards and "YES" or "NO")
+    if gs and gs.animations and gs.animations.getActiveAnimatingCards then
+        print("[RENDER-DEBUG] Calling getActiveAnimatingCards directly on gs.animations...")
+        local animatingCards = gs.animations:getActiveAnimatingCards()
+        print("[RENDER-DEBUG] getActiveAnimatingCards returned:", animatingCards and #animatingCards or "nil", "cards")
+        
+        -- Debug: List all card IDs being returned
+        if animatingCards then
+            local cardIds = {}
+            for _, card in ipairs(animatingCards) do
+                table.insert(cardIds, card.id or "unknown")
+            end
+            print("[RENDER-DEBUG] animating card IDs:", table.concat(cardIds, ", "))
+        else
+            print("[RENDER-DEBUG] getActiveAnimatingCards returned nil!")
+        end
+        
+        if animatingCards and #animatingCards > 0 then
+            local CardRenderer = require "src.card_renderer"
+            for _, card in ipairs(animatingCards) do
+                print("[DEBUG] Player", self.id, "checking animating card:", card.id, "owner:", card.owner and card.owner.id, "inHand:", self:isCardInHand(card))
+                print("[DEBUG] Card", card.id, "detailed check: card.owner==self:", card.owner == self, "gs.isAnimationLab:", gs.isAnimationLab)
+                -- Only draw cards owned by this player that are not in hand slots anymore
+                -- In animation lab, be more permissive since we might have cross-player scenarios
+                local shouldDraw = false
+                if card.owner == self and not self:isCardInHand(card) then
+                    shouldDraw = true
+                    print("[DEBUG] Card", card.id, "shouldDraw=true (owner match)")
+                elseif gs.isAnimationLab and not self:isCardInHand(card) then
+                    -- In animation lab, also draw if no other player is drawing this card
+                    shouldDraw = true
+                    print("[DEBUG] Card", card.id, "shouldDraw=true (animation lab)")
+                else
+                    print("[DEBUG] Card", card.id, "shouldDraw=false")
+                end
+                
+                if shouldDraw then
+                    print("[DEBUG] Player", self.id, "drawing animating card:", card.id, "at", card.animX or card.x, card.animY or card.y)
+                    -- Use animated position if available, otherwise card's current position
+                    local drawX = card.animX or card.x
+                    local drawY = card.animY or card.y
+                    local drawW = card.w or cardW
+                    local drawH = card.h or cardH
+                    
+                    -- Temporarily set card position for rendering
+                    local oldX, oldY, oldW, oldH = card.x, card.y, card.w, card.h
+                    card.x = drawX
+                    card.y = drawY
+                    card.w = drawW
+                    card.h = drawH
+                    
+                    CardRenderer.draw(card)
+                    
+                    -- Restore original position
+                    card.x = oldX
+                    card.y = oldY
+                    card.w = oldW
+                    card.h = oldH
+                end
+            end
+        end
+    end
+
     love.graphics.setColor(1, 1, 1, 1)
+end
+
+-- Check if a card is currently in hand slots
+function Player:isCardInHand(card)
+    if not self.slots or not card then return false end
+    for _, slot in ipairs(self.slots) do
+        if slot.card == card then
+            return true
+        end
+    end
+    return false
 end
 
 -- Smoothly tween hand hover amount toward target for each card

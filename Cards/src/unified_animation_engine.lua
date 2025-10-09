@@ -136,7 +136,7 @@ function UnifiedAnimationEngine:update(dt)
     end
     
     if activeCount > 0 and self.debugMode and Config and Config.debug then
-        print("[UnifiedEngine] Updating", activeCount, "active animations")
+        print("[UnifiedEngine] Updating", activeCount, "active animations with dt:", string.format("%.4f", dt))
     end
 end
 
@@ -295,6 +295,7 @@ end
 function UnifiedAnimationEngine:onPhaseChange(animation, oldPhase, newPhase)
     if self.debugMode then
         print("[UnifiedAnim] Phase change:", oldPhase, "->", newPhase)
+        print("[UnifiedAnim] Card:", animation.card.id or "unknown", "at position:", animation.card.x, animation.card.y)
     end
     
     -- Initialize phase-specific state
@@ -521,9 +522,16 @@ function UnifiedAnimationEngine:updatePreparationPhase(animation, spec, progress
     local easing = EASING_FUNCTIONS[spec.easing or "easeOutQuad"]
     local t = easing(progress)
     
+    if Config and Config.debug and progress > 0.1 then
+        print("[PREP] Card:", card.id, "Progress:", string.format("%.2f", progress), "Scale target:", spec.scale)
+    end
+    
     -- Scale effect
     if spec.scale then
         card.scale = animation.state.originalScale + (spec.scale - animation.state.originalScale) * t
+        if Config and Config.debug and progress > 0.1 then
+            print("[PREP] Scale applied:", string.format("%.3f", card.scale))
+        end
     end
     
     -- Elevation effect
@@ -586,6 +594,11 @@ end
 function UnifiedAnimationEngine:updateFlightPhase(animation, spec, progress, dt)
     local card = animation.card
     
+    if Config and Config.debug and progress > 0.1 and progress < 0.9 then
+        print("[FLIGHT] Card:", card.id, "Progress:", string.format("%.2f", progress), "Target:", 
+              animation.config.targetX or "nil", animation.config.targetY or "nil")
+    end
+    
     -- Choose flight method based on trajectory type (default to safe interpolated)
     if spec.trajectory and spec.trajectory.type == "physics" then
         -- Physics-based flight for dynamic cards (Body Slam, etc.)
@@ -604,6 +617,12 @@ function UnifiedAnimationEngine:updateFlightPhase(animation, spec, progress, dt)
     card.animX = animation.state.position.x
     card.animY = animation.state.position.y
     card.animZ = animation.state.position.z
+    
+    if Config and Config.debug and progress > 0.1 and progress < 0.9 then
+        print("[FLIGHT] Applied position - animX:", string.format("%.1f", card.animX or 0), 
+              "animY:", string.format("%.1f", card.animY or 0), "animZ:", string.format("%.1f", card.animZ or 0))
+        print("[DEBUG-SET] Card " .. (card.id or "unknown") .. " animX=" .. card.animX .. " at time " .. string.format("%.3f", love.timer.getTime()))
+    end
 end
 
 -- Simple interpolated flight (for default smooth cards)
@@ -615,6 +634,10 @@ function UnifiedAnimationEngine:updateInterpolatedFlight(animation, spec, progre
         local startY = animation.state.originalY
         local targetX = config.targetX
         local targetY = config.targetY
+        
+        if Config and Config.debug and progress > 0.1 and progress < 0.9 then
+            print("[INTERP] Start:", startX, startY, "Target:", targetX, targetY, "Progress:", string.format("%.2f", progress))
+        end
         
         -- Eased interpolation from start to target
         local easing = EASING_FUNCTIONS[spec.easing or "easeOutQuad"] or function(t) return t end
@@ -628,6 +651,11 @@ function UnifiedAnimationEngine:updateInterpolatedFlight(animation, spec, progre
         local arcHeight = spec.trajectory and spec.trajectory.height or 80
         local arcProgress = math.sin(progress * math.pi) -- Creates arc shape
         animation.state.position.z = arcProgress * arcHeight
+        
+        if Config and Config.debug and progress > 0.1 and progress < 0.9 then
+            print("[INTERP] Calculated position:", string.format("%.1f", animation.state.position.x), 
+                  string.format("%.1f", animation.state.position.y), "Z:", string.format("%.1f", animation.state.position.z))
+        end
         
         -- Keep card properly oriented (no rotation during interpolated flight)
         local card = animation.card
@@ -776,6 +804,10 @@ function UnifiedAnimationEngine:updateApproachPhase(animation, spec, progress)
         local startAlpha = spec.fade.startAlpha or 1.0
         local endAlpha = spec.fade.endAlpha or 1.0
         card.animAlpha = startAlpha + (endAlpha - startAlpha) * t
+        
+        if Config and Config.debug then
+            print("[UnifiedEngine] Fade applied - t:", string.format("%.2f", t), "alpha:", string.format("%.2f", card.animAlpha))
+        end
     end
 end
 
@@ -832,6 +864,9 @@ function UnifiedAnimationEngine:completeAnimation(animation)
     if animation.config.targetX and animation.config.targetY then
         card.x = animation.config.targetX
         card.y = animation.config.targetY
+        if Config and Config.debug then
+            print("[UnifiedEngine] Set final position: x=" .. card.x .. " y=" .. card.y)
+        end
     end
     
     -- Reset to stable state
@@ -893,17 +928,12 @@ function UnifiedAnimationEngine:updateBoardStatePhase(animation, spec, progress)
         print("[UnifiedEngine] Board state phase for:", card.id or "unknown")
     end
     
-    -- Ensure card is in final position and stable
-    if animation.config.targetX and animation.config.targetY then
-        card.x = animation.config.targetX
-        card.y = animation.config.targetY
-    end
-    card.animX = nil
-    card.animY = nil
-    card.animZ = nil
-    card.animAlpha = nil  -- Reset alpha to default
-    card.scale = animation.state.originalScale or 1.0
-    card.rotation = animation.state.originalRotation or 0.0
+    -- During board state, card should maintain its animated position until animation completes
+    -- Only clear animations when the entire animation sequence is finished
+    -- The final position will be set in completeAnimation()
+    
+    -- Keep the card at its current animated position during this phase
+    -- Don't clear animX/animY yet - let completeAnimation() handle the final cleanup
 end
 
 -- Update game resolve phase  
@@ -918,6 +948,11 @@ function UnifiedAnimationEngine:updateGameResolvePhase(animation, spec, progress
     
     -- Final cleanup and state verification
     card._unifiedAnimationActive = true -- Keep flag until completion
+end
+
+-- Get currently active animations for rendering purposes
+function UnifiedAnimationEngine:getActiveAnimations()
+    return self.activeAnimations or {}
 end
 
 return UnifiedAnimationEngine

@@ -99,8 +99,9 @@ function CardRenderer.drawWithTexture(card)
     local y = (card.animY ~= nil) and card.animY or card.y
     
     -- Debug: Show position during animations
-    if card._unifiedAnimationActive then
+    if card._unifiedAnimationActive and Config and Config.debug then
         print("[CardRenderer] Drawing animated card at x=" .. x .. " y=" .. y .. " (animX=" .. (card.animX or "nil") .. " animY=" .. (card.animY or "nil") .. ")")
+        print("[DEBUG-READ] Card " .. (card.id or "unknown") .. " read animX=" .. (card.animX or "nil") .. " at time " .. string.format("%.3f", love.timer.getTime()))
     end
     local w, h = card.w, card.h
     local scaleX = card.impactScaleX or 1
@@ -196,7 +197,9 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
 
     -- Combo glow - only show when card is in hand and not being dragged
     if card.comboGlow and not card.dragging then
-        print("[RENDER] Drawing combo glow for", card.definition and card.definition.name or "unknown")
+        if Config and Config.debug then
+            print("[RENDER] Drawing combo glow for", card.definition and card.definition.name or "unknown")
+        end
         local HighlightUtils = require 'src.ui.hover_utils'
         local time = love.timer.getTime()
         
@@ -288,7 +291,7 @@ function CardRenderer.drawDirect(card)
     local y = (card.animY ~= nil) and card.animY or card.y
     
     -- Debug: Show position during animations
-    if card._unifiedAnimationActive then
+    if card._unifiedAnimationActive and Config and Config.debug then
         print("[CardRenderer-Direct] Drawing animated card at x=" .. x .. " y=" .. y .. " (animX=" .. (card.animX or "nil") .. " animY=" .. (card.animY or "nil") .. ")")
     end
     local w, h = card.w, card.h

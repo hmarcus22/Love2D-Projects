@@ -7,29 +7,29 @@ local specs = {}
 specs.unified = {
     -- Phase 1: Preparation (card anticipation before throwing)
     preparation = {
-        duration = 0.05, -- Minimal preparation for immediate responsiveness
-        scale = 1.01, -- Very subtle anticipation
-        elevation = 1, -- Minimal lift
+        duration = 0.1, -- More visible preparation for testing
+        scale = 1.02, -- More noticeable anticipation
+        elevation = 2, -- More visible lift
         rotation = 0, -- No rotation during preparation for clean flight
         easing = "easeOutQuad"
     },
     
     -- Phase 2: Launch (initial throwing motion)
     launch = {
-        duration = 0.1, -- Much faster launch
+        duration = 0.08, -- Very fast launch for immediate responsiveness
         angle = 25, -- degrees above horizontal
-        initialVelocity = 700, -- Increased speed to compensate for shorter duration
-        acceleration = 250,
+        initialVelocity = 800, -- Increased speed for faster flight
+        acceleration = 300,
         easing = "easeOutCubic"
     },
     
     -- Phase 3: Flight (projectile motion with physics)
     flight = {
-        duration = 0.25, -- Reduced from 0.35 for quicker flight
+        duration = 0.2, -- Reduced for quicker, more direct flight
         easing = "easeOutQuad",
         trajectory = {
             type = "interpolated", -- Safe default: "interpolated" or "physics"
-            height = 60 -- Reduced arc height for faster travel
+            height = 45 -- Lower arc for more direct flight feeling
         },
         physics = {
             gravity = 600, -- Only used for physics-based flight
@@ -56,22 +56,22 @@ specs.unified = {
     
     -- Phase 4: Approach (final targeting/homing)
     approach = {
-        duration = 0.15, -- Much faster approach
-        guidingFactor = 0.6, -- Slightly more correction for accuracy
+        duration = 0.1, -- Faster approach for immediate satisfaction
+        guidingFactor = 0.7, -- More correction for accuracy
         anticipation = {
-            scale = 1.1, -- Reduced for subtlety
-            rotation = 5 -- Less dramatic rotation
+            scale = 1.05, -- Subtle anticipation
+            rotation = 3 -- Minimal rotation
         },
         easing = "easeOutQuart"
     },
     
     -- Phase 5: Impact (collision with target/board)
     impact = {
-        duration = 0.2, -- Much shorter impact for responsiveness
+        duration = 0.15, -- Shorter impact for better responsiveness
         collision = {
-            squash = 0.9, -- Less dramatic squash
-            bounce = 1.15, -- Smaller bounce
-            restitution = 0.7 -- More energy retained
+            squash = 0.95, -- Minimal squash
+            bounce = 1.1, -- Subtle bounce
+            restitution = 0.8 -- Good energy retention
         },
         effects = {
             screen = {
@@ -93,9 +93,9 @@ specs.unified = {
     
     -- Phase 6: Settle (elastic settling into final position)
     settle = {
-        duration = 0.25,
-        elasticity = 0.9, -- spring strength (more responsive)
-        damping = 0.8, -- energy loss per oscillation (faster settling)
+        duration = 0.2, -- Shorter settling for quicker finalization
+        elasticity = 0.95, -- Higher spring strength (more responsive)
+        damping = 0.85, -- Faster energy loss (quicker settling)
         finalScale = 1.0,
         finalRotation = 0,
         finalElevation = 0,
@@ -104,7 +104,7 @@ specs.unified = {
     
     -- Phase 7: Board State (ongoing animations while on board)
     board_state = {
-        duration = 0.1, -- Quick transition to board integration
+        duration = 0.05, -- Very quick transition to board integration
         idle = {
             breathing = {
                 enabled = true,
@@ -171,7 +171,7 @@ specs.unified = {
     
     -- Phase 8: Game Resolve (combat animation effects)
     game_resolve = {
-        duration = 0.1, -- Quick final resolution
+        duration = 0.05, -- Very quick final resolution
         attack_strike = {
             duration = 0.3,
             phases = {
@@ -193,25 +193,25 @@ specs.unified = {
 
 -- Style presets for different card types
 specs.styles = {
-    -- Aggressive cards (attacks)
-    aggressive = {
-        -- Use default flight animation (explicitly defined for compatibility)
+    -- Dramatic style available for custom card assignments (like body_slam)
+    dramatic = {
+        -- Use improved timing with enhanced visual effects
         preparation = {
-            duration = 0.05, -- Ultra-fast for aggressive responsiveness
-            scale = 1.1,
-            elevation = 5,
-            rotation = -5,
+            duration = 0.02, -- Ultra-fast for dramatic responsiveness
+            scale = 1.005,
+            elevation = 1,
+            rotation = -2,
             easing = "easeOutQuad"
         },
         launch = {
-            duration = 0.2,
+            duration = 0.08,
             angle = 25,
             initialVelocity = 800,
-            acceleration = 200,
+            acceleration = 300,
             easing = "easeOutCubic"
         },
         flight = {
-            duration = 0.35,
+            duration = 0.2,
             physics = {
                 gravity = 980,
                 airResistance = 0.02,
@@ -219,7 +219,7 @@ specs.styles = {
             },
             trajectory = {
                 type = "ballistic",
-                height = 140
+                height = 50  -- Lower for more direct feeling
             },
             effects = {
                 trail = {
@@ -239,42 +239,42 @@ specs.styles = {
             }
         },
         approach = {
-            duration = 0.3,
-            guidingFactor = 0.5,
+            duration = 0.1,
+            guidingFactor = 0.7,
             anticipation = {
-                scale = 1.2,
-                rotation = 10
+                scale = 1.1,
+                rotation = 5
             },
             easing = "easeOutQuart"
         },
         impact = {
-            duration = 0.4,
+            duration = 0.15,
             collision = {
-                squash = 0.85,
-                bounce = 1.3,
-                restitution = 0.6
+                squash = 0.9,
+                bounce = 1.2,
+                restitution = 0.7
             },
             effects = {
                 screen = {
                     shake = {
-                        intensity = 6,
-                        duration = 0.25,
-                        frequency = 30
+                        intensity = 8, -- Stronger shake for attacks
+                        duration = 0.3,
+                        frequency = 35
                     }
                 },
                 particles = {
                     type = "impact_sparks",
-                    count = 15,
-                    spread = 45,
-                    velocity = 200
+                    count = 20, -- More particles for attacks
+                    spread = 60,
+                    velocity = 250
                 },
-                sound = "card_impact"
+                sound = "attack_impact"
             }
         },
         settle = {
-            duration = 0.6,
-            elasticity = 0.8,
-            damping = 0.9,
+            duration = 0.2,
+            elasticity = 0.9,
+            damping = 0.85,
             finalScale = 1.0,
             finalRotation = 0,
             finalElevation = 0,
@@ -510,9 +510,9 @@ specs.styles = {
 
 -- Card-specific overrides
 specs.cards = {
-    -- Body Slam - the only card with custom animation (all others use default unified)
+    -- Body Slam - example of custom dramatic animation
     body_slam = {
-        baseStyle = "aggressive",
+        baseStyle = "dramatic",
         preparation = {
             duration = 0.05, -- Fast power buildup
             scale = 1.15, -- Bigger preparation

@@ -22,24 +22,27 @@ function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAd
         slot.card = card
         card.animX = nil; card.animY = nil
         
-        -- Remove card from hand now that animation is complete
-        if card.slotIndex and player.slots[card.slotIndex] then
-            player.slots[card.slotIndex].card = nil
-            -- Compact hand after card removal
-            for i = card.slotIndex + 1, #player.slots do
-                if player.slots[i].card then
-                    player.slots[i].card.slotIndex = i - 1
-                    player.slots[i - 1].card = player.slots[i].card
-                    player.slots[i].card = nil
-                end
-            end
-        end
+        -- Hand removal now happens immediately when animation starts, not here
+        -- This prevents the card flickering back into hand during animation
         
         if onAdvanceTurn then onAdvanceTurn() end
     end
     
-    -- Build unified animation sequence
-    local unifiedAnim = AnimationBuilder._buildUnifiedCardPlayAnimation(card, fromX, fromY, targetX, targetY, onFlightComplete)
+    -- Build unified animation sequence using the same simple approach as modifiers
+    local unifiedAnim = {
+        type = "unified_card_play",
+        card = card,
+        fromX = fromX,
+        fromY = fromY,
+        targetX = targetX,
+        targetY = targetY,
+        onComplete = onFlightComplete
+        -- No animationStyle specified = use default unified animation
+    }
+    
+    print("[DEBUG] buildCardPlaySequence created animation for card:", card.id or "unknown")
+    print("[DEBUG] Animation type:", unifiedAnim.type)
+    print("[DEBUG] From:", fromX, fromY, "To:", targetX, targetY)
     
     return { unifiedAnim }
 end
@@ -72,6 +75,11 @@ function AnimationBuilder.buildModifierPlaySequence(gameState, card, targetX, ta
         -- Use modifier style for fade effects
         animationStyle = "modifier"
     }
+    
+    print("[DEBUG] buildModifierPlaySequence created animation for card:", card.id or "unknown")
+    print("[DEBUG] Animation type:", unifiedAnim.type)
+    print("[DEBUG] Animation style:", unifiedAnim.animationStyle)
+    print("[DEBUG] From:", fromX, fromY, "To:", targetX, targetY)
     
     return { unifiedAnim }
 end

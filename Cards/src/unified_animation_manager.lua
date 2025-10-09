@@ -369,4 +369,23 @@ function UnifiedAnimationManager:reset()
     end
 end
 
+-- Get list of cards currently being animated
+function UnifiedAnimationManager:getActiveAnimatingCards()
+    local animatingCards = {}
+    
+    -- Check flight engine for actively animating cards
+    if self.flightEngine and self.flightEngine.getActiveAnimations then
+        local activeAnimations = self.flightEngine:getActiveAnimations()
+        if activeAnimations then
+            for cardId, animation in pairs(activeAnimations) do
+                if animation.card then
+                    table.insert(animatingCards, animation.card)
+                end
+            end
+        end
+    end
+    
+    return animatingCards
+end
+
 return UnifiedAnimationManager

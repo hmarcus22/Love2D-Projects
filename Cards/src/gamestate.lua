@@ -562,6 +562,10 @@ function GameState:getPassButtonRect()
 end
 
 function GameState:update(dt)
+    if Config and Config.debug then
+        print("[GameState] Update called with dt:", string.format("%.4f", dt))
+    end
+    
     -- Add per-frame game update logic here if needed
     -- Update hand hover tweening for players during play phase
     if self.phase == 'play' and self.players then
@@ -612,7 +616,16 @@ function GameState:update(dt)
         end
     end
     -- Impact FX update handled centrally
-    if self.animations then self.animations:update(dt) end
+    if self.animations then 
+        if Config and Config.debug then
+            print("[GameState] Calling animations:update(dt) with dt:", string.format("%.4f", dt))
+        end
+        self.animations:update(dt) 
+    else
+        if Config and Config.debug then
+            print("[GameState] No animation system found!")
+        end
+    end
     -- Update impact FX (shake, dust) lifecycle
     local ImpactFX = require 'src.impact_fx'
     ImpactFX.update(self, dt)
@@ -951,8 +964,24 @@ function GameState:playCardFromHand(card, slotIndex)
     local slot = player.boardSlots and player.boardSlots[slotIndex]
     if not slot or slot.card then return false end
     local useFlight = (Config.ui and Config.ui.cardFlightEnabled) and self.animations ~= nil
+    
+    -- DEBUG: Track which path is taken
+    if Config and Config.debug then
+        print("[DEBUG] GameState:playCardFromHand - card:", card.id or "unknown")
+        print("[DEBUG] Config.ui.cardFlightEnabled:", Config.ui and Config.ui.cardFlightEnabled)
+        print("[DEBUG] self.animations:", self.animations and "present" or "nil")
+        print("[DEBUG] useFlight:", useFlight)
+    end
+    
     if not useFlight then
+        if Config and Config.debug then
+            print("[DEBUG] Using non-animated Actions.playCardFromHand")
+        end
         return Actions.playCardFromHand(self, card, slotIndex)
+    end
+    
+    if Config and Config.debug then
+        print("[DEBUG] Using animated card play sequence")
     end
     -- Use shared prevalidation (applies energy, combo, variance, and requirements)
     local ok = select(1, Actions.prevalidatePlayCard(self, card, slotIndex))
@@ -960,10 +989,11 @@ function GameState:playCardFromHand(card, slotIndex)
     -- Mark slot reserved so other attempts during flight fail fast
     slot._incoming = true
     
-    -- DON'T remove from hand yet - keep it for animation rendering
-    -- The animation completion callback will handle the actual move
-    -- player.slots[card.slotIndex].card = nil
-    -- player:compactHand(self)
+    -- Remove card from hand immediately when animation starts to prevent flickering
+    if card.slotIndex and player.slots[card.slotIndex] then
+        player.slots[card.slotIndex].card = nil
+        player:compactHand(self)
+    end
     
     -- Build turn advancement callback
     local function queueAdvance()

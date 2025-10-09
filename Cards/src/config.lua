@@ -4,7 +4,7 @@ local Serialize = require "src.utils.serialize"
 
 -- Defaults (original values)
 local defaults = {
-  debug = false, -- Master debug flag - TEMPORARILY DISABLED TO TEST HANGING
+  debug = true, -- Master debug flag - ENABLED FOR ANIMATION DEBUGGING
   debugCategories = {
     animations = false,      -- Animation system debug (disabled for cleaner output)
     animationInit = true,    -- Animation initialization only

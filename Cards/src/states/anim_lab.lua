@@ -577,11 +577,16 @@ function anim_lab:mousereleased(x,y,button)
           -- Modifier cards don't stay on board, so call handleCardPlayed immediately
           self.gs:handleCardPlayed(player, droppedCard, nil)
         else
-          -- Regular cards: find which board slot the card was placed in
+          -- FIXED: Don't call handleCardPlayed for attack cards - the Input system already 
+          -- handled card placement via gs:playCardFromHand() which includes animations
+          -- Only call handleCardPlayed if the card actually needs post-processing
           love.timer.sleep(0.05) -- Small delay to ensure card placement has completed
           for slotIndex, slot in ipairs(player.boardSlots or {}) do
             if slot.card and slot.card.id == droppedCard.id then
-              self.gs:handleCardPlayed(player, slot.card, slotIndex)
+              -- Card was placed successfully by Input system, just ensure effects are triggered
+              -- (gs:playCardFromHand should have already called placeCardWithoutAdvancing 
+              -- which calls handleCardPlayed, so this might be redundant)
+              -- self.gs:handleCardPlayed(player, slot.card, slotIndex)
               break
             end
           end

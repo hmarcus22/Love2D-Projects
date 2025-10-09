@@ -41,6 +41,10 @@ end
 
 -- Update both unified and legacy systems
 function UnifiedAnimationAdapter:update(dt)
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Update called with dt:", string.format("%.4f", dt))
+    end
+    
     -- Safety check for abnormal dt values
     if dt > 1.0 then
         if Config and Config.debug then
@@ -60,6 +64,9 @@ function UnifiedAnimationAdapter:update(dt)
     self.timer:update(dt)
     
     -- Update unified system
+    if Config and Config.debug then
+        print("[UnifiedAdapter] Calling unifiedManager:update(dt)")
+    end
     self.unifiedManager:update(dt)
     
     -- Update legacy system if present
@@ -198,6 +205,14 @@ function UnifiedAnimationAdapter:reset()
     if Config and Config.debug then
         print("[UnifiedAdapter] Reset complete")
     end
+end
+
+-- Bridge method to get active animating cards from unified manager
+function UnifiedAnimationAdapter:getActiveAnimatingCards()
+    if self.unifiedManager then
+        return self.unifiedManager:getActiveAnimatingCards()
+    end
+    return {}
 end
 
 return UnifiedAnimationAdapter
