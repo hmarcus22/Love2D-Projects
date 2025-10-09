@@ -4,6 +4,16 @@
 local AnimationBuilder = {}
 local Config = require "src.config"
 
+-- PERFORMANCE: Disable debug output to prevent console spam
+local DEBUG_BUILDER = false -- Set to true only when debugging animation builder
+
+-- Debug print wrapper to easily disable all builder debug output
+local function debugPrint(...)
+    if DEBUG_BUILDER then
+        print(...)
+    end
+end
+
 -- Build complete animation sequence for card play using unified animation system
 function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAdvanceTurn)
     local player = card.owner
@@ -40,9 +50,9 @@ function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAd
         -- No animationStyle specified = use default unified animation
     }
     
-    print("[DEBUG] buildCardPlaySequence created animation for card:", card.id or "unknown")
-    print("[DEBUG] Animation type:", unifiedAnim.type)
-    print("[DEBUG] From:", fromX, fromY, "To:", targetX, targetY)
+    debugPrint("[DEBUG] buildCardPlaySequence created animation for card:", card.id or "unknown")
+    debugPrint("[DEBUG] Animation type:", unifiedAnim.type)
+    debugPrint("[DEBUG] From:", fromX, fromY, "To:", targetX, targetY)
     
     return { unifiedAnim }
 end
@@ -76,10 +86,10 @@ function AnimationBuilder.buildModifierPlaySequence(gameState, card, targetX, ta
         animationStyle = "modifier"
     }
     
-    print("[DEBUG] buildModifierPlaySequence created animation for card:", card.id or "unknown")
-    print("[DEBUG] Animation type:", unifiedAnim.type)
-    print("[DEBUG] Animation style:", unifiedAnim.animationStyle)
-    print("[DEBUG] From:", fromX, fromY, "To:", targetX, targetY)
+    debugPrint("[DEBUG] buildModifierPlaySequence created animation for card:", card.id or "unknown")
+    debugPrint("[DEBUG] Animation type:", unifiedAnim.type)
+    debugPrint("[DEBUG] Animation style:", unifiedAnim.animationStyle)
+    debugPrint("[DEBUG] From:", fromX, fromY, "To:", targetX, targetY)
     
     return { unifiedAnim }
 end

@@ -5,6 +5,16 @@ local Class = require 'libs.HUMP.class'
 local Config = require 'src.config'
 local UnifiedAnimationEngine = Class{}
 
+-- PERFORMANCE: Disable debug output to prevent console hang
+local DEBUG_ANIMATIONS = false -- Set to true only when debugging animation issues
+
+-- Debug print wrapper to easily disable all animation debug output
+local function debugPrint(...)
+    if DEBUG_ANIMATIONS then
+        print(...)
+    end
+end
+
 -- Animation phase constants
 local PHASES = {
     PREPARATION = "preparation",
@@ -54,25 +64,21 @@ end
 
 -- Start a new animation sequence for a card
 function UnifiedAnimationEngine:startAnimation(card, animationType, config)
-    if Config and Config.debug then
-        print("[UnifiedEngine] startAnimation called - Card:", card and card.id or "nil", "Type:", animationType)
-    end
+    debugPrint("[UnifiedEngine] startAnimation called - Card:", card and card.id or "nil", "Type:", animationType)
     
     if not card or not animationType then 
-        print("[UnifiedEngine] ERROR: Missing card or animationType")
+        debugPrint("[UnifiedEngine] ERROR: Missing card or animationType")
         return 
     end
     
     -- Get animation specification for this card/type
     local spec = self:getAnimationSpec(card, animationType, config)
     if not spec then
-        print("[UnifiedEngine] ERROR: No spec found for", card.id or "unknown", animationType)
+        debugPrint("[UnifiedEngine] ERROR: No spec found for", card.id or "unknown", animationType)
         return
     end
     
-    if Config and Config.debug then
-        print("[UnifiedEngine] Found spec for", card.id or "unknown", "- total duration:", self:calculateTotalDuration(spec))
-    end
+    debugPrint("[UnifiedEngine] Found spec for", card.id or "unknown", "- total duration:", self:calculateTotalDuration(spec))
     
     -- Create animation instance
     local animation = {
@@ -88,22 +94,16 @@ function UnifiedAnimationEngine:startAnimation(card, animationType, config)
         onComplete = config and config.onComplete -- Store completion callback
     }
     
-    if Config and Config.debug then
-        print("[UnifiedEngine] Created animation instance - Duration:", animation.totalDuration)
-    end
+    debugPrint("[UnifiedEngine] Created animation instance - Duration:", animation.totalDuration)
     
     -- Initialize animation state
     self:initializeAnimationState(animation)
     
     -- Store reference
     self.activeAnimations[card] = animation
-    if Config and Config.debug then
-        print("[UnifiedEngine] Animation stored for card:", card.id or "unknown")
-    end
+    debugPrint("[UnifiedEngine] Animation stored for card:", card.id or "unknown")
     
-    if self.debugMode then
-        print("[UnifiedEngine] Started", animationType, "for", card.id or "unknown")
-    end
+    debugPrint("[UnifiedEngine] Started", animationType, "for", card.id or "unknown")
     
     return animation
 end
@@ -112,9 +112,7 @@ end
 function UnifiedAnimationEngine:update(dt)
     -- Safety check for abnormal dt values
     if dt > 1.0 or dt <= 0 then
-        if Config and Config.debug then
-            print("[UnifiedEngine] Skipping update - invalid dt:", dt)
-        end
+        debugPrint("[UnifiedEngine] Skipping update - invalid dt:", dt)
         return
     end
     
@@ -125,9 +123,7 @@ function UnifiedAnimationEngine:update(dt)
     for card, animation in pairs(self.activeAnimations) do
         iterations = iterations + 1
         if iterations > maxIterations then
-            if Config and Config.debug then
-                print("[UnifiedEngine] Warning: Too many animations detected, breaking loop")
-            end
+            debugPrint("[UnifiedEngine] Warning: Too many animations detected, breaking loop")
             break
         end
         
@@ -135,9 +131,7 @@ function UnifiedAnimationEngine:update(dt)
         self:updateAnimation(animation, dt)
     end
     
-    if activeCount > 0 and self.debugMode and Config and Config.debug then
-        print("[UnifiedEngine] Updating", activeCount, "active animations with dt:", string.format("%.4f", dt))
-    end
+    debugPrint("[UnifiedEngine] Updating", activeCount, "active animations with dt:", string.format("%.4f", dt))
 end
 
 -- Update a single animation
@@ -146,20 +140,16 @@ function UnifiedAnimationEngine:updateAnimation(animation, dt)
     local elapsed = currentTime - animation.startTime
     local progress = math.min(elapsed / animation.totalDuration, 1.0)
     
-    if self.debugMode and Config and Config.debug then
-        print("[UnifiedEngine] Updating animation for", animation.card.id or "unknown", 
+    debugPrint("[UnifiedEngine] Updating animation for", animation.card.id or "unknown", 
               "- Elapsed:", string.format("%.2f", elapsed), 
               "- Progress:", string.format("%.2f", progress))
-    end
     
     -- Determine current phase
     local newPhase = self:getCurrentPhase(animation, elapsed)
     
     -- Handle phase transitions
     if newPhase ~= animation.currentPhase then
-        if self.debugMode and Config and Config.debug then
-            print("[UnifiedEngine] Phase change:", animation.currentPhase or "nil", "->", newPhase or "nil")
-        end
+        debugPrint("[UnifiedEngine] Phase change:", animation.currentPhase or "nil", "->", newPhase or "nil")
         self:onPhaseChange(animation, animation.currentPhase, newPhase)
         animation.currentPhase = newPhase
         animation.phaseStartTime = currentTime
@@ -172,9 +162,7 @@ function UnifiedAnimationEngine:updateAnimation(animation, dt)
     
     -- Check for completion
     if progress >= 1.0 or animation.forceComplete then
-        if self.debugMode and Config and Config.debug then
-            print("[UnifiedEngine] Animation complete for", animation.card.id or "unknown")
-        end
+        debugPrint("[UnifiedEngine] Animation complete for", animation.card.id or "unknown")
         self:completeAnimation(animation)
     end
 end
@@ -187,7 +175,7 @@ function UnifiedAnimationEngine:getAnimationSpec(card, animationType, config)
     -- Check for style override in config first
     if config and config.animationStyle and specs.styles and specs.styles[config.animationStyle] then
         if Config and Config.debug then
-            print("[UnifiedEngine] Using animation style:", config.animationStyle)
+            debugPrint("[UnifiedEngine] Using animation style:", config.animationStyle)
         end
         local styleSpec = specs.styles[config.animationStyle]
         if styleSpec.baseStyle then
@@ -202,13 +190,13 @@ function UnifiedAnimationEngine:getAnimationSpec(card, animationType, config)
     -- Debug: Show card ID lookup
     local cardId = card.definition and card.definition.id
     if Config and Config.debug then
-        print("[UnifiedEngine] Spec lookup - card.id:", card.id, "card.definition.id:", cardId)
+        debugPrint("[UnifiedEngine] Spec lookup - card.id:", card.id, "card.definition.id:", cardId)
     end
     
     -- Check for card-specific override
     if cardId and specs.cards and specs.cards[cardId] then
         if Config and Config.debug then
-            print("[UnifiedEngine] Found card-specific spec for:", cardId)
+            debugPrint("[UnifiedEngine] Found card-specific spec for:", cardId)
         end
         local cardSpec = specs.cards[cardId]
         if cardSpec.baseStyle then
@@ -223,7 +211,7 @@ function UnifiedAnimationEngine:getAnimationSpec(card, animationType, config)
     end
     
     if Config and Config.debug then
-        print("[UnifiedEngine] Using default unified spec for:", cardId or card.id or "unknown")
+        debugPrint("[UnifiedEngine] Using default unified spec for:", cardId or card.id or "unknown")
     end
     -- Use default unified spec
     return specs.unified
@@ -294,8 +282,10 @@ end
 -- Handle phase transitions
 function UnifiedAnimationEngine:onPhaseChange(animation, oldPhase, newPhase)
     if self.debugMode then
-        print("[UnifiedAnim] Phase change:", oldPhase, "->", newPhase)
-        print("[UnifiedAnim] Card:", animation.card.id or "unknown", "at position:", animation.card.x, animation.card.y)
+        if DEBUG_ANIMATIONS then
+            debugPrint("[UnifiedAnim] Phase change:", oldPhase, "->", newPhase)
+            debugPrint("[UnifiedAnim] Card:", animation.card.id or "unknown", "at position:", animation.card.x, animation.card.y)
+        end
     end
     
     -- Initialize phase-specific state
@@ -317,8 +307,8 @@ function UnifiedAnimationEngine:initializeAnimationState(animation)
     local card = animation.card
     
     if Config and Config.debug then
-        print("[UnifiedEngine] Initializing animation state for:", card.id or "unknown")
-        print("[UnifiedEngine] Initial card position: x=", card.x, "y=", card.y)
+        debugPrint("[UnifiedEngine] Initializing animation state for:", card.id or "unknown")
+        debugPrint("[UnifiedEngine] Initial card position: x=", card.x, "y=", card.y)
     end
     
     -- Store original position
@@ -348,8 +338,8 @@ function UnifiedAnimationEngine:initializeAnimationState(animation)
     card._unifiedAnimationActive = true
     
     if Config and Config.debug then
-        print("[UnifiedEngine] Set animX=", card.animX, "animY=", card.animY, "animZ=", card.animZ)
-        print("[UnifiedEngine] Marked card as unified animation active")
+        debugPrint("[UnifiedEngine] Set animX=", card.animX, "animY=", card.animY, "animZ=", card.animZ)
+        debugPrint("[UnifiedEngine] Marked card as unified animation active")
     end
 end
 
@@ -388,7 +378,7 @@ function UnifiedAnimationEngine:initializeLaunchPhase(animation)
     end
     
     if Config and Config.debug then
-        print("[UnifiedEngine] Launch phase initialized")
+        debugPrint("[UnifiedEngine] Launch phase initialized")
     end
 end
 
@@ -414,7 +404,7 @@ function UnifiedAnimationEngine:initializeImpactPhase(animation)
     local gameState = animation.config and animation.config.gameState
     if not gameState then
         if Config and Config.debug then
-            print("[UnifiedEngine] Warning: No gameState reference for impact effects")
+            debugPrint("[UnifiedEngine] Warning: No gameState reference for impact effects")
         end
         return
     end
@@ -431,7 +421,7 @@ function UnifiedAnimationEngine:initializeImpactPhase(animation)
         )
         
         if Config and Config.debug then
-            print("[UnifiedEngine] Triggered screen shake:", shake.intensity, shake.duration)
+            debugPrint("[UnifiedEngine] Triggered screen shake:", shake.intensity, shake.duration)
         end
     end
     
@@ -448,7 +438,7 @@ function UnifiedAnimationEngine:initializeImpactPhase(animation)
         )
         
         if Config and Config.debug then
-            print("[UnifiedEngine] Triggered particle effects:", particles.count, particles.type)
+            debugPrint("[UnifiedEngine] Triggered particle effects:", particles.count, particles.type)
         end
     end
 end
@@ -459,7 +449,7 @@ function UnifiedAnimationEngine:initializeBoardStatePhase(animation)
     if not spec then return end
     
     if Config and Config.debug then
-        print("[UnifiedEngine] Initializing board state phase")
+        debugPrint("[UnifiedEngine] Initializing board state phase")
     end
     
     -- Board state phase setup
@@ -472,7 +462,7 @@ function UnifiedAnimationEngine:initializeGameResolvePhase(animation)
     if not spec then return end
     
     if Config and Config.debug then
-        print("[UnifiedEngine] Initializing game resolve phase")
+        debugPrint("[UnifiedEngine] Initializing game resolve phase")
     end
     
     -- Game resolve phase setup
@@ -485,7 +475,7 @@ function UnifiedAnimationEngine:updatePhase(animation, phase, dt)
     local spec = animation.spec[phase]
     if not spec then 
         if Config and Config.debug then
-            print("[UnifiedEngine] WARNING: No spec found for phase:", phase, "for card:", card.id or "unknown")
+            debugPrint("[UnifiedEngine] WARNING: No spec found for phase:", phase, "for card:", card.id or "unknown")
         end
         return 
     end
@@ -494,7 +484,7 @@ function UnifiedAnimationEngine:updatePhase(animation, phase, dt)
     local phaseProgress = math.min(phaseElapsed / math.max(spec.duration or 1.0, 0.001), 1.0) -- Ensure no division by zero
     
     if Config and Config.debug and phaseElapsed > 0.1 and phaseElapsed < 5.0 then -- Only log for reasonable timeframes
-        print("[UnifiedEngine] Phase:", phase, "Progress:", string.format("%.2f", phaseProgress), "Duration:", spec.duration or "nil")
+        debugPrint("[UnifiedEngine] Phase:", phase, "Progress:", string.format("%.2f", phaseProgress), "Duration:", spec.duration or "nil")
     end
     
     if phase == "preparation" then
@@ -523,14 +513,14 @@ function UnifiedAnimationEngine:updatePreparationPhase(animation, spec, progress
     local t = easing(progress)
     
     if Config and Config.debug and progress > 0.1 then
-        print("[PREP] Card:", card.id, "Progress:", string.format("%.2f", progress), "Scale target:", spec.scale)
+        debugPrint("[PREP] Card:", card.id, "Progress:", string.format("%.2f", progress), "Scale target:", spec.scale)
     end
     
     -- Scale effect
     if spec.scale then
         card.scale = animation.state.originalScale + (spec.scale - animation.state.originalScale) * t
         if Config and Config.debug and progress > 0.1 then
-            print("[PREP] Scale applied:", string.format("%.3f", card.scale))
+            debugPrint("[PREP] Scale applied:", string.format("%.3f", card.scale))
         end
     end
     
@@ -595,7 +585,7 @@ function UnifiedAnimationEngine:updateFlightPhase(animation, spec, progress, dt)
     local card = animation.card
     
     if Config and Config.debug and progress > 0.1 and progress < 0.9 then
-        print("[FLIGHT] Card:", card.id, "Progress:", string.format("%.2f", progress), "Target:", 
+        debugPrint("[FLIGHT] Card:", card.id, "Progress:", string.format("%.2f", progress), "Target:", 
               animation.config.targetX or "nil", animation.config.targetY or "nil")
     end
     
@@ -619,9 +609,9 @@ function UnifiedAnimationEngine:updateFlightPhase(animation, spec, progress, dt)
     card.animZ = animation.state.position.z
     
     if Config and Config.debug and progress > 0.1 and progress < 0.9 then
-        print("[FLIGHT] Applied position - animX:", string.format("%.1f", card.animX or 0), 
+        debugPrint("[FLIGHT] Applied position - animX:", string.format("%.1f", card.animX or 0), 
               "animY:", string.format("%.1f", card.animY or 0), "animZ:", string.format("%.1f", card.animZ or 0))
-        print("[DEBUG-SET] Card " .. (card.id or "unknown") .. " animX=" .. card.animX .. " at time " .. string.format("%.3f", love.timer.getTime()))
+        debugPrint("[DEBUG-SET] Card " .. (card.id or "unknown") .. " animX=" .. card.animX .. " at time " .. string.format("%.3f", love.timer.getTime()))
     end
 end
 
@@ -636,7 +626,7 @@ function UnifiedAnimationEngine:updateInterpolatedFlight(animation, spec, progre
         local targetY = config.targetY
         
         if Config and Config.debug and progress > 0.1 and progress < 0.9 then
-            print("[INTERP] Start:", startX, startY, "Target:", targetX, targetY, "Progress:", string.format("%.2f", progress))
+            debugPrint("[INTERP] Start:", startX, startY, "Target:", targetX, targetY, "Progress:", string.format("%.2f", progress))
         end
         
         -- Eased interpolation from start to target
@@ -653,7 +643,7 @@ function UnifiedAnimationEngine:updateInterpolatedFlight(animation, spec, progre
         animation.state.position.z = arcProgress * arcHeight
         
         if Config and Config.debug and progress > 0.1 and progress < 0.9 then
-            print("[INTERP] Calculated position:", string.format("%.1f", animation.state.position.x), 
+            debugPrint("[INTERP] Calculated position:", string.format("%.1f", animation.state.position.x), 
                   string.format("%.1f", animation.state.position.y), "Z:", string.format("%.1f", animation.state.position.z))
         end
         
@@ -693,7 +683,7 @@ function UnifiedAnimationEngine:updatePhysicsFlight(animation, spec, progress, d
     if math.abs(animation.state.position.x) > screenBounds or 
        math.abs(animation.state.position.y) > screenBounds then
         if Config and Config.debug then
-            print("[UnifiedEngine] Card flew out of bounds, forcing completion")
+            debugPrint("[UnifiedEngine] Card flew out of bounds, forcing completion")
         end
         -- Set position to target
         if animation.config.targetX and animation.config.targetY then
@@ -806,7 +796,7 @@ function UnifiedAnimationEngine:updateApproachPhase(animation, spec, progress)
         card.animAlpha = startAlpha + (endAlpha - startAlpha) * t
         
         if Config and Config.debug then
-            print("[UnifiedEngine] Fade applied - t:", string.format("%.2f", t), "alpha:", string.format("%.2f", card.animAlpha))
+            debugPrint("[UnifiedEngine] Fade applied - t:", string.format("%.2f", t), "alpha:", string.format("%.2f", card.animAlpha))
         end
     end
 end
@@ -865,7 +855,7 @@ function UnifiedAnimationEngine:completeAnimation(animation)
         card.x = animation.config.targetX
         card.y = animation.config.targetY
         if Config and Config.debug then
-            print("[UnifiedEngine] Set final position: x=" .. card.x .. " y=" .. card.y)
+            debugPrint("[UnifiedEngine] Set final position: x=" .. card.x .. " y=" .. card.y)
         end
     end
     
@@ -881,14 +871,14 @@ function UnifiedAnimationEngine:completeAnimation(animation)
     card._unifiedAnimationActive = nil
     
     if Config and Config.debug then
-        print("[UnifiedEngine] Reset card to stable state")
+        debugPrint("[UnifiedEngine] Reset card to stable state")
     end
     
     -- Trigger completion callback if present
     if animation.onComplete then
         local success, err = pcall(animation.onComplete)
         if not success then
-            print("[UnifiedEngine] ERROR in animation completion callback:", err)
+            debugPrint("[UnifiedEngine] ERROR in animation completion callback:", err)
             -- Don't let callback errors crash the animation system
         end
     end
@@ -897,7 +887,7 @@ function UnifiedAnimationEngine:completeAnimation(animation)
     self.activeAnimations[card] = nil
     
     if self.debugMode then
-        print("[UnifiedAnim] Completed", animation.type, "for", card.id or "unknown")
+        debugPrint("[UnifiedAnim] Completed", animation.type, "for", card.id or "unknown")
     end
 end
 
@@ -925,7 +915,7 @@ function UnifiedAnimationEngine:updateBoardStatePhase(animation, spec, progress)
     -- Board state phase handles card integration into board systems
     -- This phase is typically very short and mostly for triggering board state updates
     if Config and Config.debug then
-        print("[UnifiedEngine] Board state phase for:", card.id or "unknown")
+        debugPrint("[UnifiedEngine] Board state phase for:", card.id or "unknown")
     end
     
     -- During board state, card should maintain its animated position until animation completes
@@ -943,14 +933,18 @@ function UnifiedAnimationEngine:updateGameResolvePhase(animation, spec, progress
     -- Game resolve phase handles final game logic updates
     -- This is the final phase before animation completion
     if Config and Config.debug then
-        print("[UnifiedEngine] Game resolve phase for:", card.id or "unknown")
+        debugPrint("[UnifiedEngine] Game resolve phase for:", card.id or "unknown")
     end
     
     -- Final cleanup and state verification
     card._unifiedAnimationActive = true -- Keep flag until completion
 end
 
--- Get currently active animations for rendering purposes
+-- CRITICAL FIX: Get currently active animations for rendering purposes
+-- This method was previously returning self.animations (which doesn't exist) instead of 
+-- self.activeAnimations. This bug prevented the rendering system from detecting active
+-- flight animations, causing cards to animate invisibly in the background.
+-- Fixed: Now correctly returns self.activeAnimations table.
 function UnifiedAnimationEngine:getActiveAnimations()
     return self.activeAnimations or {}
 end

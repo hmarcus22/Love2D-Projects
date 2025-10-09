@@ -1,5 +1,21 @@
 -- unified_animation_adapter.lua
 -- Compatibility layer bridging legacy AnimationManager interface to unified system
+--
+-- ANIMATION ARCHITECTURE OVERVIEW:
+-- ================================
+-- GameState (gs.animations) -> UnifiedAnimationAdapter (this file) -> UnifiedAnimationManager -> UnifiedAnimationEngine
+--
+-- KEY METHODS FOR RENDERING:
+-- - getActiveAnimatingCards(): Critical bridge method that allows Player:drawHand() to detect and render
+--   cards that are currently animating. Without this method, cards animate invisibly in the background.
+-- 
+-- FLOW FOR CARD FLIGHT ANIMATIONS:
+-- 1. Card played -> UnifiedAnimationEngine stores animation in activeAnimations table
+-- 2. Player:drawHand() calls gs.animations:getActiveAnimatingCards() 
+-- 3. This adapter delegates to UnifiedAnimationManager:getActiveAnimatingCards()
+-- 4. Manager queries UnifiedAnimationEngine:getActiveAnimations() 
+-- 5. Engine returns activeAnimations table (CRITICAL: was returning wrong table before fix)
+-- 6. Cards are rendered with their animated positions during flight phases
 
 local Class = require 'libs.HUMP.class'
 local Timer = require 'libs.HUMP.timer'
@@ -7,6 +23,16 @@ local Config = require 'src.config'
 local UnifiedAnimationManager = require('src.unified_animation_manager')
 
 local UnifiedAnimationAdapter = Class{}
+
+-- PERFORMANCE: Disable debug output to prevent console hang  
+local DEBUG_ADAPTER = false -- Set to true only when debugging adapter issues
+
+-- Debug print wrapper to easily disable all adapter debug output
+local function debugPrint(...)
+    if DEBUG_ADAPTER then
+        print(...)
+    end
+end
 
 function UnifiedAnimationAdapter:init()
     self.unifiedManager = UnifiedAnimationManager()
@@ -25,7 +51,7 @@ function UnifiedAnimationAdapter:init()
     end
     
     if Config and Config.debug then
-        print("[UnifiedAdapter] Animation adapter initialized")
+        debugPrint("[UnifiedAdapter] Animation adapter initialized")
     end
 end
 
@@ -41,21 +67,19 @@ end
 
 -- Update both unified and legacy systems
 function UnifiedAnimationAdapter:update(dt)
-    if Config and Config.debug then
-        print("[UnifiedAdapter] Update called with dt:", string.format("%.4f", dt))
-    end
+    debugPrint("[UnifiedAdapter] Update called with dt:", string.format("%.4f", dt))
     
     -- Safety check for abnormal dt values
     if dt > 1.0 then
         if Config and Config.debug then
-            print("[UnifiedAdapter] Warning: Large dt value detected:", dt, "- clamping to 1.0")
+            debugPrint("[UnifiedAdapter] Warning: Large dt value detected:", dt, "- clamping to 1.0")
         end
         dt = 1.0
     end
     
     if dt <= 0 then
         if Config and Config.debug then
-            print("[UnifiedAdapter] Skipping update - invalid dt:", dt)
+            debugPrint("[UnifiedAdapter] Skipping update - invalid dt:", dt)
         end
         return
     end
@@ -64,9 +88,7 @@ function UnifiedAnimationAdapter:update(dt)
     self.timer:update(dt)
     
     -- Update unified system
-    if Config and Config.debug then
-        print("[UnifiedAdapter] Calling unifiedManager:update(dt)")
-    end
+    debugPrint("[UnifiedAdapter] Calling unifiedManager:update(dt)")
     self.unifiedManager:update(dt)
     
     -- Update legacy system if present
@@ -100,7 +122,7 @@ end
 function UnifiedAnimationAdapter:handleCardFlightAnimation(anim)
     local card = anim.card
     if not card then 
-        print("[UnifiedAdapter] ERROR: No card provided to handleCardFlightAnimation")
+        debugPrint("[UnifiedAdapter] ERROR: No card provided to handleCardFlightAnimation")
         return 
     end
     
@@ -108,7 +130,7 @@ function UnifiedAnimationAdapter:handleCardFlightAnimation(anim)
         if self.legacyManager then
             return self.legacyManager:add(anim)
         else
-            print("[UnifiedAdapter] ERROR: Migration disabled but no legacy manager!")
+            debugPrint("[UnifiedAdapter] ERROR: Migration disabled but no legacy manager!")
             return
         end
     end
@@ -121,7 +143,7 @@ end
 function UnifiedAnimationAdapter:handleUnifiedCardPlayAnimation(anim)
     local card = anim.card
     if not card then 
-        print("[UnifiedAdapter] ERROR: No card provided to handleUnifiedCardPlayAnimation")
+        debugPrint("[UnifiedAdapter] ERROR: No card provided to handleUnifiedCardPlayAnimation")
         return 
     end
     
@@ -203,11 +225,14 @@ function UnifiedAnimationAdapter:reset()
     self:clear()
     
     if Config and Config.debug then
-        print("[UnifiedAdapter] Reset complete")
+        debugPrint("[UnifiedAdapter] Reset complete")
     end
 end
 
--- Bridge method to get active animating cards from unified manager
+-- CRITICAL: Bridge method to get active animating cards from unified manager
+-- This method is essential for Player:drawHand() to detect and render animating cards.
+-- Without this, cards animate in the background but are not visually displayed during flight.
+-- The method delegates to UnifiedAnimationManager which queries the UnifiedAnimationEngine.
 function UnifiedAnimationAdapter:getActiveAnimatingCards()
     if self.unifiedManager then
         return self.unifiedManager:getActiveAnimatingCards()

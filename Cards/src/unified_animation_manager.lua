@@ -10,10 +10,18 @@ local ResolveAnimator = require('src.resolve_animator')
 
 local UnifiedAnimationManager = Class{}
 
-function UnifiedAnimationManager:init()
-    if Config and Config.debug then
-        print("[UnifiedAnimManager] Initializing animation system...")
+-- PERFORMANCE: Disable debug output to prevent console hang
+local DEBUG_MANAGER = false -- Set to true only when debugging manager issues
+
+-- Debug print wrapper to easily disable all manager debug output
+local function debugPrint(...)
+    if DEBUG_MANAGER then
+        print(...)
     end
+end
+
+function UnifiedAnimationManager:init()
+    debugPrint("[UnifiedAnimManager] Initializing animation system...")
     
     -- Initialize sub-systems
     self.flightEngine = UnifiedAnimationEngine()
@@ -31,9 +39,7 @@ function UnifiedAnimationManager:init()
     -- Integration with existing animation manager
     self.legacyAnimationManager = nil -- Set during migration
     
-    if Config and Config.debug then
-        print("[UnifiedAnimManager] Animation system initialized and ENABLED")
-    end
+    debugPrint("[UnifiedAnimManager] Animation system initialized and ENABLED")
 end
 
 -- Set gameState reference for impact effects
@@ -48,14 +54,14 @@ function UnifiedAnimationManager:update(dt)
     -- Safety check for abnormal dt values that could cause infinite loops
     if dt > 1.0 then
         if Config and Config.debug then
-            print("[UnifiedAnimManager] Warning: Large dt value detected:", dt, "- clamping to 1.0")
+            debugPrint("[UnifiedAnimManager] Warning: Large dt value detected:", dt, "- clamping to 1.0")
         end
         dt = 1.0
     end
     
     if dt <= 0 then
         if Config and Config.debug then
-            print("[UnifiedAnimManager] Warning: Invalid dt value:", dt, "- skipping update")
+            debugPrint("[UnifiedAnimManager] Warning: Invalid dt value:", dt, "- skipping update")
         end
         return
     end
@@ -78,13 +84,11 @@ function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType,
         return false
     end
     
-    if Config and Config.debug then
-        print("[UnifiedAnimManager] playCard called:")
-        print("  Card:", card and card.id or "nil")
-        print("  Target:", targetX, targetY)
-        print("  Type:", animationType)
-        print("  Callback:", callback and "present" or "nil")
-    end
+    debugPrint("[UnifiedAnimManager] playCard called:")
+    debugPrint("  Card:", card and card.id or "nil")
+    debugPrint("  Target:", targetX, targetY)
+    debugPrint("  Type:", animationType)
+    debugPrint("  Callback:", callback and "present" or "nil")
     
     local config = {
         targetX = targetX,
@@ -94,9 +98,7 @@ function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType,
     }
     
     local result = self.flightEngine:startAnimation(card, animationType, config)
-    if Config and Config.debug then
-        print("  Result:", result and "SUCCESS" or "FAILED")
-    end
+    debugPrint("  Result:", result and "SUCCESS" or "FAILED")
     
     return result
 end
@@ -166,7 +168,7 @@ end
 function UnifiedAnimationManager:setLegacyManager(legacyManager)
     self.legacyAnimationManager = legacyManager
     if Config and Config.debug then
-        print("[UnifiedAnimManager] Connected to legacy animation manager")
+        debugPrint("[UnifiedAnimManager] Connected to legacy animation manager")
     end
 end
 
@@ -174,11 +176,11 @@ end
 function UnifiedAnimationManager:playCardLegacy(card, targetX, targetY, callback)
     if self.legacyAnimationManager then
         if Config and Config.debug then
-            print("[UnifiedAnimManager] Falling back to legacy animation")
+            debugPrint("[UnifiedAnimManager] Falling back to legacy animation")
         end
         return self.legacyAnimationManager:playCard(card, targetX, targetY, callback)
     else
-        print("[UnifiedAnimManager] No legacy manager available")
+        debugPrint("[UnifiedAnimManager] No legacy manager available")
         if callback then callback() end
     end
 end
@@ -189,12 +191,12 @@ end
 function UnifiedAnimationManager:migrateFromLegacy(enabled)
     if enabled then
         if Config and Config.debug then
-            print("[UnifiedAnimManager] Migration enabled - using unified system")
+            debugPrint("[UnifiedAnimManager] Migration enabled - using unified system")
         end
         self.enabled = true
     else
         if Config and Config.debug then
-            print("[UnifiedAnimManager] Migration disabled - using legacy system")
+            debugPrint("[UnifiedAnimManager] Migration disabled - using legacy system")
         end
         self.enabled = false
     end
@@ -230,11 +232,11 @@ function UnifiedAnimationManager:setDebugMode(enabled)
     
     if enabled then
         if Config and Config.debug then
-            print("[UnifiedAnimManager] Debug mode enabled")
+            debugPrint("[UnifiedAnimManager] Debug mode enabled")
         end
     else
         if Config and Config.debug then
-            print("[UnifiedAnimManager] Debug mode disabled")
+            debugPrint("[UnifiedAnimManager] Debug mode disabled")
         end
     end
 end
@@ -242,12 +244,12 @@ end
 -- Test animations in sequence
 function UnifiedAnimationManager:runAnimationTest(card)
     if not card then
-        print("[UnifiedAnimManager] No card provided for test")
+        debugPrint("[UnifiedAnimManager] No card provided for test")
         return
     end
     
     if Config and Config.debug then
-        print("[UnifiedAnimManager] Running animation test sequence...")
+        debugPrint("[UnifiedAnimManager] Running animation test sequence...")
     end
     
     -- Test flight animation
@@ -256,44 +258,44 @@ function UnifiedAnimationManager:runAnimationTest(card)
     
     self:playCard(card, targetX, targetY, "test_flight")
     if Config and Config.debug then
-        print("[UnifiedAnimManager] Started flight animation")
+        debugPrint("[UnifiedAnimManager] Started flight animation")
     end
     
     -- After flight completes, add to board
     self.timer:after(2.0, function()
         self:addCardToBoard(card)
         if Config and Config.debug then
-            print("[UnifiedAnimManager] Added to board state")
+            debugPrint("[UnifiedAnimManager] Added to board state")
         end
         
         -- Test interaction states with proper timing
         self.timer:after(1.0, function()
             self:setCardHover(card, true)
             if Config and Config.debug then
-                print("[UnifiedAnimManager] Applied hover state")
+                debugPrint("[UnifiedAnimManager] Applied hover state")
             end
             
             self.timer:after(0.5, function()
                 self:setCardSelected(card, true)
                 if Config and Config.debug then
-                    print("[UnifiedAnimManager] Applied selected state")
+                    debugPrint("[UnifiedAnimManager] Applied selected state")
                 end
                 
                 self.timer:after(0.5, function()
                     self:setCardDragging(card, true)
                     if Config and Config.debug then
-                        print("[UnifiedAnimManager] Applied dragging state")
+                        debugPrint("[UnifiedAnimManager] Applied dragging state")
                     end
                     
                     self.timer:after(1.0, function()
                         self:setCardDragging(card, false)
-                        print("[UnifiedAnimManager] Removed dragging state")
+                        debugPrint("[UnifiedAnimManager] Removed dragging state")
                         
                         -- Test resolve animation
                         self.timer:after(0.5, function()
                             self:startAttackAnimation(card, nil)
-                            print("[UnifiedAnimManager] Started attack animation")
-                            print("[UnifiedAnimManager] Animation test sequence complete")
+                            debugPrint("[UnifiedAnimManager] Started attack animation")
+                            debugPrint("[UnifiedAnimManager] Animation test sequence complete")
                         end)
                     end)
                 end)
@@ -330,17 +332,17 @@ end
 function UnifiedAnimationManager:printStatus()
     local status = self:getStatus()
     
-    print("[UnifiedAnimManager] Status:")
-    print("  Enabled:", status.enabled)
-    print("  Debug Mode:", status.debugMode)
-    print("  Flight Animations:", status.flightAnimations)
-    print("  Board State Cards:", status.boardStateCards)
-    print("  Resolve Animations:", status.resolveAnimations)
+    debugPrint("[UnifiedAnimManager] Status:")
+    debugPrint("  Enabled:", status.enabled)
+    debugPrint("  Debug Mode:", status.debugMode)
+    debugPrint("  Flight Animations:", status.flightAnimations)
+    debugPrint("  Board State Cards:", status.boardStateCards)
+    debugPrint("  Resolve Animations:", status.resolveAnimations)
 end
 
 -- CLEANUP METHODS
 function UnifiedAnimationManager:stopAllAnimations()
-    print("[UnifiedAnimManager] Stopping all animations")
+    debugPrint("[UnifiedAnimManager] Stopping all animations")
     
     -- Stop flight animations
     for card, _ in pairs(self.flightEngine.activeAnimations) do
@@ -355,7 +357,7 @@ function UnifiedAnimationManager:stopAllAnimations()
 end
 
 function UnifiedAnimationManager:reset()
-    print("[UnifiedAnimManager] Resetting animation system")
+    debugPrint("[UnifiedAnimManager] Resetting animation system")
     self:stopAllAnimations()
     
     -- Reinitialize systems
@@ -369,7 +371,11 @@ function UnifiedAnimationManager:reset()
     end
 end
 
--- Get list of cards currently being animated
+-- RENDER BRIDGE: Get list of cards currently being animated
+-- This method is called by Player:drawHand() to determine which cards should be rendered
+-- with their animated positions during flight phases. It queries the UnifiedAnimationEngine
+-- for active animations and extracts the card objects for rendering purposes.
+-- Flow: Player:drawHand() -> gs.animations:getActiveAnimatingCards() -> this method -> UnifiedAnimationEngine
 function UnifiedAnimationManager:getActiveAnimatingCards()
     local animatingCards = {}
     

@@ -371,7 +371,9 @@ function Player:drawHand(isCurrent, gs)
         local hoverScale = (activeLayout.handHoverScale or 0.06)
         for idx = #self.slots, 1, -1 do
             local card = self.slots[idx].card
-            if card and not card.dragging then
+            -- Exclude dragging cards AND cards that are currently animating from hover detection
+            -- This prevents hover highlights from persisting on cards during flight animations
+            if card and not card.dragging and not card._unifiedAnimationActive then
                 if useScaled then
                     local amt = card.handHoverAmount or 0
                     if HoverUtils.hitScaled(mx, my, card.x, card.y, cardW, cardH, amt, hoverScale) then
@@ -459,47 +461,68 @@ function Player:drawHand(isCurrent, gs)
 
     -- CRITICAL FIX: Draw animating cards that were removed from hand slots
     -- When cards are played, they're removed from hand slots but still need to be visible during flight
-    print("[RENDER-DEBUG] Player", self.id, "drawHand called, checking for animating cards...")
-    print("[RENDER-DEBUG] gs exists:", gs and "YES" or "NO")
-    print("[RENDER-DEBUG] gs.animations exists:", gs and gs.animations and "YES" or "NO") 
-    print("[RENDER-DEBUG] gs.animations has getActiveAnimatingCards:", gs and gs.animations and gs.animations.getActiveAnimatingCards and "YES" or "NO")
+    -- This section bridges the gap between the animation system and rendering system to ensure
+    -- cards remain visible during their flight animations. Without this, played cards would
+    -- disappear from the hand but not show up in their animated positions until animation completes.
+    -- 
+    -- ARCHITECTURE: Player:drawHand() -> gs.animations:getActiveAnimatingCards() -> 
+    --               UnifiedAnimationAdapter -> UnifiedAnimationManager -> UnifiedAnimationEngine
+    
+    -- PERFORMANCE: Temporarily disable debug output to prevent hang in animation lab
+    local enableDebug = false -- Set to true only when debugging rendering issues
+    
+    if enableDebug then
+        print("[RENDER-DEBUG] Player", self.id, "drawHand called, checking for animating cards...")
+        print("[RENDER-DEBUG] gs exists:", gs and "YES" or "NO")
+        print("[RENDER-DEBUG] gs.animations exists:", gs and gs.animations and "YES" or "NO") 
+        print("[RENDER-DEBUG] gs.animations has getActiveAnimatingCards:", gs and gs.animations and gs.animations.getActiveAnimatingCards and "YES" or "NO")
+    end
+    
     if gs and gs.animations and gs.animations.getActiveAnimatingCards then
-        print("[RENDER-DEBUG] Calling getActiveAnimatingCards directly on gs.animations...")
+        if enableDebug then
+            print("[RENDER-DEBUG] Calling getActiveAnimatingCards directly on gs.animations...")
+        end
         local animatingCards = gs.animations:getActiveAnimatingCards()
-        print("[RENDER-DEBUG] getActiveAnimatingCards returned:", animatingCards and #animatingCards or "nil", "cards")
-        
-        -- Debug: List all card IDs being returned
-        if animatingCards then
-            local cardIds = {}
-            for _, card in ipairs(animatingCards) do
-                table.insert(cardIds, card.id or "unknown")
+        if enableDebug then
+            print("[RENDER-DEBUG] getActiveAnimatingCards returned:", animatingCards and #animatingCards or "nil", "cards")
+            
+            -- Debug: List all card IDs being returned
+            if animatingCards then
+                local cardIds = {}
+                for _, card in ipairs(animatingCards) do
+                    table.insert(cardIds, card.id or "unknown")
+                end
+                print("[RENDER-DEBUG] animating card IDs:", table.concat(cardIds, ", "))
+            else
+                print("[RENDER-DEBUG] getActiveAnimatingCards returned nil!")
             end
-            print("[RENDER-DEBUG] animating card IDs:", table.concat(cardIds, ", "))
-        else
-            print("[RENDER-DEBUG] getActiveAnimatingCards returned nil!")
         end
         
         if animatingCards and #animatingCards > 0 then
             local CardRenderer = require "src.card_renderer"
             for _, card in ipairs(animatingCards) do
-                print("[DEBUG] Player", self.id, "checking animating card:", card.id, "owner:", card.owner and card.owner.id, "inHand:", self:isCardInHand(card))
-                print("[DEBUG] Card", card.id, "detailed check: card.owner==self:", card.owner == self, "gs.isAnimationLab:", gs.isAnimationLab)
+                if enableDebug then
+                    print("[DEBUG] Player", self.id, "checking animating card:", card.id, "owner:", card.owner and card.owner.id, "inHand:", self:isCardInHand(card))
+                    print("[DEBUG] Card", card.id, "detailed check: card.owner==self:", card.owner == self, "gs.isAnimationLab:", gs.isAnimationLab)
+                end
                 -- Only draw cards owned by this player that are not in hand slots anymore
                 -- In animation lab, be more permissive since we might have cross-player scenarios
                 local shouldDraw = false
                 if card.owner == self and not self:isCardInHand(card) then
                     shouldDraw = true
-                    print("[DEBUG] Card", card.id, "shouldDraw=true (owner match)")
+                    if enableDebug then print("[DEBUG] Card", card.id, "shouldDraw=true (owner match)") end
                 elseif gs.isAnimationLab and not self:isCardInHand(card) then
                     -- In animation lab, also draw if no other player is drawing this card
                     shouldDraw = true
-                    print("[DEBUG] Card", card.id, "shouldDraw=true (animation lab)")
+                    if enableDebug then print("[DEBUG] Card", card.id, "shouldDraw=true (animation lab)") end
                 else
-                    print("[DEBUG] Card", card.id, "shouldDraw=false")
+                    if enableDebug then print("[DEBUG] Card", card.id, "shouldDraw=false") end
                 end
                 
                 if shouldDraw then
-                    print("[DEBUG] Player", self.id, "drawing animating card:", card.id, "at", card.animX or card.x, card.animY or card.y)
+                    if enableDebug then
+                        print("[DEBUG] Player", self.id, "drawing animating card:", card.id, "at", card.animX or card.x, card.animY or card.y)
+                    end
                     -- Use animated position if available, otherwise card's current position
                     local drawX = card.animX or card.x
                     local drawY = card.animY or card.y
@@ -558,7 +581,8 @@ function Player:updateHandHover(gs, dt, isCurrentPlayer)
     if (inSpeed <= 0 and outSpeed <= 0) then return end
     for _, slot in ipairs(self.slots) do
         local card = slot.card
-        if card then
+        -- Don't update hover animations for cards that are currently flying
+        if card and not card._unifiedAnimationActive then
             local target = card.handHoverTarget or 0
             HighlightUtils.updateHoverAmount(card, target, dt)
         end
