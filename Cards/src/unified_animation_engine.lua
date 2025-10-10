@@ -45,21 +45,13 @@ local function easeOutBack(t, s)
     return (t * t * ((s + 1) * t + s) + 1)
 end
 
-local EASING_FUNCTIONS = {
-    linear = function(t) return t end,
-    easeOutQuad = easeOutQuad,
-    easeOutCubic = easeOutCubic,
-    easeOutQuart = easeOutQuart,
-    easeOutQuint = easeOutQuint,
-    easeInOutQuad = easeInOutQuad,
-    easeOutElastic = easeOutElastic,
-    easeOutBack = easeOutBack
-}
+local Util = require 'src.animation_util'
+local EASING_FUNCTIONS = Util.easing
 
 function UnifiedAnimationEngine:init()
     self.activeAnimations = {}
     self.animationSpecs = require('src.unified_animation_specs')
-    self.debugMode = true -- TEMPORARY: Enable debug logging to diagnose animation issues
+    self.debugMode = false
 end
 
 -- Start a new animation sequence for a card
@@ -110,11 +102,9 @@ end
 
 -- Update all active animations
 function UnifiedAnimationEngine:update(dt)
-    -- Safety check for abnormal dt values
-    if dt > 1.0 or dt <= 0 then
-        debugPrint("[UnifiedEngine] Skipping update - invalid dt:", dt)
-        return
-    end
+    -- Clamp dt into sane range
+    dt = Util.clampDt(dt)
+    if dt <= 0 then return end
     
     local activeCount = 0
     local maxIterations = 100 -- Prevent infinite loops
@@ -351,7 +341,8 @@ function UnifiedAnimationEngine:initializeLaunchPhase(animation)
     
     -- Only calculate velocity for physics-based flight
     local flightSpec = animation.spec.flight
-    if flightSpec and flightSpec.trajectory and flightSpec.trajectory.type == "physics" then
+    local trajType = Util.normalizeTrajectoryType(flightSpec and flightSpec.trajectory and flightSpec.trajectory.type)
+    if trajType == "physics" then
         -- Physics-based flight needs velocity calculations
         local config = animation.config
         local targetX = config.targetX or animation.state.originalX
@@ -541,7 +532,8 @@ function UnifiedAnimationEngine:updateLaunchPhase(animation, spec, progress, dt)
     
     -- Check if this is physics-based or interpolated flight
     local flightSpec = animation.spec.flight
-    if flightSpec and flightSpec.trajectory and flightSpec.trajectory.type == "physics" then
+    local trajType = Util.normalizeTrajectoryType(flightSpec and flightSpec.trajectory and flightSpec.trajectory.type)
+    if trajType == "physics" then
         -- Physics-based launch with acceleration
         if spec.acceleration then
             local accel = spec.acceleration * dt
@@ -590,7 +582,8 @@ function UnifiedAnimationEngine:updateFlightPhase(animation, spec, progress, dt)
     end
     
     -- Choose flight method based on trajectory type (default to safe interpolated)
-    if spec.trajectory and spec.trajectory.type == "physics" then
+    local trajType = Util.normalizeTrajectoryType(spec.trajectory and spec.trajectory.type)
+    if trajType == "physics" then
         -- Physics-based flight for dynamic cards (Body Slam, etc.)
         self:updatePhysicsFlight(animation, spec, progress, dt)
     else
@@ -785,7 +778,8 @@ function UnifiedAnimationEngine:updateApproachPhase(animation, spec, progress)
     
     -- Ensure interpolated flight cards maintain stable rotation
     local flightSpec = animation.spec.flight
-    if not flightSpec or not flightSpec.trajectory or flightSpec.trajectory.type ~= "physics" then
+    local trajType = Util.normalizeTrajectoryType(flightSpec and flightSpec.trajectory and flightSpec.trajectory.type)
+    if not trajType or trajType ~= "physics" then
         card.rotation = animation.state.originalRotation or 0.0
     end
     

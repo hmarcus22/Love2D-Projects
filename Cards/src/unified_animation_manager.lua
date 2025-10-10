@@ -76,7 +76,7 @@ function UnifiedAnimationManager:update(dt)
 end
 
 -- FLIGHT ANIMATIONS (card throwing)
-function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType, callback)
+function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType, callback, options)
     animationType = animationType or "unified" -- Use unified spec by default
     
     if not self.enabled then
@@ -96,6 +96,10 @@ function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType,
         gameState = self.gameState, -- Include gameState for impact effects
         onComplete = callback
     }
+    -- Forward optional animation style to engine spec resolver
+    if options and options.animationStyle then
+        config.animationStyle = options.animationStyle
+    end
     
     local result = self.flightEngine:startAnimation(card, animationType, config)
     debugPrint("  Result:", result and "SUCCESS" or "FAILED")
@@ -392,6 +396,20 @@ function UnifiedAnimationManager:getActiveAnimatingCards()
     end
     
     return animatingCards
+end
+
+-- Report whether any time-blocking animations are active
+-- Considers flight and resolve animations; excludes board-idle effects
+function UnifiedAnimationManager:hasActiveAnimations()
+    if self.flightEngine and self.flightEngine.activeAnimations then
+        for _ in pairs(self.flightEngine.activeAnimations) do
+            return true
+        end
+    end
+    if self.resolveAnimator and self.resolveAnimator.hasActiveAnimations and self.resolveAnimator:hasActiveAnimations() then
+        return true
+    end
+    return false
 end
 
 return UnifiedAnimationManager

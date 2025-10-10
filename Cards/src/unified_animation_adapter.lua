@@ -69,20 +69,10 @@ end
 function UnifiedAnimationAdapter:update(dt)
     debugPrint("[UnifiedAdapter] Update called with dt:", string.format("%.4f", dt))
     
-    -- Safety check for abnormal dt values
-    if dt > 1.0 then
-        if Config and Config.debug then
-            debugPrint("[UnifiedAdapter] Warning: Large dt value detected:", dt, "- clamping to 1.0")
-        end
-        dt = 1.0
-    end
-    
-    if dt <= 0 then
-        if Config and Config.debug then
-            debugPrint("[UnifiedAdapter] Skipping update - invalid dt:", dt)
-        end
-        return
-    end
+    -- Clamp dt via shared util
+    local Util = require 'src.animation_util'
+    dt = Util.clampDt(dt)
+    if dt <= 0 then return end
     
     -- Update HUMP timer
     self.timer:update(dt)
@@ -163,8 +153,12 @@ function UnifiedAnimationAdapter:handleUnifiedCardPlayAnimation(anim)
         return self:handleCardFlightAnimation(legacyAnim)
     end
     
-    -- Start full unified animation pipeline
-    local animation = self.unifiedManager:playCard(card, anim.targetX, anim.targetY, "unified", anim.onComplete)
+    -- Start full unified animation pipeline (forward optional style)
+    local options = nil
+    if anim.animationStyle then
+        options = { animationStyle = anim.animationStyle }
+    end
+    local animation = self.unifiedManager:playCard(card, anim.targetX, anim.targetY, "unified", anim.onComplete, options)
 end
 
 -- Monitor flight animation completion and trigger callback
@@ -226,6 +220,56 @@ function UnifiedAnimationAdapter:reset()
     
     if Config and Config.debug then
         debugPrint("[UnifiedAdapter] Reset complete")
+    end
+end
+
+-- Passthroughs to unified manager for board-state and interaction APIs
+function UnifiedAnimationAdapter:addCardToBoard(card)
+    if self.unifiedManager and self.unifiedManager.addCardToBoard then
+        return self.unifiedManager:addCardToBoard(card)
+    end
+end
+
+function UnifiedAnimationAdapter:removeCardFromBoard(card)
+    if self.unifiedManager and self.unifiedManager.removeCardFromBoard then
+        return self.unifiedManager:removeCardFromBoard(card)
+    end
+end
+
+function UnifiedAnimationAdapter:setCardHover(card, enabled)
+    if self.unifiedManager and self.unifiedManager.setCardHover then
+        return self.unifiedManager:setCardHover(card, enabled)
+    end
+end
+
+function UnifiedAnimationAdapter:setCardSelected(card, enabled)
+    if self.unifiedManager and self.unifiedManager.setCardSelected then
+        return self.unifiedManager:setCardSelected(card, enabled)
+    end
+end
+
+function UnifiedAnimationAdapter:setCardDragging(card, enabled)
+    if self.unifiedManager and self.unifiedManager.setCardDragging then
+        return self.unifiedManager:setCardDragging(card, enabled)
+    end
+end
+
+function UnifiedAnimationAdapter:enableMigration(enabled)
+    self.migrationEnabled = enabled and true or false
+    if self.unifiedManager and self.unifiedManager.migrateFromLegacy then
+        self.unifiedManager:migrateFromLegacy(enabled)
+    end
+end
+
+function UnifiedAnimationAdapter:setDebugMode(enabled)
+    if self.unifiedManager and self.unifiedManager.setDebugMode then
+        self.unifiedManager:setDebugMode(enabled)
+    end
+end
+
+function UnifiedAnimationAdapter:printStatus()
+    if self.unifiedManager and self.unifiedManager.printStatus then
+        self.unifiedManager:printStatus()
     end
 end
 

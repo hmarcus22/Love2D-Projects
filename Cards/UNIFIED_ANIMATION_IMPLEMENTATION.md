@@ -16,7 +16,7 @@ We've successfully implemented a comprehensive unified 3D animation system that 
 2. **UnifiedAnimationSpecs** (`src/unified_animation_specs.lua`) 
    - Centralized animation configuration
    - Card-specific overrides (wild_swing, quick_jab, etc.)
-   - Style presets (aggressive, defensive, modifier)
+   - Style presets (dramatic, defensive, modifier)
 
 3. **BoardStateAnimator** (`src/board_state_animator.lua`)
    - Ongoing card animations while on board
@@ -52,6 +52,15 @@ The system maintains 100% compatibility with existing code:
 - `gs.animations:add()` works exactly as before
 - `gs.animations:isBusy()` includes unified animations
 - `gs.animations:draw()` handles both systems
+
+## Render Contract
+
+- Engine sets `card.animX`, `card.animY`, `card.animZ`, and `card.animAlpha` while an animation is active, and clears them on completion.
+- Adapter exposes `getActiveAnimatingCards()` to provide a list of currently animating cards.
+- Player rendering bridges animation → draw:
+  - `Player:drawHand()` avoids hover on cards with `_unifiedAnimationActive`.
+  - It fetches animating cards via `gs.animations:getActiveAnimatingCards()` and draws them using `CardRenderer` at `animX/animY` so played cards remain visible during flight.
+- CardRenderer respects `animX/animY` and applies `animAlpha` for fades; stable values are restored on completion.
 
 ## Testing the Implementation
 

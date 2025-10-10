@@ -44,7 +44,7 @@ tests.performanceTest()
 ### Flight Animations
 - Cards follow realistic ballistic trajectories with gravity
 - Different card types have distinct flight characteristics:
-  - **Aggressive** (attacks): Fast, low arc, dramatic impact
+  - **Dramatic** (attacks): Fast, low arc, dramatic impact
   - **Defensive** (blocks): Higher arc, controlled landing
   - **Modifier** (buffs): High arc with magical trail effects
 
@@ -57,6 +57,10 @@ tests.performanceTest()
 ### Combat Animations  
 - **Attack strikes**: Forward motion toward target with recoil
 - **Defensive pushes**: Reaction based on damage taken
+
+### Rendering
+- Played cards remain visible during flight; they render at `animX/animY`.
+- No console spam by default; enable debug as needed.
 
 ### Legacy Compatibility
 - All existing animation code continues to work unchanged

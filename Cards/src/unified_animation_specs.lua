@@ -418,7 +418,8 @@ specs.styles = {
     },
     
     -- Modifier cards (buffs, debuffs)
-    modifier = {
+    -- DEPRECATED: legacy modifier preset kept for reference; not used.
+    modifier_legacy = {
         preparation = {
             duration = 0.05, -- Instant modifier application
             scale = 1.08,

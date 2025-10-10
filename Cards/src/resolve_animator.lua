@@ -280,25 +280,9 @@ function ResolveAnimator:completeResolveAnimation(animation)
 end
 
 -- Get easing function
+local Util = require 'src.animation_util'
 function ResolveAnimator:getEasingFunction(easingName)
-    local easingFunctions = {
-        linear = function(t) return t end,
-        easeOutQuad = function(t) return 1 - (1 - t) * (1 - t) end,
-        easeOutCubic = function(t) return 1 - (1 - t) * (1 - t) * (1 - t) end,
-        easeOutBack = function(t)
-            local s = 1.70158
-            t = t - 1
-            return (t * t * ((s + 1) * t + s) + 1)
-        end,
-        easeOutElastic = function(t)
-            if t == 0 or t == 1 then return t end
-            local p = 0.3
-            local s = p / 4
-            return math.pow(2, -10 * t) * math.sin((t - s) * (2 * math.pi) / p) + 1
-        end
-    }
-    
-    return easingFunctions[easingName] or easingFunctions.linear
+    return Util.getEasing(easingName)
 end
 
 -- Start attack strike animation
