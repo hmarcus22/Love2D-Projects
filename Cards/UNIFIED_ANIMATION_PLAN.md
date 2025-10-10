@@ -18,7 +18,7 @@ Purpose: Single source of truth for intent, scope, phases, and progress. Updated
 
 ## 4) Status
 - Phase 1: Completed
-- Phase 2: In progress
+- Phase 2: Completed
 - Phase 3: In progress
 
 ## 5) Phases & Tasks
@@ -49,14 +49,16 @@ Purpose: Single source of truth for intent, scope, phases, and progress. Updated
   - Preferred: place on flight completion (`AnimationBuilder` supports)
   - If early placement: ensure board draw ignores card while `_unifiedAnimationActive`
   - Verified: placement occurs on flight completion; animating cards render via `animX/animY` during flight; board renders from `slot.card` after completion
+  - Verified: naming/specs hygiene — "dramatic" preset used; no active "aggressive" style; single "modifier" preset; legacy "modifier_legacy" retained for reference
 
 ### Phase 3 — Refactor & Deprecate
 - [x] Extract `src/animation_util.lua`
   - Easing map/getEasing, mergeSpecs, getByPath, clampDt, normalizeTrajectoryType, makeDebugPrinter
   - Adopt in: `unified_animation_engine.lua`, `resolve_animator.lua`, `unified_animation_adapter.lua`
-- [x] Legacy boundary
+- [ ] Legacy boundary
   - Add top-level “legacy fallback” header in `src/animation_manager.lua`
   - Ensure no runtime references to legacy manager
+  - TODO: Add top-level DEPRECATED header in `src/animation_manager.lua`
 - [x] Docs
   - Update `UNIFIED_ANIMATION_IMPLEMENTATION.md` with final adapter API and render contract
   - Add verification steps to `TESTING_GUIDE.md`
