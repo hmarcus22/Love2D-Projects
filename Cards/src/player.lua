@@ -537,6 +537,13 @@ function Player:drawHand(isCurrent, gs)
                     card.h = drawH
                     
                     CardRenderer.draw(card)
+                    -- Debug ownership marker: overlay = red dot
+                    local ok, Config = pcall(require, 'src.config')
+                    if ok and Config and Config.ui and Config.ui.debugAnimationLanding then
+                        love.graphics.setColor(1, 0.2, 0.2, 0.9)
+                        love.graphics.rectangle('fill', drawX + 2, drawY + 2, 6, 6)
+                        love.graphics.setColor(1,1,1,1)
+                    end
                     
                     -- Restore original position
                     card.x = oldX

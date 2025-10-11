@@ -21,6 +21,7 @@ local Class = require 'libs.HUMP.class'
 local Timer = require 'libs.HUMP.timer'
 local Config = require 'src.config'
 local UnifiedAnimationManager = require('src.unified_animation_manager')
+local UnifiedSpecs = require('src.unified_animation_specs')
 
 local UnifiedAnimationAdapter = Class{}
 
@@ -44,6 +45,8 @@ function UnifiedAnimationAdapter:init()
     
     -- Create compatibility layer for existing AnimationManager interface
     self.queue = {} -- Legacy interface expects this
+    -- Local effect storage for unified-only UI effects (e.g., slot glow)
+    self.slotGlows = {}
     
     -- Initialize legacy manager immediately if migration is disabled
     if not self.migrationEnabled then
@@ -80,10 +83,21 @@ function UnifiedAnimationAdapter:update(dt)
     -- Update unified system
     debugPrint("[UnifiedAdapter] Calling unifiedManager:update(dt)")
     self.unifiedManager:update(dt)
-    
+
     -- Update legacy system if present
     if self.legacyManager then
         self.legacyManager:update(dt)
+    end
+
+    -- Update local UI effects (slot glow timeline)
+    if self.slotGlows and #self.slotGlows > 0 then
+        for i = #self.slotGlows, 1, -1 do
+            local g = self.slotGlows[i]
+            g.t = (g.t or 0) + dt
+            if g.t >= (g.duration or 0.35) then
+                table.remove(self.slotGlows, i)
+            end
+        end
     end
 end
 
@@ -100,6 +114,16 @@ function UnifiedAnimationAdapter:add(anim)
         self:handleUnifiedCardPlayAnimation(anim)
     elseif anim.type == "slot_glow" then
         self:handleSlotGlowAnimation(anim)
+    elseif anim.type == "delay" then
+        -- Unified handling of passive wait animations
+        local d = math.max(0, anim.duration or 0)
+        if d <= 0 then
+            if anim.onComplete then pcall(anim.onComplete) end
+            return
+        end
+        self.timer:after(d, function()
+            if anim.onComplete then pcall(anim.onComplete) end
+        end)
     else
         -- Unknown type, pass to legacy if available
         if self.legacyManager then
@@ -154,10 +178,9 @@ function UnifiedAnimationAdapter:handleUnifiedCardPlayAnimation(anim)
     end
     
     -- Start full unified animation pipeline (forward optional style)
-    local options = nil
-    if anim.animationStyle then
-        options = { animationStyle = anim.animationStyle }
-    end
+    local options = { }
+    if anim.animationStyle then options.animationStyle = anim.animationStyle end
+    if anim.onPlace then options.onPlace = anim.onPlace end
     local animation = self.unifiedManager:playCard(card, anim.targetX, anim.targetY, "unified", anim.onComplete, options)
 end
 
@@ -184,11 +207,22 @@ end
 
 -- Handle slot glow animations (legacy compatibility)
 function UnifiedAnimationAdapter:handleSlotGlowAnimation(anim)
-    -- For now, pass through to legacy system if available
-    if self.legacyManager then
-        return self.legacyManager:add(anim)
+    -- Unified UI effect: store lightweight timeline for adapter:draw()
+    local ui = (UnifiedSpecs and UnifiedSpecs.ui and UnifiedSpecs.ui.slot_glow) or {}
+    local glow = {
+        t = 0,
+        duration = anim.duration or ui.duration or 0.35,
+        maxAlpha = anim.maxAlpha or ui.maxAlpha or 0.55,
+        lineWidth = anim.lineWidth or ui.lineWidth or 4,
+        radius = anim.radius or ui.radius or 12,
+        inset = anim.inset or ui.inset or 4,
+        easing = anim.easing or ui.easing or 'easeOutQuad',
+        color = anim.color or ui.color or {1, 1, 0.4},
+        slot = anim.slot -- expected: { x, y, w, h }
+    }
+    if glow.slot and glow.slot.x and glow.slot.y and glow.slot.w and glow.slot.h then
+        table.insert(self.slotGlows, glow)
     end
-    -- TODO: Convert to unified glow system when implemented
 end
 
 -- Create minimal legacy manager for fallback
@@ -209,10 +243,13 @@ function UnifiedAnimationAdapter:clear()
     if self.unifiedManager then
         self.unifiedManager:stopAllAnimations()
     end
-    
+
     if self.legacyManager then
         self.legacyManager.queue = {}
     end
+
+    -- Clear local UI effects
+    self.slotGlows = {}
 end
 
 function UnifiedAnimationAdapter:reset()
@@ -282,6 +319,36 @@ function UnifiedAnimationAdapter:getActiveAnimatingCards()
         return self.unifiedManager:getActiveAnimatingCards()
     end
     return {}
+end
+
+-- Adapter-level draw for unified UI effects (engine/animators do not draw)
+function UnifiedAnimationAdapter:draw()
+    if not self.slotGlows or #self.slotGlows == 0 then return end
+    for _, g in ipairs(self.slotGlows) do
+        local p = 0
+        if (g.duration or 0) > 0 then p = math.min(1, (g.t or 0) / g.duration) end
+        -- easing: easeOutQuad fallback
+        local function easeOutQuad(t) return 1 - (1 - t) * (1 - t) end
+        local easingFn = easeOutQuad
+        if g.easing == 'linear' then easingFn = function(t) return t end end
+        local k = 1 - easingFn(p) -- fade out over time
+        local alpha = (g.maxAlpha or 0.55) * k
+        if alpha > 0.01 then
+            local inset = g.inset or 4
+            local x = g.slot.x - inset
+            local y = g.slot.y - inset
+            local w = g.slot.w + inset * 2
+            local h = g.slot.h + inset * 2
+            local r = g.radius or 12
+            local lw = g.lineWidth or 4
+            local c = g.color or {1,1,0.4}
+            love.graphics.setColor(c[1] or 1, c[2] or 1, c[3] or 0.4, alpha)
+            love.graphics.setLineWidth(lw)
+            love.graphics.rectangle('line', x, y, w, h, r, r)
+            love.graphics.setLineWidth(1)
+            love.graphics.setColor(1,1,1,1)
+        end
+    end
 end
 
 return UnifiedAnimationAdapter

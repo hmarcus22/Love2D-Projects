@@ -81,3 +81,4 @@ Purpose: Single source of truth for intent, scope, phases, and progress. Updated
  - Completed Phase 1 contract comments (adapter/manager/player renderer headers).
  - Phase 2: Placement chosen (on flight completion) and implemented; naming/docs aligned to "dramatic".
  - Phase 3: Extracted and adopted `animation_util.lua`; legacy manager labeled DEPRECATED; implementation/testing docs updated.
+ - Deprecated headers added to legacy files (animation_manager/specs/defaults).

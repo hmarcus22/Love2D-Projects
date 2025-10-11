@@ -538,6 +538,34 @@ function GameState:draw()
     end
     -- TODO: move inline FX drawing to ImpactFX module (refactor pending)
 
+    -- Top-layer landing/ownership debug markers
+    if Config and Config.ui and Config.ui.debugAnimationLanding then
+        local animating = (self.animations and self.animations.getActiveAnimatingCards) and self.animations:getActiveAnimatingCards() or {}
+        if animating then
+            love.graphics.setColor(1, 0.2, 0.2, 0.9)
+            love.graphics.setLineWidth(3)
+            for _, c in ipairs(animating) do
+                local x = (c.animX ~= nil) and c.animX or c.x
+                local y = (c.animY ~= nil) and c.animY or c.y
+                local w = c.w or 100
+                local h = c.h or 150
+                love.graphics.rectangle('line', x, y, w, h, 8, 8)
+            end
+        end
+        love.graphics.setColor(0.2, 0.4, 1.0, 0.9)
+        love.graphics.setLineWidth(3)
+        for _, player in ipairs(self.players or {}) do
+            for _, slot in ipairs(player.boardSlots or {}) do
+                if slot.card then
+                    local c = slot.card
+                    love.graphics.rectangle('line', c.x, c.y, c.w or 100, c.h or 150, 8, 8)
+                end
+            end
+        end
+        love.graphics.setLineWidth(1)
+        love.graphics.setColor(1,1,1,1)
+    end
+
     -- Draw debug overlays
     local CardRenderer = require "src.card_renderer"
     CardRenderer.drawDebugInfo()
@@ -994,9 +1022,18 @@ function GameState:playCardFromHand(card, slotIndex)
         player.slots[card.slotIndex].card = nil
         player:compactHand(self)
     end
+    -- Ensure any hand hover/combination visuals are cleared once card leaves the hand
+    -- This prevents hover glow remaining visible while the card is in flight
+    card.handHoverTarget = 0
+    card.handHoverAmount = 0
+    card.comboGlow = false
     
     -- Build turn advancement callback
     local function queueAdvance()
+        -- In animation lab, we intentionally keep the same current player to chain plays
+        if self.suppressPlayerAdvance then
+            return
+        end
         self.lastActionWasPass = false
         self:nextPlayer()
         self:maybeFinishPlayPhase()

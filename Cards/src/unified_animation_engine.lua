@@ -15,6 +15,12 @@ local function debugPrint(...)
     end
 end
 
+local function landingDebug()
+    local ok, Config = pcall(require, 'src.config')
+    if not ok or not Config or not Config.ui then return false end
+    return Config.ui.debugAnimationLanding == true
+end
+
 -- Animation phase constants
 local PHASES = {
     PREPARATION = "preparation",
@@ -271,10 +277,12 @@ end
 
 -- Handle phase transitions
 function UnifiedAnimationEngine:onPhaseChange(animation, oldPhase, newPhase)
-    if self.debugMode then
+    if self.debugMode or landingDebug() then
         if DEBUG_ANIMATIONS then
             debugPrint("[UnifiedAnim] Phase change:", oldPhase, "->", newPhase)
             debugPrint("[UnifiedAnim] Card:", animation.card.id or "unknown", "at position:", animation.card.x, animation.card.y)
+        else
+            print(string.format("[UnifiedAnim] Phase %s -> %s for %s", tostring(oldPhase), tostring(newPhase), animation.card.id or 'card'))
         end
     end
     
@@ -283,8 +291,25 @@ function UnifiedAnimationEngine:onPhaseChange(animation, oldPhase, newPhase)
         self:initializeLaunchPhase(animation)
     elseif newPhase == "flight" then
         self:initializeFlightPhase(animation)
+    elseif newPhase == "approach" then
+        -- Capture fixed start positions for approach interpolation
+        animation.state.approachStartX = animation.card.animX or animation.state.position.x or animation.card.x
+        animation.state.approachStartY = animation.card.animY or animation.state.position.y or animation.card.y
+        animation.state.approachStartZ = animation.card.animZ or animation.state.position.z or 0
     elseif newPhase == "impact" then
         self:initializeImpactPhase(animation)
+        -- Early placement hook: when approach just finished and we enter impact,
+        -- place the card onto the board (once) so remaining phases render from slot.
+        if animation.config and animation.config.onPlace and not animation._placementDone then
+            local ok, err = pcall(animation.config.onPlace)
+            if not ok and Config and Config.debug then
+                debugPrint("[UnifiedAnim] onPlace error:", err)
+            end
+            animation._placementDone = true
+            if landingDebug() then
+                print(string.format("[UnifiedAnim] onPlace at impact for %s", animation.card.id or 'card'))
+            end
+        end
     elseif newPhase == "board_state" then
         self:initializeBoardStatePhase(animation)
     elseif newPhase == "game_resolve" then
@@ -622,17 +647,19 @@ function UnifiedAnimationEngine:updateInterpolatedFlight(animation, spec, progre
             debugPrint("[INTERP] Start:", startX, startY, "Target:", targetX, targetY, "Progress:", string.format("%.2f", progress))
         end
         
-        -- Eased interpolation from start to target
+        -- Eased interpolation from start to target, reserving a small portion for approach
         local easing = EASING_FUNCTIONS[spec.easing or "easeOutQuad"] or function(t) return t end
         local t = easing(progress)
+        local flightEndFraction = 0.88 -- leave ~12% path for approach glide-in
+        local ft = t * flightEndFraction
         
         -- Calculate position along arc
-        animation.state.position.x = startX + (targetX - startX) * t
-        animation.state.position.y = startY + (targetY - startY) * t
+        animation.state.position.x = startX + (targetX - startX) * ft
+        animation.state.position.y = startY + (targetY - startY) * ft
         
         -- Add arc height based on spec
         local arcHeight = spec.trajectory and spec.trajectory.height or 80
-        local arcProgress = math.sin(progress * math.pi) -- Creates arc shape
+        local arcProgress = math.sin(ft * math.pi) -- Arc matches reserved progress
         animation.state.position.z = arcProgress * arcHeight
         
         if Config and Config.debug and progress > 0.1 and progress < 0.9 then
@@ -736,32 +763,28 @@ function UnifiedAnimationEngine:updateApproachPhase(animation, spec, progress)
     local easing = EASING_FUNCTIONS[spec.easing or "easeOutQuart"]
     local t = easing(progress)
     
-    -- Apply guidance toward target
-    if spec.guidingFactor and animation.config.targetX and animation.config.targetY then
-        local guideFactor = spec.guidingFactor * t
+    -- Drive position to target quickly and smoothly during approach from a fixed start
+    if animation.config.targetX and animation.config.targetY then
         local targetX = animation.config.targetX
         local targetY = animation.config.targetY
-        
-        local currentX = card.animX or card.x
-        local currentY = card.animY or card.y
-        
-        local dx = targetX - currentX
-        local dy = targetY - currentY
-        
-        -- Apply stronger guidance correction to ensure we reach target
-        card.animX = currentX + dx * guideFactor * 0.5
-        card.animY = currentY + dy * guideFactor * 0.5
-    else
-        -- Direct interpolation to target if no guidance factor
-        if animation.config.targetX and animation.config.targetY then
-            local startX = animation.state.originalX
-            local startY = animation.state.originalY
-            card.animX = startX + (animation.config.targetX - startX) * t
-            card.animY = startY + (animation.config.targetY - startY) * t
+        local startX = animation.state.approachStartX or animation.state.position.x or card.x
+        local startY = animation.state.approachStartY or animation.state.position.y or card.y
+        card.animX = startX + (targetX - startX) * t
+        card.animY = startY + (targetY - startY) * t
+        -- Bring height to ground smoothly during approach
+        local startZ = animation.state.approachStartZ or 0
+        card.animZ = startZ * (1 - t)
+        if progress >= 0.999 then
+            card.animX = targetX
+            card.animY = targetY
+            card.animZ = 0
+            if landingDebug() then
+                print(string.format("[UnifiedAnim] Approach complete at (%.1f, %.1f) for %s", card.animX or 0, card.animY or 0, card.id or 'card'))
+            end
         end
     end
     
-    -- Apply anticipation effects (but skip rotation for interpolated flight cards)
+    -- Apply anticipation effects
     if spec.anticipation then
         if spec.anticipation.scale then
             local targetScale = animation.state.originalScale * spec.anticipation.scale
@@ -801,18 +824,25 @@ function UnifiedAnimationEngine:updateImpactPhase(animation, spec, progress)
     local collision = spec.collision
     
     if collision then
-        -- Squash and bounce effect
-        if progress < 0.5 then
-            -- Squash
-            local squashT = progress * 2
-            local squash = collision.squash or 0.8
-            card.scale = animation.state.originalScale + (squash - animation.state.originalScale) * squashT
+        -- If squash/bounce are neutral (== 1.0), keep scale stable and skip any bounce logic
+        local squashNeutral = (collision.squash == nil) or (collision.squash == 1.0)
+        local bounceNeutral = (collision.bounce == nil) or (collision.bounce == 1.0)
+        if squashNeutral and bounceNeutral then
+            card.scale = animation.state.originalScale
         else
-            -- Bounce
-            local bounceT = (progress - 0.5) * 2
-            local bounce = collision.bounce or 1.15
-            local peakScale = collision.squash or 0.8
-            card.scale = peakScale + (bounce - peakScale) * bounceT
+            -- Squash and bounce effect
+            if progress < 0.5 then
+                -- Squash
+                local squashT = progress * 2
+                local squash = collision.squash or 0.8
+                card.scale = animation.state.originalScale + (squash - animation.state.originalScale) * squashT
+            else
+                -- Bounce
+                local bounceT = (progress - 0.5) * 2
+                local bounce = collision.bounce or 1.15
+                local peakScale = collision.squash or 0.8
+                card.scale = peakScale + (bounce - peakScale) * bounceT
+            end
         end
     end
     
@@ -860,6 +890,7 @@ function UnifiedAnimationEngine:completeAnimation(animation)
     card.animY = nil
     card.animZ = nil
     card.animAlpha = nil  -- Reset alpha to default
+    card._renderFromBoard = nil
     
     -- Clear unified animation flag
     card._unifiedAnimationActive = nil
@@ -880,8 +911,11 @@ function UnifiedAnimationEngine:completeAnimation(animation)
     -- Remove from active animations
     self.activeAnimations[card] = nil
     
-    if self.debugMode then
+    if self.debugMode or landingDebug() then
         debugPrint("[UnifiedAnim] Completed", animation.type, "for", card.id or "unknown")
+        if not DEBUG_ANIMATIONS and landingDebug() then
+            print(string.format("[UnifiedAnim] Completed %s for %s", tostring(animation.type), card.id or 'card'))
+        end
     end
 end
 

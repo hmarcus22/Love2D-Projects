@@ -23,18 +23,20 @@ function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAd
     local fromX, fromY = card.x, card.y
     local targetX, targetY = gameState:getBoardSlotPosition(player.id, slotIndex)
     
-    -- Create placement completion handler
+    -- Split responsibilities:
+    --  - onPlace: place card onto board as soon as approach completes
+    --  - onComplete: advance turn when entire sequence is finished
     local placed = false
-    local function onFlightComplete()
+    local function onPlace()
         if placed then return end
         placed = true
+        -- Use gamestate placement to ensure consistent side effects (zone, logs, board state anim)
+        gameState:placeCardWithoutAdvancing(player, card, slotIndex)
+        -- Clear the incoming reservation flag
         slot._incoming = nil
-        slot.card = card
-        card.animX = nil; card.animY = nil
-        
-        -- Hand removal now happens immediately when animation starts, not here
-        -- This prevents the card flickering back into hand during animation
-        
+    end
+
+    local function onSequenceComplete()
         if onAdvanceTurn then onAdvanceTurn() end
     end
     
@@ -46,7 +48,9 @@ function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAd
         fromY = fromY,
         targetX = targetX,
         targetY = targetY,
-        onComplete = onFlightComplete
+        -- Early placement on approach completion; final callback on sequence end
+        onPlace = onPlace,
+        onComplete = onSequenceComplete
         -- No animationStyle specified = use default unified animation
     }
     

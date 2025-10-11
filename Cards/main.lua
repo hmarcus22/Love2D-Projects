@@ -42,5 +42,9 @@ end
 
 function love.resize(w, h)
     Viewport.resize(w, h)
-    -- No need to clear texture cache - textures scale like card art
+    -- Ensure pre-rendered textures/canvases match new resolution state
+    local CardTextureCache = require 'src.renderers.card_texture_cache'
+    if CardTextureCache and CardTextureCache.onWindowResize then
+        CardTextureCache.onWindowResize()
+    end
 end

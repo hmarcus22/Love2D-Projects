@@ -58,20 +58,28 @@ local function renderCardToTexture(card)
     local baseHeight = aspectHeight * scale
     local canvas = getCanvas(baseWidth, baseHeight)
     
-    -- Store original card properties
+    -- Store original card properties (including transforms that should NOT be baked into the texture)
     local oldX, oldY, oldW, oldH = card.x, card.y, card.w, card.h
     local oldAnimX, oldAnimY = card.animX, card.animY
     local oldScaleX, oldScaleY = card.impactScaleX, card.impactScaleY
+    local oldAnimZ = card.animZ
+    local oldRotation = card.rotation
     
     -- Set card to exact position and size for consistent texture rendering
     card.x, card.y = 0, 0
     card.animX, card.animY = nil, nil  -- Clear animation offsets
     card.w, card.h = baseWidth, baseHeight
     card.impactScaleX, card.impactScaleY = 1, 1
+    card.animZ = nil                   -- Prevent vertical lift from affecting baked texture
+    card.rotation = nil                -- Prevent rotation from affecting baked texture
     
     -- Render to canvas
     love.graphics.push("all")
     love.graphics.setCanvas(canvas)
+    -- Reset any active transforms/scissors from game rendering (e.g., Viewport.apply())
+    -- so baking happens in canvas pixel space (0..baseW, 0..baseH)
+    if love.graphics.origin then love.graphics.origin() end
+    if love.graphics.setScissor then love.graphics.setScissor() end
     love.graphics.clear(0, 0, 0, 0) -- Transparent background
     
     -- Use existing card renderer but without scaling transforms
@@ -88,6 +96,8 @@ local function renderCardToTexture(card)
     card.animX, card.animY = oldAnimX, oldAnimY
     card.w, card.h = oldW, oldH
     card.impactScaleX, card.impactScaleY = oldScaleX, oldScaleY
+    card.animZ = oldAnimZ
+    card.rotation = oldRotation
     
     love.graphics.setCanvas()
     love.graphics.pop()
@@ -95,7 +105,13 @@ local function renderCardToTexture(card)
     -- Create texture from canvas
     local imageData = canvas:newImageData()
     local texture = love.graphics.newImage(imageData)
-    texture:setFilter("linear", "linear") -- Smooth scaling
+    -- Respect pixelPerfect layout setting to avoid subpixel blurring/offsets
+    local pixelPerfect = (Config.layout and Config.layout.pixelPerfect) or false
+    if pixelPerfect then
+        texture:setFilter("nearest", "nearest")
+    else
+        texture:setFilter("linear", "linear") -- Smooth scaling
+    end
     
     return texture, baseWidth, baseHeight
 end
@@ -162,6 +178,7 @@ end
 
 -- Clear cache (useful when card definitions change)
 function CardTextureCache.clear()
+    -- Release cached textures
     for key, cached in pairs(textureCache) do
         if cached.texture then
             cached.texture:release()
@@ -169,6 +186,13 @@ function CardTextureCache.clear()
     end
     textureCache = {}
     cacheStats = { hits = 0, misses = 0, evictions = 0 }
+    -- Also release pooled canvases to avoid stale GPU state/resolution mismatches
+    for key, canvas in pairs(canvasPool) do
+        if canvas and canvas.release then
+            canvas:release()
+        end
+        canvasPool[key] = nil
+    end
 end
 
 -- Clear cache when font sizes change (textures need re-rendering)
@@ -178,7 +202,8 @@ end
 
 -- Clear cache when window resizes (no longer needed but kept for API compatibility)
 function CardTextureCache.onWindowResize()
-    -- No longer needed - textures scale like card art
+    -- Clear textures and canvases so regenerated content matches new resolution/state
+    CardTextureCache.clear()
 end
 
 -- Clear cache for specific card

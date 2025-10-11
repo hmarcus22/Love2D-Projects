@@ -97,6 +97,12 @@ function CardRenderer.drawWithTexture(card)
     
     local x = (card.animX ~= nil) and card.animX or card.x
     local y = (card.animY ~= nil) and card.animY or card.y
+    -- Optional pixel snapping to avoid subpixel drift vs. highlights at certain scales
+    local layoutCfg = Config.layout or {}
+    if layoutCfg.pixelPerfect then
+        x = math.floor((x or 0) + 0.5)
+        y = math.floor((y or 0) + 0.5)
+    end
     
     -- Debug: Show position during animations
     if card._unifiedAnimationActive and Config and Config.debug then
@@ -104,8 +110,10 @@ function CardRenderer.drawWithTexture(card)
         print("[DEBUG-READ] Card " .. (card.id or "unknown") .. " read animX=" .. (card.animX or "nil") .. " at time " .. string.format("%.3f", love.timer.getTime()))
     end
     local w, h = card.w, card.h
-    local scaleX = card.impactScaleX or 1
-    local scaleY = card.impactScaleY or 1
+    -- Unified engine uses uniform card.scale for impact/settle; legacy impact uses impactScaleX/Y
+    local uniformScale = card.scale or 1
+    local scaleX = (card.impactScaleX or 1) * uniformScale
+    local scaleY = (card.impactScaleY or 1) * uniformScale
     local cx = x + w/2
     local cy = y + h/2
     
@@ -289,6 +297,12 @@ function CardRenderer.drawDirect(card)
     
     local x = (card.animX ~= nil) and card.animX or card.x
     local y = (card.animY ~= nil) and card.animY or card.y
+    -- Optional pixel snapping to avoid subpixel drift vs. highlights at certain scales
+    local layoutCfg = Config.layout or {}
+    if layoutCfg.pixelPerfect then
+        x = math.floor((x or 0) + 0.5)
+        y = math.floor((y or 0) + 0.5)
+    end
     
     -- Debug: Show position during animations
     if card._unifiedAnimationActive and Config and Config.debug then
@@ -317,6 +331,10 @@ function CardRenderer.drawDirect(card)
     end
     
     -- Apply transformations (scale and rotation)
+    -- Respect unified uniform scale in direct rendering as well
+    local uniformScale = card.scale or 1
+    local scaleX = (card.impactScaleX or 1) * uniformScale
+    local scaleY = (card.impactScaleY or 1) * uniformScale
     local hasTransforms = (scaleX ~= 1 or scaleY ~= 1 or card.rotation)
     if hasTransforms then
         love.graphics.push()

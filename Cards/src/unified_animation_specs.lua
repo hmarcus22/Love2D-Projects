@@ -7,29 +7,29 @@ local specs = {}
 specs.unified = {
     -- Phase 1: Preparation (card anticipation before throwing)
     preparation = {
-        duration = 0.1, -- More visible preparation for testing
-        scale = 1.02, -- More noticeable anticipation
-        elevation = 2, -- More visible lift
-        rotation = 0, -- No rotation during preparation for clean flight
+        duration = 0.03, -- Snappier: minimal wind-up for responsiveness
+        scale = 1.01,    -- Subtle anticipation only
+        elevation = 2,   -- Keep slight lift
+        rotation = 0,    -- No rotation during preparation for clean flight
         easing = "easeOutQuad"
     },
     
     -- Phase 2: Launch (initial throwing motion)
     launch = {
-        duration = 0.08, -- Very fast launch for immediate responsiveness
-        angle = 25, -- degrees above horizontal
-        initialVelocity = 800, -- Increased speed for faster flight
-        acceleration = 300,
+        duration = 0.05, -- Quicker launch for immediate flick feel
+        angle = 25,      -- degrees above horizontal
+        initialVelocity = 900, -- Higher initial speed
+        acceleration = 350,
         easing = "easeOutCubic"
     },
     
     -- Phase 3: Flight (projectile motion with physics)
     flight = {
-        duration = 0.2, -- Reduced for quicker, more direct flight
+        duration = 0.2, -- Keep brisk overall flight
         easing = "easeOutQuad",
         trajectory = {
             type = "interpolated", -- Safe default: "interpolated" or "physics"
-            height = 45 -- Lower arc for more direct flight feeling
+            height = 40 -- Slightly flatter arc for flick feel
         },
         physics = {
             gravity = 600, -- Only used for physics-based flight
@@ -56,22 +56,23 @@ specs.unified = {
     
     -- Phase 4: Approach (final targeting/homing)
     approach = {
-        duration = 0.1, -- Faster approach for immediate satisfaction
-        guidingFactor = 0.7, -- More correction for accuracy
+        duration = 0.12, -- Slightly longer for visible glide-in
+        guidingFactor = 0.72, -- Slightly stronger correction
+        -- No anticipation scaling/rotation at landing to avoid visible pop
         anticipation = {
-            scale = 1.05, -- Subtle anticipation
-            rotation = 3 -- Minimal rotation
+            scale = 1.0,
+            rotation = 0
         },
-        easing = "easeOutQuart"
+        easing = "easeOutCubic" -- Strong deceleration to emphasize soft land
     },
     
     -- Phase 5: Impact (collision with target/board)
     impact = {
-        duration = 0.15, -- Shorter impact for better responsiveness
+        duration = 0.10, -- Quick, no bounce
         collision = {
-            squash = 0.95, -- Minimal squash
-            bounce = 1.1, -- Subtle bounce
-            restitution = 0.8 -- Good energy retention
+            squash = 1.0, -- No squash
+            bounce = 1.0, -- No bounce
+            restitution = 0.8
         },
         effects = {
             screen = {
@@ -93,13 +94,13 @@ specs.unified = {
     
     -- Phase 6: Settle (elastic settling into final position)
     settle = {
-        duration = 0.2, -- Shorter settling for quicker finalization
-        elasticity = 0.95, -- Higher spring strength (more responsive)
-        damping = 0.85, -- Faster energy loss (quicker settling)
+        duration = 0.12, -- Quicker settle
+        elasticity = 0.9, -- Lower spring strength for gentle land
+        damping = 0.9, -- Slightly stronger damping
         finalScale = 1.0,
         finalRotation = 0,
         finalElevation = 0,
-        easing = "easeOutElastic"
+        easing = "easeOutQuad"
     },
     
     -- Phase 7: Board State (ongoing animations while on board)
@@ -188,6 +189,19 @@ specs.unified = {
                 settle = {duration = 0.15, easing = "easeOutElastic"}
             }
         }
+    }
+}
+
+-- UI/effects specifications not tied to card motion
+specs.ui = {
+    slot_glow = {
+        duration = 0.35,
+        maxAlpha = 0.55,
+        lineWidth = 4,
+        radius = 12,
+        inset = 4,
+        easing = "easeOutQuad",
+        color = {1, 1, 0.4} -- RGB; alpha driven by maxAlpha and timeline
     }
 }
 
@@ -280,7 +294,7 @@ specs.styles = {
             finalElevation = 0,
             easing = "easeOutElastic"
         },
-        -- Special aggressive resolve animations
+        -- Special dramatic resolve animations
         game_resolve = {
             attack_strike = {
                 duration = 0.6,

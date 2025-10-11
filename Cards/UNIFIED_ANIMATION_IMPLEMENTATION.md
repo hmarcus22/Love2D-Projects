@@ -91,7 +91,7 @@ gs.animations:setDebugMode(true)
 #### Card Flight Animations
 - Cards should follow realistic ballistic trajectories
 - Different card types have distinct flight characteristics:
-  - **Aggressive cards** (attacks): Fast, low arc, dramatic impact
+  - **Dramatic cards** (attacks): Fast, low arc, dramatic impact
   - **Defensive cards** (blocks): Higher arc, controlled, gentle landing
   - **Modifier cards** (buffs): High arc with magical trail effects
 
@@ -121,7 +121,7 @@ Edit `src/unified_animation_specs.lua`:
 ```lua
 -- Add new card override:
 specs.cards.my_new_card = {
-    baseStyle = "aggressive",
+    baseStyle = "dramatic",
     flight = {
         effects = {
             rotation = { speed = 3.0 }

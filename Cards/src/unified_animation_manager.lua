@@ -100,6 +100,10 @@ function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType,
     if options and options.animationStyle then
         config.animationStyle = options.animationStyle
     end
+    -- Forward early-placement callback for landing handoff
+    if options and options.onPlace then
+        config.onPlace = options.onPlace
+    end
     
     local result = self.flightEngine:startAnimation(card, animationType, config)
     debugPrint("  Result:", result and "SUCCESS" or "FAILED")
@@ -387,7 +391,7 @@ function UnifiedAnimationManager:getActiveAnimatingCards()
     if self.flightEngine and self.flightEngine.getActiveAnimations then
         local activeAnimations = self.flightEngine:getActiveAnimations()
         if activeAnimations then
-            for cardId, animation in pairs(activeAnimations) do
+            for _, animation in pairs(activeAnimations) do
                 if animation.card then
                     table.insert(animatingCards, animation.card)
                 end

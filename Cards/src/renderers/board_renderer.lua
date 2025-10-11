@@ -153,6 +153,13 @@ function BoardRenderer.draw(state, layout)
         local passiveBlock = passiveMods and passiveMods.block or 0
         for slotIndex, slot in ipairs(player.boardSlots) do
             local slotX, slotY = state:getBoardSlotPosition(playerIndex, slotIndex)
+            -- Optional pixel snapping so slot frame aligns with textured card edges at all scales
+            local Config = require 'src.config'
+            local layoutCfg = Config.layout or {}
+            if layoutCfg.pixelPerfect then
+                slotX = math.floor(slotX + 0.5)
+                slotY = math.floor(slotY + 0.5)
+            end
             -- High-contrast slot outline (dark outer + light inner)
             love.graphics.setColor(0, 0, 0, 0.55)
             love.graphics.setLineWidth(2)
@@ -179,8 +186,8 @@ function BoardRenderer.draw(state, layout)
                     slot.card.x = slot.card.dragX
                     slot.card.y = slot.card.dragY
                 else
-                    slot.card.x = slotX
-                    slot.card.y = slotY
+                slot.card.x = slotX
+                slot.card.y = slotY
                 end
                 -- Ensure card size matches current layout for board slots
                 slot.card.w = cardW
@@ -189,7 +196,16 @@ function BoardRenderer.draw(state, layout)
 
                 
                 local CardRenderer = require "src.card_renderer"
+                -- Avoid double drawing: let overlay render animating cards; board draws after completion
+                -- Always draw board card to ensure visibility, even while animation overlay may also render
                 CardRenderer.draw(slot.card)
+                -- Debug ownership marker: board = blue dot
+                local ok, Config = pcall(require, 'src.config')
+                if ok and Config and Config.ui and Config.ui.debugAnimationLanding then
+                    love.graphics.setColor(0.2, 0.4, 1.0, 0.9)
+                    love.graphics.rectangle('fill', slot.card.x + 2, slot.card.y + 2, 6, 6)
+                    love.graphics.setColor(1,1,1,1)
+                end
 
                 attackTargets = BoardRenderer.collectAttackTargets(state, playerIndex, slotIndex)
 

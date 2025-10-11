@@ -1,4 +1,4 @@
-local fighters = require "src.fighter_definitions"
+﻿local fighters = require "src.fighter_definitions"
 local Deep = require "src.utils.deep"
 local Serialize = require "src.utils.serialize"
 
@@ -124,8 +124,10 @@ local defaults = {
   cardDragExtraLift = 24,
   
   -- Card rendering system
-  useCardTextureCache = true, -- Pre-render cards to textures for consistent scaling
-  cardTextureDebugInfo = false, -- Show cache statistics overlay
+    useCardTextureCache = true, -- Pre-render cards to textures for consistent scaling
+    cardTextureDebugInfo = false, -- Show cache statistics overlay
+    -- Debug: visualize animation landing/ownership
+    debugAnimationLanding = true,
   
   -- Card text sizing
   cardNameFontSize = 10,        -- Card name text size
