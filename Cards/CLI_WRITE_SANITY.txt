@@ -1,0 +1,2 @@
+Codex CLI write test
+If you see this file, escalated writes work.

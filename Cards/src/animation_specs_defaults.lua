@@ -1,3 +1,14 @@
+--[[
+DEPRECATED — Legacy Animation Spec Defaults
+Replaced by src/unified_animation_specs.lua. Do NOT require at runtime.
+
+Current source of truth:
+
+Unified specs: src/unified_animation_specs.lua
+Plan/docs: UNIFIED_ANIMATION_PLAN.md, UNIFIED_ANIMATION_IMPLEMENTATION.md
+Kept only for historical reference.
+]]--
+
 -- animation_specs_defaults.lua
 -- Base defaults for animation specs (global + per-card). Keep minimal; customize via overrides.
 

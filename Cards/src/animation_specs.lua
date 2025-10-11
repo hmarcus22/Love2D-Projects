@@ -1,3 +1,18 @@
+--[[
+DEPRECATED — Legacy Animation Specs
+Replaced by unified specs. Do NOT require at runtime.
+
+Use instead:
+local Specs = require('src.unified_animation_specs')
+
+Where to edit specs now:
+
+Base defaults/presets: src/unified_animation_specs.lua
+Layering: default (specs.unified) → styles.modifier preset → specs.cards.<id>
+Plan/docs: UNIFIED_ANIMATION_PLAN.md, UNIFIED_ANIMATION_IMPLEMENTATION.md
+Kept only for reference and possible one-off conversion helpers.
+]]--
+
 -- animation_specs.lua
 -- Loads default animation specs + optional overrides, provides normalized per-card specs
 local Deep = require 'src.utils.deep'

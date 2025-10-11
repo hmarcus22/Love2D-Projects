@@ -1,3 +1,42 @@
+--[[
+LEGACY FALLBACK — DEPRECATED
+This module is part of the old animation system. It is kept only for reference/fallback during migration.
+Do NOT require or call this at runtime. All new code must use the unified system.
+
+Replacement (unified system):
+
+Entry: gs.animations (src/unified_animation_adapter.lua)
+Manager: src/unified_animation_manager.lua
+Engine: src/unified_animation_engine.lua
+Specs: src/unified_animation_specs.lua
+Plan: UNIFIED_ANIMATION_PLAN.md
+Migration cheatsheet:
+
+was: local AM = require('src.animation_manager').new()
+
+now: local Anim = gs.animations -- adapter instance created in GameState
+
+was: am:add({ type='card_flight', card=c, fromX=..., fromY=..., toX=..., toY=..., onComplete=fn })
+
+now: Anim:add({ type='unified_card_play', card=c, targetX=..., targetY=..., onComplete=fn })
+-- or: Anim.unifiedManager:playCard(c, targetX, targetY, 'unified', fn)
+
+was: am:isBusy()
+
+now: Anim:hasActiveAnimations() -- adapter also exposes isBusy() for compatibility
+
+Rendering contract:
+
+During flight/resolve, render cards at card.animX/card.animY/card.animZ.
+Ask adapter which cards are animating: gs.animations:getActiveAnimatingCards()
+Placement occurs on flight completion; board draws from slot.card after that.
+Engine/animators do not draw; renderers own all drawing.
+Fallback (only if absolutely needed during migration):
+
+gs.animations:enableMigration(false) -- routes back to legacy paths when present
+This legacy file will be removed once the unified system is fully stable.
+]]--
+
 -- animation_manager.lua: simple queued animations (initial flight support)
 local AnimationManager = {}
 AnimationManager.__index = AnimationManager
