@@ -41,6 +41,21 @@ This legacy file will be removed once the unified system is fully stable.
 local AnimationManager = {}
 AnimationManager.__index = AnimationManager
 
+-- Legacy guard: warn once if this deprecated module is instantiated
+local function legacyWarning()
+    if AnimationManager._warned then return end
+    AnimationManager._warned = true
+    local ok, Config = pcall(require, 'src.config')
+    local enabled = false
+    if ok and Config then
+        local cats = Config.debugCategories or {}
+        enabled = (Config.debug == true) or (cats.animationInit == true) or (cats.animations == true)
+    end
+    if enabled then
+        print('[LegacyAnim] WARNING: src/animation_manager.lua is deprecated. Use src/unified_animation_adapter.lua')
+    end
+end
+
 local function easeOutQuad(t) return 1 - (1 - t) * (1 - t) end
 local function easeOutBack(t, s)
     s = s or 1.70158
@@ -52,7 +67,30 @@ local function easeInOutSine(t)
 end
 
 function AnimationManager.new()
-    return setmetatable({ queue = {} }, AnimationManager)
+    legacyWarning()
+    -- Return a stub that refuses to accept animations but keeps loop-safe methods.
+    local stub = {
+        queue = {},
+        add = function()
+            local ok, Config = pcall(require, 'src.config')
+            local shouldError = false
+            if ok and Config then
+                local cats = Config.debugCategories or {}
+                shouldError = (Config.debug == true) or (cats.animationErrors == true) or (cats.animations == true)
+            end
+            local msg = '[LegacyAnim] Attempted to add legacy animation. Route calls through gs.animations (unified adapter).'
+            if shouldError then
+                error(msg)
+            else
+                -- Silent fail in non-debug runs to avoid interrupting sessions
+                return false
+            end
+        end,
+        update = function() end,
+        draw = function() end,
+        isBusy = function() return false end,
+    }
+    return setmetatable(stub, AnimationManager)
 end
 
 function AnimationManager:add(anim)
