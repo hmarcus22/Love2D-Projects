@@ -315,6 +315,10 @@ function anim_lab:drawGameWithoutHUD()
     player:drawHand(isCurrent, self.gs)
   end
   
+  -- Draw animating cards overlay to mirror GameState:draw ordering
+  local AnimationOverlay = require 'src.renderers.animation_overlay'
+  AnimationOverlay.draw(self.gs)
+  
   -- Draw resolve log but skip the player info HUD parts
   ResolveRenderer.draw(self.gs, layout, screenW)
   

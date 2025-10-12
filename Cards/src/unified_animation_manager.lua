@@ -402,6 +402,22 @@ function UnifiedAnimationManager:getActiveAnimatingCards()
     return animatingCards
 end
 
+-- Extended variant: include phase info per active animation
+function UnifiedAnimationManager:getActiveAnimationEntries()
+    local entries = {}
+    if self.flightEngine and self.flightEngine.getActiveAnimations then
+        local activeAnimations = self.flightEngine:getActiveAnimations()
+        if activeAnimations then
+            for _, animation in pairs(activeAnimations) do
+                if animation.card then
+                    entries[#entries+1] = { card = animation.card, phase = animation.currentPhase }
+                end
+            end
+        end
+    end
+    return entries
+end
+
 -- Report whether any time-blocking animations are active
 -- Considers flight and resolve animations; excludes board-idle effects
 function UnifiedAnimationManager:hasActiveAnimations()

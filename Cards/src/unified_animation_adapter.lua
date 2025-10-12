@@ -321,6 +321,14 @@ function UnifiedAnimationAdapter:getActiveAnimatingCards()
     return {}
 end
 
+-- Extended variant for renderers needing phase context
+function UnifiedAnimationAdapter:getActiveAnimationEntries()
+    if self.unifiedManager and self.unifiedManager.getActiveAnimationEntries then
+        return self.unifiedManager:getActiveAnimationEntries()
+    end
+    return {}
+end
+
 -- Adapter-level draw for unified UI effects (engine/animators do not draw)
 function UnifiedAnimationAdapter:draw()
     if not self.slotGlows or #self.slotGlows == 0 then return end
