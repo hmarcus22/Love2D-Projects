@@ -85,6 +85,18 @@ function CardRenderer.draw(card)
     end
 end
 
+-- Draw the given card at a provided rectangle without mutating its base
+-- position/size fields. Useful for overlays (e.g., animation overlay).
+function CardRenderer.drawAt(card, x, y, w, h)
+    if not card then return end
+    -- Preserve original rect
+    local ox, oy, ow, oh = card.x, card.y, card.w, card.h
+    card.x, card.y, card.w, card.h = x, y, w, h
+    CardRenderer.draw(card)
+    -- Restore
+    card.x, card.y, card.w, card.h = ox, oy, ow, oh
+end
+
 -- Draw card using pre-rendered texture (scale like card art)
 function CardRenderer.drawWithTexture(card)
     -- Process resolve animations first

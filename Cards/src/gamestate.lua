@@ -493,6 +493,10 @@ function GameState:draw()
         player:drawHand(isCurrent, self)
     end
 
+    -- Draw animating cards overlay (cards in flight, independent of hand/board placement)
+    local AnimationOverlay = require 'src.renderers.animation_overlay'
+    AnimationOverlay.draw(self)
+
     ResolveRenderer.draw(self, layout, screenW)
 
     if self.draggingCard then
