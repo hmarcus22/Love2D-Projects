@@ -149,6 +149,49 @@ local defaults = {
     deckPopupH = 240,
     arrowHeadSize = 16,
     arrowThickness = 3,
+    -- Fancy arrow rendering (gradient + outline)
+    arrows = {
+      enabled = true, -- enable shader-based fancy arrows
+      -- Default fill for fancy arrows (used if provided); can be tuned live
+      fillColor = {1, 1, 0, 1},
+      -- Rasterization quality controls (for high-res/retina/fullscreen)
+      raster = {
+        oversample = 1.0,        -- extra raster scale multiplier
+        useDPIScale = false,     -- multiply by love.window.getDPIScale()
+        maxSize = 2048,          -- clamp canvas size to this (both dimensions)
+      },
+      -- Shape controls for the shaft
+      shape = {
+        enabled = true,          -- enable tapered/curved shaft
+        concavity = 0.18,        -- 0..0.6: inward curve at the middle
+        segments = 14,           -- sampling resolution along the shaft
+        tipWidth = nil,          -- if nil, matches arrow head base width; else a pixel width
+      },
+      -- Decide where fancy arrows are used by default
+      apply = {
+        drag = true,             -- use fancy arrow when dragging cards
+        attackIndicators = false,-- attack target indicators on board
+        modifiers = false,       -- small modifier direction arrows
+        resolve = false,         -- resolve-phase arrows
+      },
+      outline = {
+        enabled = true,
+        size = 1,                     -- outline thickness in pixels
+        color = {1, 1, 1, 1},         -- outline color (default white)
+      },
+      -- Post-composite alpha fade for entire arrow (outline included)
+      fadeAll = {
+        enabled = true,
+        gamma = 1.0,                  -- controls fade curve along length
+      },
+      -- Optional inner color gradient (disabled by default; not needed when fadeAll is on)
+      innerGradient = {
+        enabled = false,
+        startColor = {1, 1, 0, 0},    -- transparent tail
+        endColor = {1, 1, 0, 1},      -- opaque tip
+        gamma = 1.0,
+      },
+    },
   },
   colors = {
     button = {0.2, 0.2, 0.6, 0.85},

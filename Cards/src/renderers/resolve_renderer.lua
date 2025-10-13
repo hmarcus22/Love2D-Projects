@@ -127,10 +127,13 @@ function ResolveRenderer.drawOverlay(state, layout, screenW)
             local bx2 = tx + cardW / 2
             local by2 = ty + cardH / 2
             local Arrow = require "src.ui.arrow"
+            local cfgOk, Cfg = pcall(require, 'src.config')
+            local useFancy = cfgOk and Cfg and Cfg.ui and Cfg.ui.arrows and Cfg.ui.arrows.apply and Cfg.ui.arrows.apply.resolve or false
             local arrow = Arrow({ax, ay}, {bx2, by2}, {
                 color = {0.9, 0.2, 0.2, 0.8},
                 thickness = 2,
-                headSize = 12
+                headSize = 12,
+                useFancy = useFancy,
             })
             arrow:draw()
             love.graphics.setColor(0.9, 0.2, 0.2, 0.3)

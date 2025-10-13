@@ -35,10 +35,13 @@ local function drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
         local startY = slotY + cardH / 2
         local endX = slotX + cardW / 2 + direction * (cardW * 0.45)
         local endY = slotY + cardH / 2
+        local cfgOk, Cfg = pcall(require, 'src.config')
+        local useFancy = cfgOk and Cfg and Cfg.ui and Cfg.ui.arrows and Cfg.ui.arrows.apply and Cfg.ui.arrows.apply.modifiers or false
         local arrow = Arrow({startX, startY}, {endX, endY}, {
             color = {0.9, 0.2, 0.2, 0.8},
             thickness = 3,
-            headSize = 14
+            headSize = 14,
+            useFancy = useFancy,
         })
         arrow:draw()
     end
@@ -100,10 +103,13 @@ local function drawAttackIndicators(state, layout, playerIndex, slotIndex, slotX
         local ex = targetCenterX - dx / dist * insetEnd
         local ey = targetCenterY - dy / dist * insetEnd
 
+        local cfgOk2, Cfg2 = pcall(require, 'src.config')
+        local useFancy2 = cfgOk2 and Cfg2 and Cfg2.ui and Cfg2.ui.arrows and Cfg2.ui.arrows.apply and Cfg2.ui.arrows.apply.attackIndicators or false
         local arrow = Arrow({sx, sy}, {ex, ey}, {
             color = {1, 1, 0.2, 0.85},
             thickness = 3,
-            headSize = 10
+            headSize = 10,
+            useFancy = useFancy2,
         })
         arrow:draw()
         love.graphics.setColor(1, 1, 1, 1)
