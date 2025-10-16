@@ -25,11 +25,8 @@ function Arrow:init(startPos, endPos, opts)
   self.finish = Vector(endPos.x or endPos[1], endPos.y or endPos[2])
   self.color = opts.color or Config.colors.arrow
   
-  -- Debug: check where thickness is coming from
-  print("===== ARROW INIT DEBUG =====")
-  print("opts.thickness=" .. tostring(opts.thickness))
-  print("Config.ui.arrowThickness=" .. tostring(Config.ui.arrowThickness))
-  print("==========================")
+  self.thickness = opts.thickness or Config.ui.arrowThickness
+  self.headSize = opts.headSize or Config.ui.arrowHeadSize
   
   self.thickness = opts.thickness or Config.ui.arrowThickness
   self.headSize = opts.headSize or Config.ui.arrowHeadSize
@@ -189,54 +186,96 @@ function Arrow:draw()
     local tipW = self.shapeCfg.tipWidth or baseW -- Fixed: removed extra parentheses
     local conc = math.max(0, math.min(self.shapeCfg.concavity or 0, 0.9))
     
-    -- Debug: verify values are correct
-    print("===== ARROW SHAPE DEBUG =====")
-    print("baseW=" .. baseW .. ", tipW=" .. tipW .. ", thickness=" .. self.thickness)
-    print("=============================")
+    -- Debug arrow direction and perpendicular vectors
+    print(string.format("Arrow: start(%.1f,%.1f) → finish(%.1f,%.1f)", g.sx, g.sy, g.fx, g.fy))
+    print(string.format("Unit vector: (%.3f,%.3f), Perp vector: (%.3f,%.3f)", g.ux, g.uy, g.px, g.py))
     
-    local left = {}
-    local right = {}
+    -- Determine visual left/right based on arrow direction
+    -- Use cross product to determine which side of perpendicular vector is "left"
+    -- For screen coordinates (Y down), left side is where px×uy - py×ux > 0
+    local crossProduct = g.px * g.uy - g.py * g.ux
+    local pxIsVisualLeft = crossProduct > 0
+    print(string.format("Cross product: %.3f, +px is visual %s", crossProduct, pxIsVisualLeft and "LEFT" or "RIGHT"))
+    
+    local visualLeft = {}
+    local visualRight = {}
     for i = 0, samples do
       local t = i / samples
-      local wLin = baseW + (tipW - baseW) * t
+      local wLin = baseW + (tipW - baseW) * t  -- Linear taper from base to tip
       
-      -- Alternative concavity curve: gentler, more compatible with large tapers
-      local midCurve
-      if self.shapeCfg.curveStyle == "gentle" then
-        -- Smoother curve that peaks later, works better with large tapers
-        midCurve = 4 * t * (1 - t) -- Parabolic: smoother, peaks at t=0.5
-      else
-        -- Simple concave curve: maximum inward bend at middle, smooth to ends
-        -- This creates clean concave sides without S-curves or oscillation
-        local center = t - 0.5  -- Shift to center at 0
-        midCurve = 1 - (center * center * 4)  -- Inverted parabola: 1 at center, 0 at ends
+      -- Apply taper width
+      local w = wLin
+      
+      -- Calculate concave offset: simple waist effect
+      local concaveOffset = 0
+      if conc > 0 then
+        -- Simple sine wave for elegant waist shape
+        local concaveFactor = math.sin(math.pi * t)
+        concaveOffset = conc * concaveFactor * 32  -- Moderate effect
       end
       
-      -- Apply concavity by curving inward from the straight taper line
-      -- This creates curved sides without affecting the base/tip widths
-      local w = wLin * (1 - conc * midCurve)
-      -- Ensure we never go below a minimum width
-      w = math.max(1, w)
       local cx = g.sx + g.ux * (t * Lshaft)
       local cy = g.sy + g.uy * (t * Lshaft)
-      local lx = cx + g.px * (w * 0.5)
-      local ly = cy + g.py * (w * 0.5)
-      local rx = cx - g.px * (w * 0.5)
-      local ry = cy - g.py * (w * 0.5)
-      table.insert(left, {lx - g.ox, ly - g.oy})
-      table.insert(right, {rx - g.ox, ry - g.oy})
+      
+      -- Clamp concaveOffset to reasonable limits
+      local maxOffset = w * 0.35  -- Allow up to 35% width reduction
+      local clampedOffset = math.min(concaveOffset, maxOffset)
+      
+      -- Apply concavity independently to each side
+      local baseHalfWidth = w * 0.5
+      -- Both sides should curve inward by the same amount for symmetry
+      local leftHalfWidth = baseHalfWidth - clampedOffset   
+      local rightHalfWidth = baseHalfWidth - clampedOffset  
+      
+      -- Calculate positions: both sides move inward by concavity amount
+      local lx = cx + g.px * leftHalfWidth
+      local ly = cy + g.py * leftHalfWidth  
+      local rx = cx - g.px * rightHalfWidth
+      local ry = cy - g.py * rightHalfWidth
+      
+      -- Debug specific points to see actual vertex positions
+      if i == 0 or i == samples/2 or i == samples then
+        print(string.format("Vertex %d: center(%.1f,%.1f)", i, cx, cy))
+        print(string.format("  Before offset: lx=%.1f, rx=%.1f, width=%.1f", 
+                           cx + g.px * baseHalfWidth, cx - g.px * baseHalfWidth, 2 * baseHalfWidth))
+        print(string.format("  After offset:  lx=%.1f, rx=%.1f, width=%.1f", lx, rx, math.abs(lx - rx)))
+      end
+      
+      -- Store in visual left/right (correct for any arrow direction)
+      if pxIsVisualLeft then
+        -- +px direction is visual left
+        table.insert(visualLeft, {lx - g.ox, ly - g.oy})   -- Use lx (the +px side)
+        table.insert(visualRight, {rx - g.ox, ry - g.oy})  -- Use rx (the -px side)
+      else
+        -- -px direction is visual left  
+        table.insert(visualLeft, {rx - g.ox, ry - g.oy})   -- Use rx (the -px side)
+        table.insert(visualRight, {lx - g.ox, ly - g.oy})  -- Use lx (the +px side)
+      end
     end
     vertsShaft = {}
-    -- left side forward
-    for i = 1, #left do
-      vertsShaft[#vertsShaft+1] = left[i][1]
-      vertsShaft[#vertsShaft+1] = left[i][2]
+    -- Visual left side forward (base to tip)
+    for i = 1, #visualLeft do
+      vertsShaft[#vertsShaft+1] = visualLeft[i][1]
+      vertsShaft[#vertsShaft+1] = visualLeft[i][2]
     end
-    -- right side backward
-    for i = #right, 1, -1 do
-      vertsShaft[#vertsShaft+1] = right[i][1]
-      vertsShaft[#vertsShaft+1] = right[i][2]
+    -- Visual right side backward (tip to base)
+    for i = #visualRight, 1, -1 do
+      vertsShaft[#vertsShaft+1] = visualRight[i][1]
+      vertsShaft[#vertsShaft+1] = visualRight[i][2]
     end
+    
+    -- Debug polygon vertex order
+    print("Polygon vertices (first 6 and last 6):")
+    for i = 1, math.min(12, #vertsShaft), 2 do
+      print(string.format("  Vertex %d: (%.1f, %.1f)", (i+1)/2, vertsShaft[i], vertsShaft[i+1]))
+    end
+    if #vertsShaft > 12 then
+      print("  ...")
+      for i = math.max(#vertsShaft-11, 13), #vertsShaft, 2 do
+        print(string.format("  Vertex %d: (%.1f, %.1f)", (i+1)/2, vertsShaft[i], vertsShaft[i+1]))
+      end
+    end
+    
     love.graphics.polygon("fill", unpack(vertsShaft))
   else
     -- Fallback: constant-width quad

@@ -135,7 +135,7 @@ function ResolveRenderer.drawOverlay(state, layout, screenW)
                 headSize = 12,
                 useFancy = useFancy,
             })
-            arrow:draw()
+            -- TEMP DISABLED: arrow:draw() -- Testing for asymmetry interference
             love.graphics.setColor(0.9, 0.2, 0.2, 0.3)
             love.graphics.rectangle("fill", tx, ty, cardW, cardH, 8, 8)
         end

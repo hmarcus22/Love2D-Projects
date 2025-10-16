@@ -163,9 +163,9 @@ local defaults = {
       -- Shape controls for the shaft
       shape = {
         enabled = true,          -- enable tapered/curved shaft
-        concavity = 0.8,        -- 0..0.6: inward curve at the middle
-        segments = 14,           -- sampling resolution along the shaft
-        tipWidth = 10,          -- if nil, matches arrow head base width; else a pixel width
+        concavity = 0.8,        -- Moderate concavity - visible but not extreme
+        segments = 24,           -- higher resolution for smoother curves
+        tipWidth = 40,          -- taper to narrower than arrowhead (arrowHeadSize=50)
       },
       -- Decide where fancy arrows are used by default
       apply = {

@@ -42,7 +42,7 @@ local function drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
             headSize = 14,
             useFancy = useFancy,
         })
-        arrow:draw()
+        -- TEMP DISABLED: arrow:draw() -- Testing for asymmetry interference
     end
 
     local function drawBadge(x, y, bg, text)
@@ -109,7 +109,7 @@ local function drawAttackIndicators(state, layout, playerIndex, slotIndex, slotX
             headSize = 10,
             useFancy = useFancy2,
         })
-        arrow:draw()
+        -- TEMP DISABLED: arrow:draw() -- Testing for asymmetry interference
         love.graphics.setColor(1, 1, 1, 1)
     end
 end
