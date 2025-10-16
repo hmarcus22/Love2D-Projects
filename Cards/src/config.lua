@@ -182,7 +182,7 @@ local defaults = {
       -- Post-composite alpha fade for entire arrow (outline included)
       fadeAll = {
         enabled = true,
-        gamma = 1.0,                  -- controls fade curve along length
+        gamma = 1.0,                  -- controls fade curve along lengthl
       },
       -- Optional inner color gradient (disabled by default; not needed when fadeAll is on)
       innerGradient = {
@@ -220,6 +220,9 @@ local defaults = {
     handHoverInSpeed = 14,
     handHoverOutSpeed = 20,
     handHoverScale = 0.2,
+    -- Hand compaction animation settings
+    handCompactDuration = 0.35,
+    handCompactEasing = 'easeOutCubic',
     -- Use the visually scaled hover size for hand hit-testing (hover/click)
     handHoverHitScaled = false,
     

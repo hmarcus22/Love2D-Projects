@@ -240,6 +240,16 @@ function Actions.playModifierOnSlot(self, card, targetPlayerIndex, slotIndex, re
         return false
     end
 
+    -- Remove card from hand immediately when animation starts to prevent flickering (same as regular cards)
+    local player = card.owner
+    if card.slotIndex and player.slots[card.slotIndex] then
+        player.slots[card.slotIndex].card = nil
+        -- Trigger smooth hand compaction immediately when card starts flying
+        if player.animatedCompactHand then
+            player:animatedCompactHand(self)
+        end
+    end
+
     -- Build and trigger flight animation for modifier cards
     local targetX, targetY = self:getBoardSlotPosition(targetPlayerIndex, slotIndex)
     if Config and Config.debug then
@@ -406,10 +416,13 @@ function Actions.completeModifierApplication(self, card, targetPlayerIndex, slot
     table.insert(self.attachments[targetPlayerIndex][slotIndex], stored)
     print("[DEBUG] Modifier attached to slot")
 
-    -- discard the modifier card (modifiers do not occupy board slots)
-    print("[DEBUG] Discarding modifier card:", card.name)
-    self:discardCard(card)
-    print("[DEBUG] Modifier card discarded")
+    -- Add modifier card to discard pile (card already removed from hand during flight start)
+    print("[DEBUG] Adding modifier card to discard pile:", card.name)
+    self.discardPile = self.discardPile or {}
+    table.insert(self.discardPile, card)
+    card.zone = "discard"
+    card.faceUp = true
+    print("[DEBUG] Modifier card added to discard pile")
 
     if selectionPending then
         print("[DEBUG] Selection pending, initiating retarget")
@@ -466,7 +479,12 @@ function Actions.discardCard(self, card)
     -- Remove card from hand
     if card.slotIndex and player.slots[card.slotIndex] and player.slots[card.slotIndex].card == card then
         player.slots[card.slotIndex].card = nil
-        player:compactHand(self)
+        -- Use animated compaction if available, fallback to instant
+        if player.animatedCompactHand then
+            player:animatedCompactHand(self)
+        else
+            player:compactHand(self)
+        end
     end
     -- Add card to discard pile
     self.discardPile = self.discardPile or {}

@@ -116,10 +116,61 @@ local function ensurePassButton(state)
     end
 end
 
+local function ensurePauseButton(state)
+    if not state then return end
+
+    local layout = state:getLayout()
+    local screenW = Viewport.getWidth()
+    local buttonW = 80
+    local buttonH = 28
+    local margin = 16
+    
+    -- Position pause button in top-right corner
+    local x = screenW - buttonW - margin
+    local y = margin
+    
+    local defaultColor = Config.colors.button or {0.7, 0.7, 0.7, 1}
+    local hoverColor = Config.colors.buttonHover or {0.9, 0.9, 0.9, 1}
+
+    if not state._pauseButton then
+        state._pauseButton = Button{
+            x = x,
+            y = y,
+            w = buttonW,
+            h = buttonH,
+            label = "Pause",
+            color = defaultColor,
+            hoveredColor = hoverColor,
+            textColor = {0, 0, 0, 1},
+            onClick = function()
+                local Gamestate = require "libs.hump.gamestate"
+                local pause = require "src.states.pause"
+                Gamestate.push(pause)
+            end,
+        }
+    else
+        local btn = state._pauseButton
+        btn.x, btn.y, btn.w, btn.h = x, y, buttonW, buttonH
+    end
+
+    local btn = state._pauseButton
+    if btn then
+        btn.visible = true
+        btn.enabled = true
+    end
+end
+
 local function drawPassButton(state)
     ensurePassButton(state)
     if state._passButton then
         state._passButton:draw()
+    end
+end
+
+local function drawPauseButton(state)
+    ensurePauseButton(state)
+    if state._pauseButton then
+        state._pauseButton:draw()
     end
 end
 
@@ -262,6 +313,7 @@ local function drawHud(state, _, screenW)
     end
 
     drawPassButton(state)
+    drawPauseButton(state)
     drawToasts(screenW or love.graphics.getWidth())
 end
 

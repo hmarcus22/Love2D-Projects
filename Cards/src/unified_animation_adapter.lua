@@ -181,6 +181,7 @@ function UnifiedAnimationAdapter:handleUnifiedCardPlayAnimation(anim)
     local options = { }
     if anim.animationStyle then options.animationStyle = anim.animationStyle end
     if anim.onPlace then options.onPlace = anim.onPlace end
+    if anim.onHandCommit then options.onHandCommit = anim.onHandCommit end
     local animation = self.unifiedManager:playCard(card, anim.targetX, anim.targetY, "unified", anim.onComplete, options)
 end
 

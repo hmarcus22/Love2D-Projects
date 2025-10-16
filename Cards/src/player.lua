@@ -258,6 +258,8 @@ function Player:compactHand()
 end
 
 function Player:compactHand(gs)
+    print("[DEBUG] INSTANT compactHand called! This will override any animated positions")
+    
     -- Remove gaps in hand slots and update card positions
     local newSlots = {}
     local idx = 1
@@ -265,6 +267,7 @@ function Player:compactHand(gs)
         if slot.card then
             slot.card.slotIndex = idx
             local x, y = gs:getHandSlotPosition(idx, self)
+            print("[DEBUG] INSTANT compactHand setting card", slot.card.id or "unknown", "to position", x, y)
             slot.card.x = x
             slot.card.y = y
             newSlots[idx] = { card = slot.card }
@@ -278,8 +281,151 @@ function Player:compactHand(gs)
     self.slots = newSlots
 end
 
+-- Smooth animated hand compaction for better UX during card flight
+function Player:animatedCompactHand(gs)
+    if not gs then return end
+    
+    local activeLayout = gs:getLayout()
+    local duration = activeLayout.handCompactDuration or 0.35
+    local easingType = activeLayout.handCompactEasing or "easeOutCubic"
+    
+    print("[DEBUG] Layout values - handCompactDuration:", activeLayout.handCompactDuration, "handCompactEasing:", activeLayout.handCompactEasing)
+    print("[DEBUG] Resolved values - duration:", duration, "easing:", easingType)
+    
+    -- First, capture current positions of all remaining cards before any slot changes
+    local cardsToAnimate = {}
+    local remainingCards = {}
+    
+    for i, slot in ipairs(self.slots) do
+        if slot.card then
+            table.insert(remainingCards, {
+                card = slot.card,
+                originalSlotIndex = slot.card.slotIndex,
+                currentX = slot.card.x,
+                currentY = slot.card.y
+            })
+        end
+    end
+    
+    print("[DEBUG] Hand compaction - duration:", duration, "easing:", easingType, "remaining cards:", #remainingCards)
+    
+    -- Now calculate new slot layout and positions
+    local newSlots = {}
+    for idx, cardInfo in ipairs(remainingCards) do
+        local card = cardInfo.card
+        local newSlotIndex = idx
+        local newX, newY = gs:getHandSlotPosition(newSlotIndex, self)
+        
+        print("[DEBUG] Card", card.id or "unknown", "- current pos:", cardInfo.currentX, cardInfo.currentY, "new pos:", newX, newY, "slot:", cardInfo.originalSlotIndex, "->", newSlotIndex)
+        
+        -- Check if card needs to animate (position or slot changed)
+        if cardInfo.originalSlotIndex ~= newSlotIndex or math.abs(cardInfo.currentX - newX) > 1 or math.abs(cardInfo.currentY - newY) > 1 then
+            print("[DEBUG] Card needs animation - position or slot changed")
+            table.insert(cardsToAnimate, {
+                card = card,
+                oldSlotIndex = cardInfo.originalSlotIndex,
+                newSlotIndex = newSlotIndex,
+                startX = cardInfo.currentX,
+                startY = cardInfo.currentY,
+                targetX = newX,
+                targetY = newY
+            })
+        else
+            print("[DEBUG] Card", card.id or "unknown", "doesn't need animation - position unchanged")
+        end
+        
+        -- Update card slot index and create new slot
+        card.slotIndex = newSlotIndex
+        newSlots[newSlotIndex] = { card = card }
+    end
+    
+    -- Fill remaining slots with empty slots
+    for i = #remainingCards + 1, #self.slots do
+        newSlots[i] = { card = nil }
+    end
+    self.slots = newSlots
+    
+    -- If no cards need animation, we're done
+    if #cardsToAnimate == 0 then 
+        print("[DEBUG] No cards need animation")
+        return 
+    end
+
+    print("[DEBUG] Starting animation for", #cardsToAnimate, "cards")
+    
+    -- Use the gamestate's animation timer to ensure updates
+    local timer = gs.animations and gs.animations.timer
+    if not timer then
+        -- Fallback: instant snap if no timer available
+        print("[DEBUG] No animation timer available - using instant positioning")
+        for _, animData in ipairs(cardsToAnimate) do
+            animData.card.x = animData.targetX
+            animData.card.y = animData.targetY
+        end
+        return
+    end
+    
+    print("[DEBUG] Using timer instance:", timer, "type:", type(timer))
+    
+    print("[DEBUG] Hand compaction - duration:", duration, "easing:", easingType, "cards to animate:", #cardsToAnimate)
+    print("[DEBUG] Animation start time:", love.timer.getTime())
+    
+    -- Convert easing type to HUMP Timer format
+    local humpEasing = easingType
+    if easingType == "easeOutCubic" then humpEasing = "in-out-cubic"
+    elseif easingType == "easeOutQuad" then humpEasing = "in-out-quad"
+    elseif easingType == "easeOutQuart" then humpEasing = "in-out-quart"
+    elseif easingType == "linear" then humpEasing = "linear"
+    else humpEasing = "in-out-cubic" -- Default fallback
+    end
+    
+    for _, animData in ipairs(cardsToAnimate) do
+        local card = animData.card
+        local startX, startY = animData.startX, animData.startY
+        local targetX, targetY = animData.targetX, animData.targetY
+        
+        -- Initialize animX/animY from current positions to start animation
+        card.animX = startX
+        card.animY = startY
+        
+        print("[DEBUG] Starting timer animation for card", card.id or "unknown", "from", startX, startY, "to", targetX, targetY, "easing:", humpEasing)
+        print("[DEBUG] Set initial animX =", card.animX, "animY =", card.animY)
+        
+        local startTime = love.timer.getTime()
+        print("[DEBUG] About to call timer:tween with duration:", duration, "easing:", humpEasing)
+        print("[DEBUG] Timer object methods:", timer.tween and "has tween" or "NO tween method")
+        
+        local tweenResult = timer:tween(duration, card, {animX = targetX, animY = targetY}, humpEasing, function()
+            local endTime = love.timer.getTime()
+            local actualDuration = endTime - startTime
+            print("[DEBUG] Hand compaction animation completed for card", card.id or "unknown", "- actual duration:", string.format("%.2f", actualDuration), "expected:", duration)
+            
+            -- Clear animX/animY when animation completes and update base positions
+            card.animX = nil
+            card.animY = nil
+            card.x = targetX
+            card.y = targetY
+            print("[DEBUG] Cleared animX/animY and set final x =", card.x, "y =", card.y)
+        end)
+        
+        print("[DEBUG] timer:tween call completed, result:", tweenResult, "animation should be running")
+    end
+end
+
 function Player:snapCard(card, gs)
     if not card.slotIndex then
+        return
+    end
+
+    -- Check if there's an ongoing hand compaction animation
+    -- If so, don't override the animated positions
+    if self.handCompactionInProgress then
+        if Config and Config.debug then
+            print("[DEBUG] snapCard: Skipping position override due to ongoing hand compaction animation")
+        end
+        -- Still set the slot assignment and clear variance
+        card.statVariance = nil
+        self.slots[card.slotIndex].card = card
         return
     end
 
@@ -404,10 +550,17 @@ function Player:drawHand(isCurrent, gs)
                 local CardRenderer = require "src.card_renderer"
                 local amount = card.handHoverAmount or 0
                 local hoverScale = (activeLayout.handHoverScale or 0.06)
+                
+                -- Preserve original animated position
+                local originalX, originalY, originalW, originalH = card.x, card.y, card.w, card.h
+                
                 local dx, dy, dw, dh = HoverUtils.scaledRect(card.x, card.y, cardW, cardH, amount, hoverScale)
                 card.w, card.h = dw, dh
                 card.x, card.y = dx, dy
                 CardRenderer.draw(card)
+                
+                -- Restore original animated position
+                card.x, card.y, card.w, card.h = originalX, originalY, originalW, originalH
             end
         end
     end
@@ -426,10 +579,17 @@ function Player:drawHand(isCurrent, gs)
         love.graphics.setLineWidth(3)
         love.graphics.rectangle("line", dx - 8, dy - 8, dw + 16, dh + 16, 14, 14)
         love.graphics.setLineWidth(1)
+        
+        -- Preserve original position
+        local originalX, originalY, originalW, originalH = dragCard.x, dragCard.y, dragCard.w, dragCard.h
+        
         dragCard.w, dragCard.h = dw, dh
         dragCard.x, dragCard.y = dx, dy
         love.graphics.setColor(1,1,1,1)
         CardRenderer.draw(dragCard)
+        
+        -- Restore original position
+        dragCard.x, dragCard.y, dragCard.w, dragCard.h = originalX, originalY, originalW, originalH
     end
 
     if hoveredCard and (not gs or (hoveredCard ~= gs.draggingCard)) then
@@ -447,6 +607,10 @@ function Player:drawHand(isCurrent, gs)
         if hidden > 0 then
             drawY = drawY - hidden
         end
+        
+        -- Preserve original animated position
+        local originalX, originalY, originalW, originalH = hoveredCard.x, hoveredCard.y, hoveredCard.w, hoveredCard.h
+        
         hoveredCard.x = drawX
         hoveredCard.y = drawY
         hoveredCard.w = newW
@@ -457,6 +621,9 @@ function Player:drawHand(isCurrent, gs)
 
         local CardRenderer = require "src.card_renderer"
         CardRenderer.draw(hoveredCard)
+        
+        -- Restore original animated position
+        hoveredCard.x, hoveredCard.y, hoveredCard.w, hoveredCard.h = originalX, originalY, originalW, originalH
     end
 
     -- Animation overlay moved to src/renderers/animation_overlay.lua and is drawn globally

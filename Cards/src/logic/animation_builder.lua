@@ -27,6 +27,7 @@ function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAd
     --  - onPlace: place card onto board as soon as approach completes
     --  - onComplete: advance turn when entire sequence is finished
     local placed = false
+    
     local function onPlace()
         if placed then return end
         placed = true

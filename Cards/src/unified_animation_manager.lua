@@ -104,6 +104,10 @@ function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType,
     if options and options.onPlace then
         config.onPlace = options.onPlace
     end
+    -- Forward hand commit callback for smooth compaction
+    if options and options.onHandCommit then
+        config.onHandCommit = options.onHandCommit
+    end
     
     local result = self.flightEngine:startAnimation(card, animationType, config)
     debugPrint("  Result:", result and "SUCCESS" or "FAILED")

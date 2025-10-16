@@ -289,6 +289,15 @@ function UnifiedAnimationEngine:onPhaseChange(animation, oldPhase, newPhase)
     -- Initialize phase-specific state
     if newPhase == "launch" then
         self:initializeLaunchPhase(animation)
+        -- Hand commit hook: when card commits to leaving hand (launch phase starts),
+        -- trigger smooth hand compaction for remaining cards
+        if animation.config and animation.config.onHandCommit and not animation._handCommitDone then
+            local ok, err = pcall(animation.config.onHandCommit)
+            if not ok and Config and Config.debug then
+                debugPrint("[UnifiedAnim] onHandCommit error:", err)
+            end
+            animation._handCommitDone = true
+        end
     elseif newPhase == "flight" then
         self:initializeFlightPhase(animation)
     elseif newPhase == "approach" then

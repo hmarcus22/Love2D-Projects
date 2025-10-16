@@ -133,6 +133,18 @@ function game:mousepressed(x, y, button)
     if Tuner.mousepressed(vx, vy, button, 'game', self) then return end
     local HudRenderer = require "src.renderers.hud_renderer"
     local screenW = love.graphics.getWidth()
+    
+    -- Check pause button click
+    if self.gs._pauseButton and self.gs._pauseButton:click(vx, vy) then
+        return
+    end
+    
+    -- Check pass button click
+    if self.gs._passButton and self.gs._passButton:click(vx, vy) then
+        return
+    end
+    
+    -- Check player deck summary buttons
     local btnW, btnH = 120, 32
     local btnY = 8
 

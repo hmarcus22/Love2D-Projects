@@ -113,6 +113,8 @@ local defs = {
   -- Layout hand and hover behavior
   { path = 'layout.handAreaWidth',    label = 'Hand Area Width',    type = 'number', min = 300, max = 900, step = 1,  context = 'all',  category = 'Layout Hand' },
   { path = 'layout.handReferenceCount', label = 'Hand Ref Count',   type = 'number', min = 1,   max = 10,  step = 1,  context = 'all',  category = 'Layout Hand' },
+  { path = 'layout.handCompactDuration', label = 'Hand Compact Duration', type='number', min=0.1, max=1.0, step=0.05, context='all', category='Layout Hand' },
+  { path = 'layout.handCompactEasing', label = 'Hand Compact Easing', type='select', options={'easeOutQuad', 'easeOutCubic', 'easeOutQuart', 'linear'}, context='all', category='Layout Hand' },
   { path = 'layout.handHoverInSpeed', label = 'Hand Hover In Speed', type='number', min=0, max=40, step=0.5,        context='all', category='Layout Hover' },
   { path = 'layout.handHoverOutSpeed', label = 'Hand Hover Out Speed', type='number', min=0, max=40, step=0.5,      context='all', category='Layout Hover' },
   { path = 'layout.handHoverLift',    label = 'Hand Hover Lift',    type = 'number', min = 0, max = 120, step = 1,   context = 'all', category = 'Layout Hover' },

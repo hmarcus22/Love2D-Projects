@@ -20,6 +20,9 @@ local function resolve()
         handHoverLift = layout.handHoverLift,
         handHoverSpeed = layout.handHoverSpeed,
         handHoverScale = layout.handHoverScale,
+        -- Hand compaction animation settings
+        handCompactDuration = layout.handCompactDuration,
+        handCompactEasing = layout.handCompactEasing,
     }
 end
 

@@ -499,6 +499,11 @@ function GameState:draw()
 
     ResolveRenderer.draw(self, layout, screenW)
 
+    -- Draw HUD (player panels, pass button, etc.)
+    if HudRenderer.draw then
+        HudRenderer.draw(self, layout, screenW)
+    end
+
     if self.draggingCard then
         local card = self.draggingCard
         if card.dragCursorX and card.dragCursorY then
@@ -538,10 +543,6 @@ function GameState:drawDragArrow(card)
     })
     arrow:draw()
     love.graphics.setColor(1,1,1,1)
-
-    if HudRenderer.draw then
-        HudRenderer.draw(self, layout, screenW)
-    end
 
     if self.animations and self.animations.draw then
         local ImpactFX = require 'src.impact_fx'
@@ -1034,7 +1035,10 @@ function GameState:playCardFromHand(card, slotIndex)
     -- Remove card from hand immediately when animation starts to prevent flickering
     if card.slotIndex and player.slots[card.slotIndex] then
         player.slots[card.slotIndex].card = nil
-        player:compactHand(self)
+        -- Trigger smooth hand compaction immediately when card starts flying
+        if player.animatedCompactHand then
+            player:animatedCompactHand(self)
+        end
     end
     -- Ensure any hand hover/combination visuals are cleared once card leaves the hand
     -- This prevents hover glow remaining visible while the card is in flight

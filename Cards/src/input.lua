@@ -171,7 +171,7 @@ function Input:keypressed(gs, key)
     end
 
     if key == "space" then
-        gs:advanceTurn()
+        gs:passTurn()
     elseif key == "return" or key == "kpenter" then
         gs:passTurn()
     elseif key == "pageup" then
