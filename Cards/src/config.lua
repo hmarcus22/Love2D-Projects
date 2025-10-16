@@ -148,7 +148,7 @@ local defaults = {
     deckPopupW = 320,
     deckPopupH = 240,
     arrowHeadSize = 50,
-    arrowThickness = 150,
+    arrowThickness = 120,
     -- Fancy arrow rendering (gradient + outline)
     arrows = {
       enabled = true, -- enable shader-based fancy arrows
@@ -162,17 +162,17 @@ local defaults = {
       },
       -- Shape controls for the shaft
       shape = {
-        enabled = true,          -- enable tapered/curved shaft
-        concavity = 0.8,        -- Moderate concavity - visible but not extreme
-        segments = 24,           -- higher resolution for smoother curves
-        tipWidth = 40,          -- taper to narrower than arrowhead (arrowHeadSize=50)
+        enabled = true,          -- Enable elegant tapered/curved shaft
+        concavity = 0.4,        -- Elegant moderate concavity - creates nice waist effect
+        segments = 24,           -- Higher resolution for smooth curves
+        tipWidth = 30,          -- Taper to narrower than arrowhead for elegant shape
       },
       -- Decide where fancy arrows are used by default
       apply = {
         drag = true,             -- use fancy arrow when dragging cards
-        attackIndicators = false,-- attack target indicators on board
-        modifiers = false,       -- small modifier direction arrows
-        resolve = false,         -- resolve-phase arrows
+        attackIndicators = true, -- RE-ENABLE attack target indicators on board
+        modifiers = true,        -- RE-ENABLE small modifier direction arrows
+        resolve = true,          -- RE-ENABLE resolve-phase arrows
       },
       outline = {
         enabled = true,

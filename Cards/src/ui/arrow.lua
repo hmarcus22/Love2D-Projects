@@ -158,6 +158,89 @@ function Arrow:draw()
     return
   end
 
+  -- EMERGENCY BYPASS: Test concave polygon directly with Love2D (no shaders)
+  if false then  -- Disable direct Love2D test - use canvas mirroring instead
+    local g = computeGeometry(self)
+    if not g then return end
+    
+    -- Create concave polygon using our perfect calculations
+    local samples = math.max(2, math.floor(self.shapeCfg.segments or 14))
+    local Lshaft = math.max(1, g.len - self.headSize)
+    local baseW = self.thickness
+    local tipW = self.shapeCfg.tipWidth or baseW
+    local conc = math.max(0, math.min(self.shapeCfg.concavity or 0, 0.9))
+    
+    local leftSide = {}
+    local rightSide = {}
+    
+    for i = 0, samples do
+      local t = i / samples
+      local wLin = baseW + (tipW - baseW) * t
+      local w = wLin
+      
+      local concaveOffset = 0
+      if conc > 0 then
+        local concaveFactor = math.sin(math.pi * t)
+        concaveOffset = conc * concaveFactor * 32
+      end
+      
+      local cx = g.sx + g.ux * (t * Lshaft)
+      local cy = g.sy + g.uy * (t * Lshaft)
+      
+      local maxOffset = w * 0.35
+      local clampedOffset = math.min(concaveOffset, maxOffset)
+      local halfWidth = (w * 0.5) - clampedOffset
+      
+      local lx = cx + g.px * halfWidth
+      local ly = cy + g.py * halfWidth
+      local rx = cx - g.px * halfWidth
+      local ry = cy - g.py * halfWidth
+      
+      table.insert(leftSide, {lx, ly})
+      table.insert(rightSide, {rx, ry})
+    end
+    
+    -- Build polygon vertices
+    local verts = {}
+    for i = 1, #leftSide do
+      verts[#verts+1] = leftSide[i][1]
+      verts[#verts+1] = leftSide[i][2]
+    end
+    for i = #rightSide, 1, -1 do
+      verts[#verts+1] = rightSide[i][1]
+      verts[#verts+1] = rightSide[i][2]
+    end
+    
+    -- DEBUG: Print vertex sequence to check for self-intersection
+    print("Polygon vertex sequence (first 6 and last 6):")
+    for i = 1, math.min(12, #verts), 2 do
+      print(string.format("  %d: (%.1f, %.1f)", (i+1)/2, verts[i], verts[i+1]))
+    end
+    if #verts > 12 then
+      print("  ...")
+      for i = math.max(#verts-11, 13), #verts, 2 do
+        print(string.format("  %d: (%.1f, %.1f)", (i+1)/2, verts[i], verts[i+1]))
+      end
+    end
+    
+    -- Check for potential self-intersection at key points
+    local midLeft = leftSide[math.floor(#leftSide/2)]
+    local midRight = rightSide[math.floor(#rightSide/2)]
+    print(string.format("Key vertices: midLeft(%.1f,%.1f), midRight(%.1f,%.1f)", 
+                       midLeft[1], midLeft[2], midRight[1], midRight[2]))
+    
+    -- Draw directly with Love2D (NO SHADERS)
+    love.graphics.setColor(1, 1, 0, 1)  -- Yellow
+    love.graphics.polygon("fill", unpack(verts))
+    
+    -- Draw arrowhead
+    love.graphics.polygon("fill", g.h1x, g.h1y, g.h2x, g.h2y, g.h3x, g.h3y)
+    
+    love.graphics.setColor(1, 1, 1, 1)
+    print("DIRECT LOVE2D RENDERING: Bilateral concavity test")
+    return
+  end
+
   ensureShaders()
 
   local g = computeGeometry(self)
@@ -186,97 +269,72 @@ function Arrow:draw()
     local tipW = self.shapeCfg.tipWidth or baseW -- Fixed: removed extra parentheses
     local conc = math.max(0, math.min(self.shapeCfg.concavity or 0, 0.9))
     
-    -- Debug arrow direction and perpendicular vectors
-    print(string.format("Arrow: start(%.1f,%.1f) → finish(%.1f,%.1f)", g.sx, g.sy, g.fx, g.fy))
-    print(string.format("Unit vector: (%.3f,%.3f), Perp vector: (%.3f,%.3f)", g.ux, g.uy, g.px, g.py))
+    -- DUAL CONVEX APPROACH: Draw two separate convex sides instead of one concave polygon
+    local samples = math.max(2, math.floor(self.shapeCfg.segments or 14))
+    local Lshaft = math.max(1, g.len - self.headSize)
+    local baseW = self.thickness
+    local tipW = self.shapeCfg.tipWidth or baseW
+    local conc = math.max(0, math.min(self.shapeCfg.concavity or 0, 0.9))
     
-    -- Determine visual left/right based on arrow direction
-    -- Use cross product to determine which side of perpendicular vector is "left"
-    -- For screen coordinates (Y down), left side is where px×uy - py×ux > 0
-    local crossProduct = g.px * g.uy - g.py * g.ux
-    local pxIsVisualLeft = crossProduct > 0
-    print(string.format("Cross product: %.3f, +px is visual %s", crossProduct, pxIsVisualLeft and "LEFT" or "RIGHT"))
+    -- Calculate centerline and both sides
+    local centerPoints = {}
+    local leftPoints = {}
+    local rightPoints = {}
     
-    local visualLeft = {}
-    local visualRight = {}
     for i = 0, samples do
       local t = i / samples
-      local wLin = baseW + (tipW - baseW) * t  -- Linear taper from base to tip
-      
-      -- Apply taper width
+      local wLin = baseW + (tipW - baseW) * t
       local w = wLin
       
-      -- Calculate concave offset: simple waist effect
       local concaveOffset = 0
       if conc > 0 then
-        -- Simple sine wave for elegant waist shape
         local concaveFactor = math.sin(math.pi * t)
-        concaveOffset = conc * concaveFactor * 32  -- Moderate effect
+        concaveOffset = conc * concaveFactor * 32
       end
       
       local cx = g.sx + g.ux * (t * Lshaft)
       local cy = g.sy + g.uy * (t * Lshaft)
       
-      -- Clamp concaveOffset to reasonable limits
-      local maxOffset = w * 0.35  -- Allow up to 35% width reduction
+      local maxOffset = w * 0.35
       local clampedOffset = math.min(concaveOffset, maxOffset)
+      local halfWidth = (w * 0.5) - clampedOffset
       
-      -- Apply concavity independently to each side
-      local baseHalfWidth = w * 0.5
-      -- Both sides should curve inward by the same amount for symmetry
-      local leftHalfWidth = baseHalfWidth - clampedOffset   
-      local rightHalfWidth = baseHalfWidth - clampedOffset  
+      local lx = cx + g.px * halfWidth
+      local ly = cy + g.py * halfWidth
+      local rx = cx - g.px * halfWidth
+      local ry = cy - g.py * halfWidth
       
-      -- Calculate positions: both sides move inward by concavity amount
-      local lx = cx + g.px * leftHalfWidth
-      local ly = cy + g.py * leftHalfWidth  
-      local rx = cx - g.px * rightHalfWidth
-      local ry = cy - g.py * rightHalfWidth
-      
-      -- Debug specific points to see actual vertex positions
-      if i == 0 or i == samples/2 or i == samples then
-        print(string.format("Vertex %d: center(%.1f,%.1f)", i, cx, cy))
-        print(string.format("  Before offset: lx=%.1f, rx=%.1f, width=%.1f", 
-                           cx + g.px * baseHalfWidth, cx - g.px * baseHalfWidth, 2 * baseHalfWidth))
-        print(string.format("  After offset:  lx=%.1f, rx=%.1f, width=%.1f", lx, rx, math.abs(lx - rx)))
-      end
-      
-      -- Store in visual left/right (correct for any arrow direction)
-      if pxIsVisualLeft then
-        -- +px direction is visual left
-        table.insert(visualLeft, {lx - g.ox, ly - g.oy})   -- Use lx (the +px side)
-        table.insert(visualRight, {rx - g.ox, ry - g.oy})  -- Use rx (the -px side)
-      else
-        -- -px direction is visual left  
-        table.insert(visualLeft, {rx - g.ox, ry - g.oy})   -- Use rx (the -px side)
-        table.insert(visualRight, {lx - g.ox, ly - g.oy})  -- Use lx (the +px side)
-      end
+      table.insert(centerPoints, {cx - g.ox, cy - g.oy})
+      table.insert(leftPoints, {lx - g.ox, ly - g.oy})
+      table.insert(rightPoints, {rx - g.ox, ry - g.oy})
     end
+    
+    -- Draw LEFT SIDE as convex polygon (center to left edge)
+    local leftSide = {}
+    for i = 1, #centerPoints do
+      leftSide[#leftSide+1] = centerPoints[i][1]
+      leftSide[#leftSide+1] = centerPoints[i][2]
+    end
+    for i = #leftPoints, 1, -1 do
+      leftSide[#leftSide+1] = leftPoints[i][1]
+      leftSide[#leftSide+1] = leftPoints[i][2]
+    end
+    love.graphics.polygon("fill", unpack(leftSide))
+    
+    -- Draw RIGHT SIDE as convex polygon (center to right edge)
+    local rightSide = {}
+    for i = 1, #centerPoints do
+      rightSide[#rightSide+1] = centerPoints[i][1]
+      rightSide[#rightSide+1] = centerPoints[i][2]
+    end
+    for i = #rightPoints, 1, -1 do
+      rightSide[#rightSide+1] = rightPoints[i][1]
+      rightSide[#rightSide+1] = rightPoints[i][2]
+    end
+    love.graphics.polygon("fill", unpack(rightSide))
+    
+    -- Skip the old single polygon approach
     vertsShaft = {}
-    -- Visual left side forward (base to tip)
-    for i = 1, #visualLeft do
-      vertsShaft[#vertsShaft+1] = visualLeft[i][1]
-      vertsShaft[#vertsShaft+1] = visualLeft[i][2]
-    end
-    -- Visual right side backward (tip to base)
-    for i = #visualRight, 1, -1 do
-      vertsShaft[#vertsShaft+1] = visualRight[i][1]
-      vertsShaft[#vertsShaft+1] = visualRight[i][2]
-    end
-    
-    -- Debug polygon vertex order
-    print("Polygon vertices (first 6 and last 6):")
-    for i = 1, math.min(12, #vertsShaft), 2 do
-      print(string.format("  Vertex %d: (%.1f, %.1f)", (i+1)/2, vertsShaft[i], vertsShaft[i+1]))
-    end
-    if #vertsShaft > 12 then
-      print("  ...")
-      for i = math.max(#vertsShaft-11, 13), #vertsShaft, 2 do
-        print(string.format("  Vertex %d: (%.1f, %.1f)", (i+1)/2, vertsShaft[i], vertsShaft[i+1]))
-      end
-    end
-    
-    love.graphics.polygon("fill", unpack(vertsShaft))
   else
     -- Fallback: constant-width quad
     local q1x, q1y = g.q1x - g.ox, g.q1y - g.oy

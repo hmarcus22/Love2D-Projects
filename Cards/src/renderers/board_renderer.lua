@@ -42,7 +42,7 @@ local function drawModifierDecorations(mods, slotX, slotY, cardW, cardH)
             headSize = 14,
             useFancy = useFancy,
         })
-        -- TEMP DISABLED: arrow:draw() -- Testing for asymmetry interference
+        arrow:draw() -- RE-ENABLED: Fancy arrows now work with bilateral concavity!
     end
 
     local function drawBadge(x, y, bg, text)
@@ -109,7 +109,7 @@ local function drawAttackIndicators(state, layout, playerIndex, slotIndex, slotX
             headSize = 10,
             useFancy = useFancy2,
         })
-        -- TEMP DISABLED: arrow:draw() -- Testing for asymmetry interference
+        arrow:draw() -- RE-ENABLED: Fancy arrows now work with bilateral concavity!
         love.graphics.setColor(1, 1, 1, 1)
     end
 end

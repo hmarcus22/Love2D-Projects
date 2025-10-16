@@ -135,7 +135,7 @@ function ResolveRenderer.drawOverlay(state, layout, screenW)
                 headSize = 12,
                 useFancy = useFancy,
             })
-            -- TEMP DISABLED: arrow:draw() -- Testing for asymmetry interference
+            arrow:draw() -- RE-ENABLED: Fancy arrows now work with bilateral concavity!
             love.graphics.setColor(0.9, 0.2, 0.2, 0.3)
             love.graphics.rectangle("fill", tx, ty, cardW, cardH, 8, 8)
         end
