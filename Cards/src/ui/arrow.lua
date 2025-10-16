@@ -206,8 +206,10 @@ function Arrow:draw()
         -- Smoother curve that peaks later, works better with large tapers
         midCurve = 4 * t * (1 - t) -- Parabolic: smoother, peaks at t=0.5
       else
-        -- Original sine curve
-        midCurve = math.sin(math.pi * t) -- Single peak at middle (t=0.5)
+        -- Simple concave curve: maximum inward bend at middle, smooth to ends
+        -- This creates clean concave sides without S-curves or oscillation
+        local center = t - 0.5  -- Shift to center at 0
+        midCurve = 1 - (center * center * 4)  -- Inverted parabola: 1 at center, 0 at ends
       end
       
       -- Apply concavity by curving inward from the straight taper line
