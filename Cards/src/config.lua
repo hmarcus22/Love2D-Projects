@@ -147,8 +147,8 @@ local defaults = {
   cardDescYOffset = 60,         -- Vertical offset for description from bottom
     deckPopupW = 320,
     deckPopupH = 240,
-    arrowHeadSize = 16,
-    arrowThickness = 3,
+    arrowHeadSize = 50,
+    arrowThickness = 150,
     -- Fancy arrow rendering (gradient + outline)
     arrows = {
       enabled = true, -- enable shader-based fancy arrows
@@ -163,9 +163,9 @@ local defaults = {
       -- Shape controls for the shaft
       shape = {
         enabled = true,          -- enable tapered/curved shaft
-        concavity = 0.18,        -- 0..0.6: inward curve at the middle
+        concavity = 0.8,        -- 0..0.6: inward curve at the middle
         segments = 14,           -- sampling resolution along the shaft
-        tipWidth = nil,          -- if nil, matches arrow head base width; else a pixel width
+        tipWidth = 10,          -- if nil, matches arrow head base width; else a pixel width
       },
       -- Decide where fancy arrows are used by default
       apply = {

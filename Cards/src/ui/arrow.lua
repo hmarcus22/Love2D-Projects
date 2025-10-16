@@ -24,6 +24,13 @@ function Arrow:init(startPos, endPos, opts)
   self.start = Vector(startPos.x or startPos[1], startPos.y or startPos[2])
   self.finish = Vector(endPos.x or endPos[1], endPos.y or endPos[2])
   self.color = opts.color or Config.colors.arrow
+  
+  -- Debug: check where thickness is coming from
+  print("===== ARROW INIT DEBUG =====")
+  print("opts.thickness=" .. tostring(opts.thickness))
+  print("Config.ui.arrowThickness=" .. tostring(Config.ui.arrowThickness))
+  print("==========================")
+  
   self.thickness = opts.thickness or Config.ui.arrowThickness
   self.headSize = opts.headSize or Config.ui.arrowHeadSize
 
@@ -71,11 +78,25 @@ local function computeGeometry(self)
   local h2x, h2y = bx + px*(head*0.5), by + py*(head*0.5)
   local h3x, h3y = bx - px*(head*0.5), by - py*(head*0.5)
 
-  -- Bounding box with padding
-  local minx = math.min(q1x,q2x,q3x,q4x,h1x,h2x,h3x) - 2
-  local miny = math.min(q1y,q2y,q3y,q4y,h1y,h2y,h3y) - 2
-  local maxx = math.max(q1x,q2x,q3x,q4x,h1x,h2x,h3x) + 2
-  local maxy = math.max(q1y,q2y,q3y,q4y,h1y,h2y,h3y) + 2
+  -- Bounding box with padding - account for shaped shaft maximum width
+  local maxShaftWidth = self.thickness
+  if self.shapeCfg and self.shapeCfg.enabled then
+    local baseW = self.thickness
+    local tipW = self.shapeCfg.tipWidth or baseW
+    maxShaftWidth = math.max(baseW, tipW, self.thickness)
+  end
+  local shaftHalf = maxShaftWidth * 0.5
+  
+  -- Extend bounding box to include maximum shaft width
+  local shaftMinX = math.min(sx - shaftHalf, fx - shaftHalf)
+  local shaftMaxX = math.max(sx + shaftHalf, fx + shaftHalf)
+  local shaftMinY = math.min(sy - shaftHalf, fy - shaftHalf)
+  local shaftMaxY = math.max(sy + shaftHalf, fy + shaftHalf)
+  
+  local minx = math.min(q1x,q2x,q3x,q4x,h1x,h2x,h3x,shaftMinX) - 2
+  local miny = math.min(q1y,q2y,q3y,q4y,h1y,h2y,h3y,shaftMinY) - 2
+  local maxx = math.max(q1x,q2x,q3x,q4x,h1x,h2x,h3x,shaftMaxX) + 2
+  local maxy = math.max(q1y,q2y,q3y,q4y,h1y,h2y,h3y,shaftMaxY) + 2
   local w = math.ceil(maxx - minx)
   local h = math.ceil(maxy - miny)
 
@@ -165,29 +186,55 @@ function Arrow:draw()
     local samples = math.max(2, math.floor(self.shapeCfg.segments or 14))
     local Lshaft = math.max(1, g.len - self.headSize)
     local baseW = self.thickness
-    local tipW = (self.shapeCfg.tipWidth) or (self.headSize) -- match arrowhead base by default
+    local tipW = self.shapeCfg.tipWidth or baseW -- Fixed: removed extra parentheses
     local conc = math.max(0, math.min(self.shapeCfg.concavity or 0, 0.9))
+    
+    -- Debug: verify values are correct
+    print("===== ARROW SHAPE DEBUG =====")
+    print("baseW=" .. baseW .. ", tipW=" .. tipW .. ", thickness=" .. self.thickness)
+    print("=============================")
+    
     local left = {}
     local right = {}
     for i = 0, samples do
       local t = i / samples
       local wLin = baseW + (tipW - baseW) * t
-      local midCurve = 0.5 * (1 - math.cos(2 * math.pi * t)) -- 0 at ends, 1 at middle
+      
+      -- Alternative concavity curve: gentler, more compatible with large tapers
+      local midCurve
+      if self.shapeCfg.curveStyle == "gentle" then
+        -- Smoother curve that peaks later, works better with large tapers
+        midCurve = 4 * t * (1 - t) -- Parabolic: smoother, peaks at t=0.5
+      else
+        -- Original sine curve
+        midCurve = math.sin(math.pi * t) -- Single peak at middle (t=0.5)
+      end
+      
+      -- Apply concavity by curving inward from the straight taper line
+      -- This creates curved sides without affecting the base/tip widths
       local w = wLin * (1 - conc * midCurve)
+      -- Ensure we never go below a minimum width
+      w = math.max(1, w)
       local cx = g.sx + g.ux * (t * Lshaft)
       local cy = g.sy + g.uy * (t * Lshaft)
       local lx = cx + g.px * (w * 0.5)
       local ly = cy + g.py * (w * 0.5)
       local rx = cx - g.px * (w * 0.5)
       local ry = cy - g.py * (w * 0.5)
-      left[#left+1] = lx - g.ox; left[#left+1] = ly - g.oy
-      right[#right+1] = rx - g.ox; right[#right+1] = ry - g.oy
+      table.insert(left, {lx - g.ox, ly - g.oy})
+      table.insert(right, {rx - g.ox, ry - g.oy})
     end
     vertsShaft = {}
     -- left side forward
-    for i=1,#left do vertsShaft[#vertsShaft+1] = left[i] end
+    for i = 1, #left do
+      vertsShaft[#vertsShaft+1] = left[i][1]
+      vertsShaft[#vertsShaft+1] = left[i][2]
+    end
     -- right side backward
-    for i=#right,1,-1 do vertsShaft[#vertsShaft+1] = right[i] end
+    for i = #right, 1, -1 do
+      vertsShaft[#vertsShaft+1] = right[i][1]
+      vertsShaft[#vertsShaft+1] = right[i][2]
+    end
     love.graphics.polygon("fill", unpack(vertsShaft))
   else
     -- Fallback: constant-width quad

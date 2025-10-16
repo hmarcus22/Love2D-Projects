@@ -322,34 +322,10 @@ function anim_lab:drawGameWithoutHUD()
   -- Draw resolve log but skip the player info HUD parts
   ResolveRenderer.draw(self.gs, layout, screenW)
   
-  -- Draw drag arrow (copied from GameState:draw for authentic gameplay feel)
+  -- Draw drag arrow (using centralized gamestate logic)
   if self.gs.draggingCard then
     local card = self.gs.draggingCard
-    if card.dragCursorX and card.dragCursorY then
-      -- Fancy drag arrow to mirror GameState:draw behavior
-      local sx = (card.x or 0) + (card.w or 0)/2
-      local sy = (card.y or 0) + (card.h or 0)/2
-      local ex, ey = card.dragCursorX, card.dragCursorY
-      local dx, dy = ex - sx, ey - sy
-      local dist = math.sqrt(dx*dx + dy*dy)
-      local thick = math.min(16, math.max(3, dist * 0.04))
-      local head = math.max(18, math.min(28, thick * 1.6))
-      local cfgOk, Cfg = pcall(require, 'src.config')
-      local useFancy = true
-      if cfgOk and Cfg and Cfg.ui and Cfg.ui.arrows and Cfg.ui.arrows.apply then
-        useFancy = (Cfg.ui.arrows.apply.drag ~= false)
-      end
-      local Arrow = require "src.ui.arrow"
-      local arrow = Arrow({sx, sy}, {ex, ey}, {
-        color = {0.95, 0.8, 0.2, 0.85},
-        fillColor = {0.95, 0.8, 0.2, 0.85},
-        thickness = thick,
-        headSize = head,
-        useFancy = useFancy,
-      })
-      arrow:draw()
-      love.graphics.setColor(1,1,1,1)
-    end
+    self.gs:drawDragArrow(card)
   end
   
   -- Draw animations on top

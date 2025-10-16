@@ -503,30 +503,41 @@ function GameState:draw()
         local card = self.draggingCard
         if card.dragCursorX and card.dragCursorY then
             -- Drag arrow (configurable fancy or simple)
-            local sx = (card.x or 0) + (card.w or 0)/2
-            local sy = (card.y or 0) + (card.h or 0)/2
-            local ex, ey = card.dragCursorX, card.dragCursorY
-            local dx, dy = ex - sx, ey - sy
-            local dist = math.sqrt(dx*dx + dy*dy)
-            local thick = math.min(16, math.max(3, dist * 0.04))
-            local head = math.max(18, math.min(28, thick * 1.6))
-            local cfgOk, Cfg = pcall(require, 'src.config')
-            local useFancy = true
-            if cfgOk and Cfg and Cfg.ui and Cfg.ui.arrows and Cfg.ui.arrows.apply then
-              useFancy = (Cfg.ui.arrows.apply.drag ~= false)
-            end
-            local Arrow = require "src.ui.arrow"
-            local arrow = Arrow({sx, sy}, {ex, ey}, {
-                color = {0.95, 0.8, 0.2, 0.85},
-                fillColor = {0.95, 0.8, 0.2, 0.85},
-                thickness = thick,
-                headSize = head,
-                useFancy = useFancy,
-            })
-            arrow:draw()
-            love.graphics.setColor(1,1,1,1)
+            self:drawDragArrow(card)
         end
     end
+end
+
+-- Centralized drag arrow drawing logic (used by both gamestate and anim_lab)
+function GameState:drawDragArrow(card)
+    if not (card.dragCursorX and card.dragCursorY) then return end
+    
+    local sx = (card.x or 0) + (card.w or 0)/2
+    local sy = (card.y or 0) + (card.h or 0)/2
+    local ex, ey = card.dragCursorX, card.dragCursorY
+    local dx, dy = ex - sx, ey - sy
+    local dist = math.sqrt(dx*dx + dy*dy)
+    
+    -- Use config values instead of dynamic sizing
+    local thick = nil -- Use config arrowThickness 
+    local head = nil  -- Use config arrowHeadSize
+    
+    local cfgOk, Cfg = pcall(require, 'src.config')
+    local useFancy = true
+    if cfgOk and Cfg and Cfg.ui and Cfg.ui.arrows and Cfg.ui.arrows.apply then
+        useFancy = (Cfg.ui.arrows.apply.drag ~= false)
+    end
+    
+    local Arrow = require "src.ui.arrow"
+    local arrow = Arrow({sx, sy}, {ex, ey}, {
+        color = {0.95, 0.8, 0.2, 0.85},
+        fillColor = {0.95, 0.8, 0.2, 0.85},
+        thickness = thick,
+        headSize = head,
+        useFancy = useFancy,
+    })
+    arrow:draw()
+    love.graphics.setColor(1,1,1,1)
 
     if HudRenderer.draw then
         HudRenderer.draw(self, layout, screenW)
