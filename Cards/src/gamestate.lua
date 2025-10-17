@@ -540,9 +540,10 @@ function GameState:getAllVisibleCards()
     local allCards = {}
     local processedCards = {}  -- Prevent duplicates
     
-    -- Collect hand cards
-    for _, player in ipairs(self.players or {}) do
-        for _, slot in ipairs(player.slots or {}) do
+    -- Collect hand cards (only from current player)
+    if self.currentPlayer and self.players and self.players[self.currentPlayer] then
+        local currentPlayer = self.players[self.currentPlayer]
+        for _, slot in ipairs(currentPlayer.slots or {}) do
             if slot.card and slot.card ~= self.draggingCard and not processedCards[slot.card] then
                 processedCards[slot.card] = true
                 table.insert(allCards, slot.card)
@@ -745,7 +746,8 @@ function GameState:updateCardVisibility()
         local isCurrent = (i == self.currentPlayer)
         for _, slot in ipairs(player.slots or {}) do
             if slot.card then
-                slot.card.faceUp = isCurrent
+                -- Show all hand cards face up (both players visible)
+                slot.card.faceUp = true
             end
         end
         for _, slot in ipairs(player.boardSlots or {}) do

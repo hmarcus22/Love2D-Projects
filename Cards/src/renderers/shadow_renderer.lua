@@ -109,9 +109,31 @@ function ShadowRenderer.drawHoverStyle(x, y, w, h, height, options)
     local alpha = math.min(1, height / 50) * 0.4
     local offset = math.min(height * 0.1, 8)
     
+    -- Check for rotation from element if provided in options
+    local element = options.element
+    local hasRotation = element and element.rotation and element.rotation ~= 0
+    
+    -- Calculate shadow position
+    local shadowX = x + offset
+    local shadowY = y + offset
+    
+    if hasRotation then
+        love.graphics.push()
+        -- Rotate around shadow center for proper lighting model
+        local shadowCenterX = shadowX + w/2
+        local shadowCenterY = shadowY + h/2
+        love.graphics.translate(shadowCenterX, shadowCenterY)
+        love.graphics.rotate(element.rotation)
+        love.graphics.translate(-shadowCenterX, -shadowCenterY)
+    end
+    
     love.graphics.setColor(0, 0, 0, alpha)
-    love.graphics.rectangle("fill", x + offset, y + offset, w, h, 8, 8)
+    love.graphics.rectangle("fill", shadowX, shadowY, w, h, 8, 8)
     love.graphics.setColor(1, 1, 1, 1)
+    
+    if hasRotation then
+        love.graphics.pop()
+    end
 end
 
 -- Draw card-style shadow (main shadow type)
@@ -169,12 +191,34 @@ function ShadowRenderer.drawCardStyle(x, y, w, h, height, scaleX, scaleY, option
     local sx = x + (w - shadowW) / 2 + dynamicOffsetX
     local sy = y + (h - shadowH) / 2 + dynamicOffsetY
     
-    -- Apply card scaling if provided
-    if scaleX ~= 1 or scaleY ~= 1 then
+    -- Check for transformations (scale and rotation)
+    local hasScale = (scaleX ~= 1 or scaleY ~= 1)
+    local element = options.element
+    local hasRotation = element and element.rotation and element.rotation ~= 0
+    local hasTransforms = hasScale or hasRotation
+    
+    -- Apply transformations if needed
+    if hasTransforms then
         love.graphics.push()
-        love.graphics.translate(x + w/2, y + h/2)
-        love.graphics.scale(scaleX, scaleY)
-        love.graphics.translate(-(x + w/2), -(y + h/2))
+        
+        -- For shadows: rotate around shadow center, not card center
+        -- This maintains proper light source relationship
+        local shadowCenterX = sx + shadowW/2
+        local shadowCenterY = sy + shadowH/2
+        love.graphics.translate(shadowCenterX, shadowCenterY)
+        
+        -- Apply scale transformation
+        if hasScale then
+            love.graphics.scale(scaleX, scaleY)
+        end
+        
+        -- Apply rotation transformation (shadow rotates around its own center)
+        if hasRotation then
+            love.graphics.rotate(element.rotation)
+        end
+        
+        -- Move back to shadow corner for drawing
+        love.graphics.translate(-shadowCenterX, -shadowCenterY)
     end
     
     -- Apply proper shadow color and alpha
@@ -182,7 +226,7 @@ function ShadowRenderer.drawCardStyle(x, y, w, h, height, scaleX, scaleY, option
     love.graphics.rectangle("fill", sx, sy, shadowW, shadowH, 8, 8)
     love.graphics.setColor(1, 1, 1, 1)
     
-    if scaleX ~= 1 or scaleY ~= 1 then
+    if hasTransforms then
         love.graphics.pop()
     end
 end

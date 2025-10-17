@@ -498,8 +498,7 @@ function anim_lab:keypressed(key)
     -- Manual resolve trigger for testing card interactions
     if self.gs and self.gs.phase ~= "resolve" then
       print("Animation Lab: Starting manual resolve phase...")
-      local Resolve = require "src.logic.resolve"
-      Resolve.startResolve(self.gs)
+      self.gs:startResolve()
     else
       print("Animation Lab: Already in resolve phase or no gamestate")
     end

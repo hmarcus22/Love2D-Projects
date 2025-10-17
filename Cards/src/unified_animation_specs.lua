@@ -433,6 +433,94 @@ specs.styles = {
         }
     },
     
+    -- Basic Attack Style - Fast, frequent-use animations for common attack cards
+    basic_attack = {
+        -- Use swift flight animations for playing basic attacks to board
+        preparation = {
+            duration = 0.02,
+            scale = 1.005,
+            elevation = 1,
+            rotation = 0, -- No rotation for clean, fast feel
+            easing = "easeOutQuad"
+        },
+        launch = {
+            duration = 0.05,
+            angle = 20, -- Lower angle for direct feel
+            initialVelocity = 950, -- Fast launch
+            acceleration = 400,
+            easing = "easeOutCubic"
+        },
+        flight = {
+            duration = 0.15, -- Quick flight
+            physics = {
+                gravity = 800,
+                airResistance = 0.015,
+                mass = 0.9 -- Lighter feel
+            },
+            trajectory = {
+                type = "interpolated", -- Consistent, predictable arc
+                height = 25 -- Low, fast trajectory
+            },
+            effects = {
+                trail = { enabled = false }, -- No trail for clean look
+                rotation = { tumble = false }, -- No tumbling for readability
+                scale = { breathing = false } -- No breathing for consistency
+            }
+        },
+        approach = {
+            duration = 0.1, -- Quick approach
+            guidingFactor = 0.8, -- More direct landing
+            anticipation = {
+                scale = 1.02, -- Subtle anticipation
+                rotation = 2
+            },
+            easing = "easeOutQuad"
+        },
+        impact = {
+            duration = 0.2, -- Quick impact
+            collision = {
+                squash = 0.95, -- Subtle impact effect
+                bounce = 1.1,
+                restitution = 0.4
+            },
+            effects = {
+                screen = {
+                    shake = {
+                        intensity = 2, -- Light shake for basic attacks
+                        duration = 0.1,
+                        frequency = 20
+                    }
+                }
+            }
+        },
+        settle = {
+            duration = 0.1, -- Quick settle
+            finalScale = 1.0,
+            finalRotation = 0,
+            finalElevation = 0,
+            easing = "easeOutQuad"
+        },
+        -- Resolve animations using generic stage names
+        game_resolve = {
+            attack_strike = {
+                duration = 0.5, -- Total duration: fast but satisfying
+                phases = {
+                    preparation = {duration = 0.1, scale = 1.05, rotation = -3}, -- Brief windup
+                    action = {duration = 0.2, velocity = 400, target_offset = 0.5}, -- Lunge toward target (50% distance)
+                    settle = {duration = 0.2, easing = "easeOutBack"} -- Snap back to position
+                }
+            },
+            defensive_push = {
+                duration = 0.4, -- Slightly longer for reaction feel
+                phases = {
+                    preparation = {duration = 0.05, scale = 0.98}, -- Brief brace
+                    action = {duration = 0.2, velocity = -150, push_intensity = 0.3}, -- Pushback motion  
+                    settle = {duration = 0.15, easing = "easeOutElastic"} -- Return to position
+                }
+            }
+        }
+    },
+    
     -- Modifier cards (buffs, debuffs)
     -- DEPRECATED: legacy modifier preset kept for reference; not used.
     modifier_legacy = {
