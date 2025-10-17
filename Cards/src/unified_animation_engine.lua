@@ -466,6 +466,79 @@ function UnifiedAnimationEngine:initializeImpactPhase(animation)
             debugPrint("[UnifiedEngine] Triggered particle effects:", particles.count, particles.type)
         end
     end
+    
+    -- SPECIAL CARD EFFECTS: Check for knockback capabilities 
+    local card = animation.card
+    if card and card.id then
+        local UnifiedSpecs = require 'src.unified_animation_specs'
+        local hasKnockback = false
+        
+        -- Check unified specs for knockback capability
+        if UnifiedSpecs.cards and UnifiedSpecs.cards[card.id] and 
+           UnifiedSpecs.cards[card.id].game_resolve and 
+           UnifiedSpecs.cards[card.id].game_resolve.area_knockback then
+            hasKnockback = UnifiedSpecs.cards[card.id].game_resolve.area_knockback.enabled
+            print("[DEBUG] Found knockback spec for", card.id, "enabled:", hasKnockback)
+        else
+            print("[DEBUG] No knockback spec found for", card.id)
+        end
+        
+        if hasKnockback then
+            print("[DEBUG] Triggering knockback for", card.id)
+            print("[DEBUG] Animation object keys:", animation.config and "config exists" or "no config")
+            if animation.config then
+                print("[DEBUG] Config contents - gameState:", animation.config.gameState and "found" or "nil")
+                print("[DEBUG] Config contents - player:", animation.config.player and animation.config.player.id or "nil")
+                print("[DEBUG] Config contents - slotIndex:", animation.config.slotIndex or "nil")
+            end
+            -- Get player and slot info from animation config
+            local player = animation.config and animation.config.player
+            local slotIndex = animation.config and animation.config.slotIndex
+            
+            if player and slotIndex and gameState then
+                -- Calculate impact coordinates
+                local sx, sy = gameState:getBoardSlotPosition(player.id, slotIndex)
+                local impactX = sx + (card.w or 128)/2
+                local impactY = sy + (card.h or 192)/2
+                print("[DEBUG] Impact position:", impactX, impactY)
+                
+                -- Find opponent board
+                local opponentBoard = nil
+                for _, p in pairs(gameState.players) do
+                    if p.id ~= player.id then
+                        opponentBoard = p.boardSlots
+                        print("[DEBUG] Found opponent player", p.id, "with", #(p.boardSlots or {}), "board slots")
+                        -- Count cards on opponent board
+                        local cardCount = 0
+                        for i, slot in ipairs(opponentBoard or {}) do
+                            if slot.card then 
+                                cardCount = cardCount + 1
+                                print("[DEBUG] Opponent slot", i, "has card:", slot.card.id or "unknown")
+                            end
+                        end
+                        print("[DEBUG] Total opponent cards to knock back:", cardCount)
+                        break
+                    end
+                end
+                
+                if opponentBoard then
+                    -- Get the knockback spec and trigger knockback
+                    local shouldFadeOut = (card.id == 'body_slam')
+                    local knockbackSpec = UnifiedSpecs.cards[card.id].game_resolve.area_knockback
+                    print("[DEBUG] Triggering knockback with spec:", knockbackSpec and "found" or "missing")
+                    print("[DEBUG] Knockback radius:", knockbackSpec and knockbackSpec.radius or "nil")
+                    print("[DEBUG] Should fade out:", shouldFadeOut)
+                    
+                    local BoardEffects = require 'src.effects.board_effects'
+                    BoardEffects.triggerKnockback(card, impactX, impactY, opponentBoard, knockbackSpec, shouldFadeOut, gameState)
+                else
+                    print("[DEBUG] No opponent board found!")
+                end
+            else
+                print("[DEBUG] Missing animation config - player:", player and "found" or "nil", "slotIndex:", slotIndex)
+            end
+        end
+    end
 end
 
 -- Initialize board state phase
@@ -751,18 +824,82 @@ function UnifiedAnimationEngine:applyFlightEffects(animation, effects, progress,
     
     -- Rotation effects
     if effects.rotation and effects.rotation.tumble then
-        local speed = effects.rotation.speed or 1.0
+        local baseSpeed = effects.rotation.speed or 1.0
+        local rotationSpeed = baseSpeed
+        
+        -- Apply special rotation curves
+        if effects.rotation.curve == "wrestling" then
+            -- Wrestling curve: slow start → peak mid-flight → slow end
+            -- Create a bell curve that peaks at 50% progress
+            local bellCurve = math.sin(progress * math.pi) -- 0 to 1 to 0 over progress 0 to 1
+            rotationSpeed = baseSpeed * (0.2 + bellCurve * 0.8) -- Range from 0.2x to 1.0x base speed
+            
+            if Config and Config.debug and progress > 0.1 and progress < 0.9 then
+                debugPrint("[Wrestling Rotation] Progress:", string.format("%.2f", progress), 
+                          "Bell curve:", string.format("%.2f", bellCurve),
+                          "Speed multiplier:", string.format("%.2f", rotationSpeed / baseSpeed))
+            end
+        end
+        
         -- Use delta time instead of cumulative progress to prevent exponential rotation
-        local rotationDelta = speed * 2 * math.pi * dt / animation.spec.flight.duration
-        card.rotation = (card.rotation or 0) + rotationDelta
+        local rotationDelta = rotationSpeed * 2 * math.pi * dt / animation.spec.flight.duration
+        
+        -- Apply rotation limits
+        local maxRotations = effects.rotation.maxRotations or 999 -- Default unlimited
+        local maxRadians = maxRotations * 2 * math.pi
+        local currentRotation = card.rotation or 0
+        
+        if math.abs(currentRotation + rotationDelta) <= maxRadians then
+            card.rotation = currentRotation + rotationDelta
+        else
+            -- Cap at maximum rotation
+            card.rotation = maxRadians * (currentRotation >= 0 and 1 or -1)
+        end
     end
     
-    -- Scale breathing
-    if effects.scale and effects.scale.breathing then
-        local min = effects.scale.min or 0.95
-        local max = effects.scale.max or 1.1
-        local breathe = math.sin(progress * math.pi * 4) * 0.5 + 0.5
-        card.scale = min + (max - min) * breathe
+    -- Height-based and breathing scale effects
+    if effects.scale then
+        local currentScale = effects.scale.baseScale or 1.0
+        
+        -- Height-based scaling
+        if effects.scale.heightBased then
+            local currentHeight = animation.state.position.z or 0
+            local maxHeight = animation.spec.flight.trajectory and animation.spec.flight.trajectory.height or 100
+            local heightRatio = math.min(currentHeight / maxHeight, 1.0) -- Normalize to 0-1
+            local heightMultiplier = effects.scale.heightMultiplier or 0.2
+            currentScale = currentScale + (heightRatio * heightMultiplier)
+            
+            if Config and Config.debug and progress > 0.1 and progress < 0.9 then
+                debugPrint("[Height Scaling] Height:", string.format("%.1f", currentHeight), 
+                          "Ratio:", string.format("%.2f", heightRatio),
+                          "Scale:", string.format("%.2f", currentScale))
+            end
+        end
+        
+        -- Traditional breathing effect (if enabled)
+        if effects.scale.breathing then
+            local min = effects.scale.min or 0.95
+            local max = effects.scale.max or 1.1
+            local breathe = math.sin(progress * math.pi * 4) * 0.5 + 0.5
+            currentScale = currentScale * (min + (max - min) * breathe)
+        end
+        
+        card.scale = currentScale
+    end
+    
+    -- Shadow effects (store shadow data for renderer)
+    if effects.shadow and effects.shadow.enabled then
+        local currentHeight = animation.state.position.z or 0
+        local maxHeight = animation.spec.flight.trajectory and animation.spec.flight.trajectory.height or 100
+        local heightRatio = math.min(currentHeight / maxHeight, 1.0)
+        
+        -- Store shadow properties on card for renderer to use
+        card.shadowData = {
+            opacity = effects.shadow.opacity or 0.3,
+            offsetX = 0, -- Shadow directly below for now
+            offsetY = heightRatio * (effects.shadow.maxOffset or 15),
+            scale = effects.shadow.scaleWithHeight and (1.0 + heightRatio * 0.5) or 1.0
+        }
     end
 end
 

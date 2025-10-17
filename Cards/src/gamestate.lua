@@ -943,7 +943,11 @@ function GameState:addLog(message)
         end
     end
 
-    print(string.format("[LOG] %s", message))
+    -- Gate console debug behind Config.debug as per instructions
+    local Config = require "src.config"
+    if Config.debug then
+        print(string.format("[LOG] %s", message))
+    end
 end
 
 function GameState:finishResolvePhase()

@@ -51,7 +51,11 @@ function AnimationBuilder.buildCardPlaySequence(gameState, card, slotIndex, onAd
         targetY = targetY,
         -- Early placement on approach completion; final callback on sequence end
         onPlace = onPlace,
-        onComplete = onSequenceComplete
+        onComplete = onSequenceComplete,
+        -- Game context for special effects (knockback, etc.)
+        gameState = gameState,
+        player = player,
+        slotIndex = slotIndex
         -- No animationStyle specified = use default unified animation
     }
     
@@ -152,8 +156,10 @@ function AnimationBuilder._buildImpactAnimation(gameState, card, slotIndex, onAd
     local impactParams = AnimationBuilder._buildImpactParams(card)
     
     local function onImpactStart()
+        print("[DEBUG] onImpactStart called for card:", card.id)
         -- Special FX for certain cards
         if card.id == 'body_slam' then
+            print("[DEBUG] Processing body_slam impact effects")
             local ImpactFX = require 'src.impact_fx'
             local sx, sy = gameState:getBoardSlotPosition(player.id, slotIndex)
             ImpactFX.triggerShake(gameState, impactParams.shakeDur or 0.25, impactParams.shakeMag or 6)
@@ -170,19 +176,34 @@ function AnimationBuilder._buildImpactAnimation(gameState, card, slotIndex, onAd
            UnifiedSpecs.cards[card.id].game_resolve and 
            UnifiedSpecs.cards[card.id].game_resolve.area_knockback then
             hasKnockback = UnifiedSpecs.cards[card.id].game_resolve.area_knockback.enabled
+            print("[DEBUG] Found knockback spec for", card.id, "enabled:", hasKnockback)
+        else
+            print("[DEBUG] No knockback spec found for", card.id)
         end
         
         if hasKnockback then
+            print("[DEBUG] Triggering knockback for", card.id)
             -- CORE LOGIC: Calculate impact coordinates
             local sx, sy = gameState:getBoardSlotPosition(player.id, slotIndex)
             local impactX = sx + card.w/2
             local impactY = sy + card.h/2
+            print("[DEBUG] Impact position:", impactX, impactY)
             
             -- CORE LOGIC: Find opponent board
             local opponentBoard = nil
             for _, p in pairs(gameState.players) do
                 if p.id ~= player.id then
                     opponentBoard = p.boardSlots
+                    print("[DEBUG] Found opponent player", p.id, "with", #(p.boardSlots or {}), "board slots")
+                    -- Count cards on opponent board
+                    local cardCount = 0
+                    for i, slot in ipairs(opponentBoard or {}) do
+                        if slot.card then 
+                            cardCount = cardCount + 1
+                            print("[DEBUG] Opponent slot", i, "has card:", slot.card.id or "unknown")
+                        end
+                    end
+                    print("[DEBUG] Total opponent cards to knock back:", cardCount)
                     break
                 end
             end
@@ -190,8 +211,15 @@ function AnimationBuilder._buildImpactAnimation(gameState, card, slotIndex, onAd
             if opponentBoard then
                 -- CORE LOGIC: Determine fade behavior
                 local shouldFadeOut = (card.id == 'body_slam')
+                -- CORE LOGIC: Get the knockback spec from the unified specs
+                local knockbackSpec = UnifiedSpecs.cards[card.id].game_resolve.area_knockback
+                print("[DEBUG] Triggering knockback with spec:", knockbackSpec and "found" or "missing")
+                print("[DEBUG] Knockback radius:", knockbackSpec and knockbackSpec.radius or "nil")
+                print("[DEBUG] Should fade out:", shouldFadeOut)
                 -- CORE LOGIC: Trigger knockback system
-                BoardEffects.triggerKnockback(card, impactX, impactY, opponentBoard, spec.knockback, shouldFadeOut, gameState)
+                BoardEffects.triggerKnockback(card, impactX, impactY, opponentBoard, knockbackSpec, shouldFadeOut, gameState)
+            else
+                print("[DEBUG] No opponent board found!")
             end
         end
     end

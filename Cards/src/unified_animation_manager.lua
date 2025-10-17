@@ -108,6 +108,13 @@ function UnifiedAnimationManager:playCard(card, targetX, targetY, animationType,
     if options and options.onHandCommit then
         config.onHandCommit = options.onHandCommit
     end
+    -- Forward game context for special effects (knockback, etc.)
+    if options and options.player then
+        config.player = options.player
+    end
+    if options and options.slotIndex then
+        config.slotIndex = options.slotIndex
+    end
     
     local result = self.flightEngine:startAnimation(card, animationType, config)
     debugPrint("  Result:", result and "SUCCESS" or "FAILED")

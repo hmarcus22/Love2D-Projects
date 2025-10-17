@@ -525,7 +525,7 @@ specs.styles = {
 
 -- Card-specific overrides
 specs.cards = {
-    -- Body Slam - example of custom dramatic animation
+    -- Body Slam - wrestling-style animation with dynamic rotation curve
     body_slam = {
         baseStyle = "dramatic",
         preparation = {
@@ -536,35 +536,44 @@ specs.cards = {
         },
         launch = {
             duration = 0.3,
-            angle = 35, -- Higher angle for slam effect
-            initialVelocity = 700,
-            acceleration = 300
+            angle = 45, -- Steeper angle for wrestling jump
+            initialVelocity = 800, -- Higher velocity for wrestling leap
+            acceleration = 350 -- More powerful launch
         },
         flight = {
             duration = 0.4,
             trajectory = {
                 type = "physics", -- Use physics-based flight (not interpolated)
-                height = 120 -- Higher arc for dramatic effect
+                height = 140 -- Higher arc for dramatic wrestling jump
             },
             physics = {
-                gravity = 800, -- Stronger gravity for slam effect
-                airResistance = 0.01, -- Less air resistance for power
-                mass = 1.5 -- Heavier feel
+                gravity = 850, -- Stronger gravity for slam effect
+                airResistance = 0.008, -- Reduced air resistance for more power
+                mass = 1.8 -- Heavier wrestling feel
             },
             effects = {
                 trail = {
                     enabled = true, -- Enable trail for visual impact
-                    length = 8,
-                    fadeTime = 0.4
+                    length = 10, -- Longer trail for wrestling effect
+                    fadeTime = 0.5
                 },
                 rotation = {
-                    tumble = true, -- Enable tumbling for Body Slam
-                    speed = 2.0 -- Aggressive spinning
+                    tumble = true, -- Enable wrestling rotation
+                    speed = 0.8, -- Reduced speed for more controlled rotation
+                    curve = "wrestling", -- Special rotation curve: slow start → peak mid-flight → slow end
+                    maxRotations = 1.0 -- Limit to 360 degrees total
                 },
                 scale = {
-                    breathing = true, -- Pulsing effect during flight
-                    min = 0.9,
-                    max = 1.1
+                    breathing = false, -- Disable breathing to focus on height scaling
+                    heightBased = true, -- Enable height-based scaling
+                    baseScale = 1.0,
+                    heightMultiplier = 0.3 -- Scale factor based on elevation
+                },
+                shadow = {
+                    enabled = true, -- Enable ground shadow
+                    opacity = 0.4,
+                    scaleWithHeight = true,
+                    maxOffset = 20 -- Maximum shadow offset at peak height
                 }
             }
         },
@@ -577,6 +586,16 @@ specs.cards = {
                         duration = 0.5
                     }
                 }
+            }
+        },
+        game_resolve = {
+            area_knockback = {
+                enabled = true,
+                radius = 400, -- ~3 card widths in virtual coordinates (128*3=384)
+                force = 120, -- Strong knockback force for dramatic effect
+                duration = 1.2, -- Longer bounce sequence for ultimate move
+                direction = "radial", -- Knock cards away from impact point
+                falloff = "linear" -- Consistent force across the area
             }
         }
     }

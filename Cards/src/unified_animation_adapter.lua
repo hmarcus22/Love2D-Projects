@@ -182,6 +182,10 @@ function UnifiedAnimationAdapter:handleUnifiedCardPlayAnimation(anim)
     if anim.animationStyle then options.animationStyle = anim.animationStyle end
     if anim.onPlace then options.onPlace = anim.onPlace end
     if anim.onHandCommit then options.onHandCommit = anim.onHandCommit end
+    -- Forward game context for special effects (knockback, etc.)
+    if anim.gameState then options.gameState = anim.gameState end
+    if anim.player then options.player = anim.player end
+    if anim.slotIndex then options.slotIndex = anim.slotIndex end
     local animation = self.unifiedManager:playCard(card, anim.targetX, anim.targetY, "unified", anim.onComplete, options)
 end
 

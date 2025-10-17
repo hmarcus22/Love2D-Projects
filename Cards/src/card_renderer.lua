@@ -260,7 +260,22 @@ end
 function CardRenderer.drawCardShadow(card, x, y, w, h, scaleX, scaleY)
     local z = card.animZ or 0
     if z < 0 then z = 0 end
-    local showShadow = z > 2 or card.dragging or (card.handHoverAmount and card.handHoverAmount > 0.02)
+    
+    -- Enhanced shadow lifecycle: show shadow for any lift, interaction, or flight
+    local isLifted = z > 0  -- Any elevation shows shadow
+    local isInteracting = card.dragging or (card.handHoverAmount and card.handHoverAmount > 0.02)
+    local inFlight = card._unifiedAnimationActive or (card.animX and card.animX ~= card.x) or (card.animY and card.animY ~= card.y)
+    local showShadow = isLifted or isInteracting or inFlight
+    
+    -- Debug logging for shadow conditions
+    if Config and Config.debug then
+        local hoverAmount = card.handHoverAmount or 0
+        print(string.format("[Shadow Debug] Card %s: z=%.1f, dragging=%s, hover=%.3f, animActive=%s, animX=%s (vs x=%s), animY=%s (vs y=%s)", 
+              card.id or "unknown", z, tostring(card.dragging), hoverAmount, tostring(card._unifiedAnimationActive),
+              tostring(card.animX), tostring(card.x), tostring(card.animY), tostring(card.y)))
+        print(string.format("[Shadow Debug] Conditions: isLifted=%s, isInteracting=%s, inFlight=%s, showShadow=%s",
+              tostring(isLifted), tostring(isInteracting), tostring(inFlight), tostring(showShadow)))
+    end
     
     if showShadow then
         local ui = Config.ui or {}
@@ -274,10 +289,22 @@ function CardRenderer.drawCardShadow(card, x, y, w, h, scaleX, scaleY)
         local sScale = shadowScaleMax - (shadowScaleMax - shadowScaleMin) * norm
         local sAlpha = shadowAlphaMax - (shadowAlphaMax - shadowAlphaMin) * norm
         
+        -- Use flight-specific shadow data if available
+        if card.shadowData then
+            sAlpha = card.shadowData.opacity or sAlpha
+            sScale = sScale * (card.shadowData.scale or 1.0)
+        end
+        
         local shadowW = w * sScale
         local shadowH = h * sScale * 0.98
         local sx = x + (w - shadowW) / 2
         local sy = y + (h - shadowH) / 2 + 4
+        
+        -- Apply flight shadow offset if available
+        if card.shadowData then
+            sx = sx + (card.shadowData.offsetX or 0)
+            sy = sy + (card.shadowData.offsetY or 0)
+        end
         
         if scaleX ~= 1 or scaleY ~= 1 then
             love.graphics.push()
