@@ -78,6 +78,12 @@ end
 function CardRenderer.draw(card)
     local useCache = (Config.ui and Config.ui.useCardTextureCache) and not card._suppressShadow
     
+    -- Debug: Track rendering path selection
+    if card._unifiedAnimationActive and Config and Config.debug then
+        print("[CardRenderer] Card", card.id or "unknown", "using", useCache and "TEXTURE CACHE" or "DIRECT RENDERING")
+        print("[CardRenderer] useCardTextureCache:", Config.ui and Config.ui.useCardTextureCache, "_suppressShadow:", card._suppressShadow)
+    end
+    
     if useCache then
         CardRenderer.drawWithTexture(card)
     else
@@ -101,6 +107,11 @@ end
 function CardRenderer.drawWithTexture(card)
     -- Process resolve animations first
     CardRenderer.processResolveAnimation(card)
+    
+    -- Debug: Track texture cache usage during animations
+    if card._unifiedAnimationActive and Config and Config.debug then
+        print("[CardRenderer] Using texture cache for animated card:", card.id or "unknown")
+    end
     
     -- Ensure card has player reference for combo checking
     if not card.player then
@@ -265,7 +276,10 @@ function CardRenderer.drawCardShadow(card, x, y, w, h, scaleX, scaleY)
     local isLifted = z > 0  -- Any elevation shows shadow
     local isInteracting = card.dragging or (card.handHoverAmount and card.handHoverAmount > 0.02)
     local inFlight = card._unifiedAnimationActive or (card.animX and card.animX ~= card.x) or (card.animY and card.animY ~= card.y)
-    local showShadow = isLifted or isInteracting or inFlight
+    
+    -- Always show shadow during any animation phases (more reliable)
+    local hasAnimationPhase = card.animX or card.animY or card._unifiedAnimationActive
+    local showShadow = isLifted or isInteracting or inFlight or hasAnimationPhase
     
     -- Debug logging for shadow conditions
     if Config and Config.debug then
@@ -314,7 +328,15 @@ function CardRenderer.drawCardShadow(card, x, y, w, h, scaleX, scaleY)
             love.graphics.translate(-cx, -cy)
         end
         
-        love.graphics.setColor(0, 0, 0, sAlpha)
+        -- Debug: Confirm shadow is being drawn
+        if Config and Config.debug then
+            print(string.format("[Shadow Draw] Drawing shadow for %s: alpha=%.2f, scale=%.2f, pos=(%.1f,%.1f), size=(%.1f,%.1f)", 
+                  card.id or "unknown", sAlpha, sScale, sx, sy, shadowW, shadowH))
+        end
+        
+        -- Enhanced shadow visibility for flight animations
+        local enhancedAlpha = math.max(sAlpha * 1.5, 0.6) -- Make shadows more visible
+        love.graphics.setColor(0, 0, 0, enhancedAlpha)
         love.graphics.rectangle("fill", sx, sy, shadowW, shadowH, 8, 8)
         love.graphics.setColor(1, 1, 1, 1)
         

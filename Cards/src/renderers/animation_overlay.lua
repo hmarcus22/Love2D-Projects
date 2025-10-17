@@ -53,6 +53,12 @@ function AnimationOverlay.draw(gs)
     for idx, ref in ipairs(animating) do
         local card = ref.card or ref
         local phase = ref.phase
+        
+        -- Debug: Track which cards are being drawn by animation overlay
+        if Config and Config.debug and card.id == "body_slam" then
+            print("[AnimationOverlay] Drawing", card.id, "in phase", phase, "at position", card.animX or card.x, card.animY or card.y)
+        end
+        
         -- Skip if card is already on the board; BoardRenderer will draw it and
         -- CardRenderer will honor animX/animY for smooth landing without double-draw.
         -- But always draw during flight/approach to guarantee visibility.
