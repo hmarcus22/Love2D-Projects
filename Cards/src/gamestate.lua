@@ -488,24 +488,36 @@ function GameState:draw()
         self.discardStack:draw()
     end
 
-    -- CENTRALIZED SHADOW RENDERING - Draw all shadows BEFORE any cards
-    local ShadowRenderer = require 'src.renderers.shadow_renderer'
-    local Config = require 'src.config'
-    if Config and Config.debug and Config.debugCategories and Config.debugCategories.shadows then
-        print("[DEBUG] About to require ShadowRenderer...")
-        print("[DEBUG] ShadowRenderer loaded successfully")
-    end
-    ShadowRenderer.drawAllShadows(self)
-    ShadowRenderer.drawDragShadow(self, layout)
-
+    -- UNIFIED CARD RENDERING ARCHITECTURE
+    -- First ensure all cards are properly positioned
     for index, player in ipairs(self.players or {}) do
         local isCurrent = (index == self.currentPlayer)
-        player:drawHand(isCurrent, self)
+        player:positionHand(isCurrent, self)
     end
-
-    -- Draw animating cards overlay (cards in flight, independent of hand/board placement)
-    local AnimationOverlay = require 'src.renderers.animation_overlay'
-    AnimationOverlay.draw(self)
+    
+    -- Collect all visible cards from all sources, then render consistently
+    local allVisibleCards = self:getAllVisibleCards()
+    
+    -- Draw shadows first (all at once, proper z-order)
+    local ShadowRenderer = require 'src.renderers.shadow_renderer'
+    ShadowRenderer.drawAllShadows(self)
+    ShadowRenderer.drawDragShadow(self, layout)
+    
+    -- Draw all cards using unified system (replaces hand/board/animation rendering)
+    local CardRenderer = require 'src.card_renderer'
+    for _, card in ipairs(allVisibleCards) do
+        CardRenderer.draw(card)
+    end
+    
+    -- Draw dragging card LAST (on top of everything else)
+    if self.draggingCard then
+        CardRenderer.draw(self.draggingCard)
+    end
+    
+    -- ARCHITECTURAL NOTE: This unified approach eliminates handover issues between
+    -- hand rendering (Player:drawHand), board rendering (BoardRenderer), and 
+    -- animation rendering (AnimationOverlay). All cards are now drawn consistently
+    -- in one place, preventing z-order issues and disappearing cards during transitions.
 
     ResolveRenderer.draw(self, layout, screenW)
 
@@ -521,6 +533,47 @@ function GameState:draw()
             self:drawDragArrow(card)
         end
     end
+end
+
+-- UNIFIED CARD COLLECTION - Single source of truth for all visible cards
+function GameState:getAllVisibleCards()
+    local allCards = {}
+    local processedCards = {}  -- Prevent duplicates
+    
+    -- Collect hand cards
+    for _, player in ipairs(self.players or {}) do
+        for _, slot in ipairs(player.slots or {}) do
+            if slot.card and slot.card ~= self.draggingCard and not processedCards[slot.card] then
+                processedCards[slot.card] = true
+                table.insert(allCards, slot.card)
+            end
+        end
+    end
+    
+    -- Collect board cards  
+    for _, player in ipairs(self.players or {}) do
+        for _, slot in ipairs(player.boardSlots or {}) do
+            if slot.card and not processedCards[slot.card] then
+                processedCards[slot.card] = true
+                table.insert(allCards, slot.card)
+            end
+        end
+    end
+    
+    -- Collect animating cards (only if not already collected)
+    if self.animations and self.animations.getActiveAnimatingCards then
+        local animating = self.animations:getActiveAnimatingCards() or {}
+        for _, card in ipairs(animating) do
+            if card and not processedCards[card] then
+                processedCards[card] = true
+                table.insert(allCards, card)
+            end
+        end
+    end
+    
+    -- Note: draggingCard is handled separately in draw() for proper z-order
+    
+    return allCards
 end
 
 -- Centralized drag arrow drawing logic (used by both gamestate and anim_lab)

@@ -454,7 +454,9 @@ function Player:drawCard()
     return card
 end
 
-function Player:drawHand(isCurrent, gs)
+-- Position hand cards and update hover states (NO DRAWING)
+-- This should be called before unified rendering to ensure cards are positioned correctly
+function Player:positionHand(isCurrent, gs)
     if not isCurrent then
         return
     end
@@ -483,6 +485,7 @@ function Player:drawHand(isCurrent, gs)
         mx, my = Viewport.toVirtual(rawX, rawY)
     end
 
+    -- POSITIONING LOGIC: Set card positions and sizes
     for i, slot in ipairs(self.slots) do
         local x = startX + (i - 1) * spacing
         local y = handY
@@ -507,9 +510,10 @@ function Player:drawHand(isCurrent, gs)
                 card.w = cardW
                 card.h = cardH
             end
+        end
     end
-    end -- end for each hand slot
 
+    -- HOVER DETECTION LOGIC: Determine which card is hovered
     local hoveredCard
     -- Suppress hover highlight while a card is being dragged for clearer focus
     if gs and mx and my and not gs.draggingCard then
@@ -535,6 +539,7 @@ function Player:drawHand(isCurrent, gs)
         end
     end
 
+    -- HOVER STATE LOGIC: Set hover targets
     for _, slot in ipairs(self.slots) do
         local card = slot.card
         if card and card ~= gs.draggingCard then
@@ -543,24 +548,62 @@ function Player:drawHand(isCurrent, gs)
             else
                 card.handHoverTarget = 0
             end
+        end
+    end
+end
 
-            -- Draw non-hovered cards (topmost hovered is drawn later)
-            if card ~= hoveredCard then
-                local CardRenderer = require "src.card_renderer"
-                local amount = card.handHoverAmount or 0
-                local hoverScale = (activeLayout.handHoverScale or 0.06)
-                
-                -- Preserve original animated position
-                local originalX, originalY, originalW, originalH = card.x, card.y, card.w, card.h
-                
-                local dx, dy, dw, dh = HoverUtils.scaledRect(card.x, card.y, cardW, cardH, amount, hoverScale)
-                card.w, card.h = dw, dh
-                card.x, card.y = dx, dy
-                CardRenderer.draw(card)
-                
-                -- Restore original animated position
-                card.x, card.y, card.w, card.h = originalX, originalY, originalW, originalH
-            end
+-- DEPRECATED: This function now only handles drawing and should eventually be removed
+-- Use positionHand() + unified rendering instead
+function Player:drawHand(isCurrent, gs)
+-- DEPRECATED: This function now only handles drawing and should eventually be removed
+-- Use positionHand() + unified rendering instead
+function Player:drawHand(isCurrent, gs)
+    if not isCurrent then
+        return
+    end
+
+    -- First ensure positioning is current
+    self:positionHand(isCurrent, gs)
+
+    -- Now do the legacy drawing logic (for backward compatibility)
+    local baseLayout = gs and gs:getLayout() or {}
+    local cardW = baseLayout.cardW or 100
+    local cardH = baseLayout.cardH or 150
+    local activeLayout = baseLayout
+    if gs then
+        _, _, activeLayout = gs:getHandMetrics(self)
+        cardW = activeLayout.cardW or cardW
+        cardH = activeLayout.cardH or cardH
+    end
+
+    -- Find the hovered card (already determined in positionHand)
+    local hoveredCard
+    for _, slot in ipairs(self.slots) do
+        local card = slot.card
+        if card and (card.handHoverTarget or 0) > 0 and not (gs and card == gs.draggingCard) then
+            hoveredCard = card
+            break
+        end
+    end
+
+    -- DRAWING LOGIC: Draw non-hovered cards first
+    for _, slot in ipairs(self.slots) do
+        local card = slot.card
+        if card and card ~= gs.draggingCard and card ~= hoveredCard then
+            local CardRenderer = require "src.card_renderer"
+            local amount = card.handHoverAmount or 0
+            local hoverScale = (activeLayout.handHoverScale or 0.06)
+            
+            -- Preserve original animated position
+            local originalX, originalY, originalW, originalH = card.x, card.y, card.w, card.h
+            
+            local dx, dy, dw, dh = HoverUtils.scaledRect(card.x, card.y, cardW, cardH, amount, hoverScale)
+            card.w, card.h = dw, dh
+            card.x, card.y = dx, dy
+            CardRenderer.draw(card)
+            
+            -- Restore original animated position
+            card.x, card.y, card.w, card.h = originalX, originalY, originalW, originalH
         end
     end
 
@@ -593,12 +636,10 @@ function Player:drawHand(isCurrent, gs)
         dragCard.x, dragCard.y, dragCard.w, dragCard.h = originalX, originalY, originalW, originalH
     end
 
+    -- Draw hovered card last (on top)
     if hoveredCard and (not gs or (hoveredCard ~= gs.draggingCard)) then
         -- Ensure fully visible when hand is peeked off-screen: add extra lift if needed
         local vh = Viewport.getHeight()
-        local baseLayout = gs and gs:getLayout() or {}
-        local cardW = baseLayout.cardW or 100
-        local cardH = baseLayout.cardH or 150
         local margin = 4
         
         -- NEW: Use unified height-scale system for hovered cards
@@ -629,10 +670,8 @@ function Player:drawHand(isCurrent, gs)
         hoveredCard.x, hoveredCard.y, hoveredCard.w, hoveredCard.h = originalX, originalY, originalW, originalH
     end
 
-    -- Animation overlay moved to src/renderers/animation_overlay.lua and is drawn globally
-    -- from GameState:draw() to avoid duplication and ensure consistent ordering.
-
     love.graphics.setColor(1, 1, 1, 1)
+end
 end
 
 -- Check if a card is currently in hand slots

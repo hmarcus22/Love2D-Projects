@@ -298,7 +298,7 @@ function anim_lab:drawGameWithoutHUD()
   local BoardRenderer = require 'src.renderers.board_renderer'
   local ResolveRenderer = require 'src.renderers.resolve_renderer'
   
-  -- Draw board
+  -- Draw board (this handles positioning of board cards)
   BoardRenderer.draw(self.gs, layout)
   
   -- Draw deck and discard stacks
@@ -309,20 +309,32 @@ function anim_lab:drawGameWithoutHUD()
     self.gs.discardStack:draw()
   end
   
+  -- POSITION hand cards (using proper separation of concerns)
+  for index, player in ipairs(self.gs.players or {}) do
+    local isCurrent = (index == self.gs.currentPlayer)
+    player:positionHand(isCurrent, self.gs)
+  end
+  
   -- CENTRALIZED SHADOW RENDERING - Draw shadows FIRST so they appear underneath ALL cards
   local ShadowRenderer = require 'src.renderers.shadow_renderer'
   ShadowRenderer.drawAllShadows(self.gs)
   ShadowRenderer.drawDragShadow(self.gs, layout)
   
-  -- Draw hands (without player info HUD)
-  for index, player in ipairs(self.gs.players or {}) do
-    local isCurrent = (index == self.gs.currentPlayer)
-    player:drawHand(isCurrent, self.gs)
+  -- UNIFIED CARD RENDERING ARCHITECTURE - Same approach as main game
+  -- Collect all visible cards from all sources, then render consistently
+  local allVisibleCards = self.gs:getAllVisibleCards()
+  local CardRenderer = require 'src.card_renderer'
+  for _, card in ipairs(allVisibleCards) do
+    CardRenderer.draw(card)
   end
   
-  -- Draw animating cards overlay to mirror GameState:draw ordering
-  local AnimationOverlay = require 'src.renderers.animation_overlay'
-  AnimationOverlay.draw(self.gs)
+  -- Draw dragging card LAST (on top of everything else)
+  if self.gs.draggingCard then
+    CardRenderer.draw(self.gs.draggingCard)
+  end
+  
+  -- ARCHITECTURAL NOTE: This unified approach eliminates handover issues between
+  -- hand rendering, board rendering, and animation rendering in the lab environment
   
   -- Draw resolve log but skip the player info HUD parts
   ResolveRenderer.draw(self.gs, layout, screenW)

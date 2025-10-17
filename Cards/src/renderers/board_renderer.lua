@@ -197,12 +197,10 @@ function BoardRenderer.draw(state, layout)
                 slot.card.w = cardW
                 slot.card.h = cardH
                 
-
+                -- UNIFIED RENDERING: Card drawing now handled by GameState:draw()
+                -- BoardRenderer only sets position/size, GameState:getAllVisibleCards() handles rendering
+                -- This eliminates handover issues and ensures consistent z-order
                 
-                local CardRenderer = require "src.card_renderer"
-                -- Avoid double drawing: let overlay render animating cards; board draws after completion
-                -- Always draw board card to ensure visibility, even while animation overlay may also render
-                CardRenderer.draw(slot.card)
                 -- Debug ownership marker: board = blue dot
                 local ok, Config = pcall(require, 'src.config')
                 if ok and Config and Config.ui and Config.ui.debugAnimationLanding then

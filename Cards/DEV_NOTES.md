@@ -33,6 +33,56 @@ Key Boundaries
 - animations/ provide pure visual enhancement without affecting game logic.
 - states/ compose screens, route inputs, and transition between phases.
 
+## Rendering Architecture Principles (CRITICAL)
+
+**The Problem**: Mixing game logic with rendering decisions leads to complex handover issues, z-order problems, and maintenance overhead.
+
+**Core Principle**: **Separate what owns an object from how it gets rendered**
+
+### Unified Rendering Rules
+
+1. **One Renderer Per Visual Element Type**
+   - All cards use CardRenderer.draw() regardless of game state (hand/board/flight)
+   - All shadows use ShadowRenderer regardless of card location
+   - No exceptions based on animation state or ownership
+
+2. **Renderers Never Make Game Logic Decisions**
+   - No `isOnBoard()`, `isAnimating()`, or phase checks in renderers
+   - No ownership logic like "which system should render this card"
+   - Renderers only use visual properties: position, scale, rotation, alpha
+
+3. **Game Logic Collects, Renderers Draw**
+   - GameState:draw() determines what's visible (game logic)
+   - Renderers receive complete lists and draw everything (visual logic)
+   - Clear separation: collection vs rendering
+
+4. **Consistent Position Logic Everywhere**
+   - All systems use identical position calculation: `(card.animX ~= nil) and card.animX or card.x`
+   - No special cases or different position logic per renderer
+   - Visual position is the single source of truth
+
+### Anti-Patterns to Avoid
+
+❌ **Multiple renderers for same element type**: BoardRenderer vs AnimationOverlay both drawing cards
+❌ **Game state checks in renderers**: `if phase == 'flight' then render()`  
+❌ **Scattered position logic**: Different renderers calculating position differently
+❌ **Handover complexity**: "Who should render this card right now?"
+
+### The Clean Architecture
+
+```lua
+function GameState:draw()
+    -- 1. Game logic: collect all visible elements
+    local allCards = self:getAllVisibleCards()  -- One collection function
+    
+    -- 2. Rendering: draw in proper z-order
+    ShadowRenderer.drawAllShadows(allCards)     -- All shadows first
+    for _, card in ipairs(allCards) do
+        CardRenderer.draw(card)                 -- All cards second, same renderer
+    end
+end
+```
+
 Entry Points
 
 - Turn flow: GameState delegates to logic/actions.lua (passTurn, advanceTurn, play handlers)
