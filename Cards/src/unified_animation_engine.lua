@@ -861,18 +861,25 @@ function UnifiedAnimationEngine:applyFlightEffects(animation, effects, progress,
     if effects.scale then
         local currentScale = effects.scale.baseScale or 1.0
         
-        -- Height-based scaling
-        if effects.scale.heightBased then
-            local currentHeight = animation.state.position.z or 0
-            local maxHeight = animation.spec.flight.trajectory and animation.spec.flight.trajectory.height or 100
-            local heightRatio = math.min(currentHeight / maxHeight, 1.0) -- Normalize to 0-1
-            local heightMultiplier = effects.scale.heightMultiplier or 0.2
-            currentScale = currentScale + (heightRatio * heightMultiplier)
+        -- NEW: Use unified height-scale system for consistent scaling
+        if effects.scale.heightBased or effects.scale.useUnified then
+            local UnifiedHeightScale = require 'src.unified_height_scale'
             
-            if Config and Config.debug and progress > 0.1 and progress < 0.9 then
-                debugPrint("[Height Scaling] Height:", string.format("%.1f", currentHeight), 
-                          "Ratio:", string.format("%.2f", heightRatio),
-                          "Scale:", string.format("%.2f", currentScale))
+            -- Create temporary element with current animation height
+            local tempElement = {
+                animZ = animation.state.position.z or 0,
+                id = animation.card and animation.card.id or "flight_card"
+            }
+            
+            -- Get unified scale (this replaces the manual height calculation)
+            local unifiedScale = UnifiedHeightScale.getCardScale(tempElement)
+            currentScale = unifiedScale
+            
+            -- Debug output for unified scaling in animations
+            if Config and Config.debug and Config.debugCategories and Config.debugCategories.heightScale and progress > 0.1 and progress < 0.9 then
+                local currentHeight = animation.state.position.z or 0
+                print(string.format("[FLIGHT-UNIFIED] %s: animZ=%.1f → scale=%.3f (was height-based: %s)", 
+                      tempElement.id, currentHeight, unifiedScale, tostring(effects.scale.heightBased or false)))
             end
         end
         

@@ -4,12 +4,14 @@ local Serialize = require "src.utils.serialize"
 
 -- Defaults (original values)
 local defaults = {
-  debug = false, -- Master debug flag - DISABLED to prevent console spam
+  debug = false, -- Master debug flag - DISABLED to prevent spam  
   debugCategories = {
     animations = false,      -- Animation system debug (disabled for cleaner output)
-    animationInit = true,    -- Animation initialization only
-    animationErrors = true,  -- Animation errors only
-    general = true,          -- General debug info
+    animationInit = false,   -- Animation initialization only
+    animationErrors = false, -- Animation errors only
+    shadows = true,          -- Shadow system debug - ENABLED for handover debugging
+    heightScale = false,     -- Unified height-scale system debug - DISABLED
+    general = false,         -- General debug info
   },
   window = {
     width = 1000,
@@ -193,6 +195,17 @@ local defaults = {
       },
     },
   },
+  
+  -- Unified height-scale system configuration
+  heightScale = {
+    baseScale = 1.0,           -- Base scale when at ground level
+    maxHeightScale = 0.2,      -- Maximum additional scale (20% increase)
+    heightScaleReference = 250, -- Height at which max scale is reached
+    scaleRampPower = 1.0,      -- Power for scale ramp (1.0 = linear, 2.0 = quadratic)
+    legacyHoverScale = 0.2,    -- Legacy hover scale for compatibility (20%)
+    legacyHoverHeight = 50,    -- Height equivalent to full legacy hover
+  },
+  
   colors = {
     button = {0.2, 0.2, 0.6, 0.85},
     buttonHover = {0.35, 0.35, 0.8, 1},
@@ -291,7 +304,7 @@ local defaults = {
 }
 
 -- Limit which top-level keys we persist in overrides
-local PERSIST_KEYS = { window=true, rules=true, draft=true, ui=true, colors=true, layout=true }
+local PERSIST_KEYS = { window=true, rules=true, draft=true, ui=true, colors=true, layout=true, heightScale=true }
 
 local function loadOverrides()
   if not love or not love.filesystem then return {} end

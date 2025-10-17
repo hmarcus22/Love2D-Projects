@@ -488,6 +488,16 @@ function GameState:draw()
         self.discardStack:draw()
     end
 
+    -- CENTRALIZED SHADOW RENDERING - Draw all shadows BEFORE any cards
+    local ShadowRenderer = require 'src.renderers.shadow_renderer'
+    local Config = require 'src.config'
+    if Config and Config.debug and Config.debugCategories and Config.debugCategories.shadows then
+        print("[DEBUG] About to require ShadowRenderer...")
+        print("[DEBUG] ShadowRenderer loaded successfully")
+    end
+    ShadowRenderer.drawAllShadows(self)
+    ShadowRenderer.drawDragShadow(self, layout)
+
     for index, player in ipairs(self.players or {}) do
         local isCurrent = (index == self.currentPlayer)
         player:drawHand(isCurrent, self)

@@ -48,6 +48,8 @@ specs.unified = {
             },
             scale = {
                 breathing = false, -- Disabled by default
+                useUnified = true, -- NEW: Enable unified height-scale system for all flights
+                baseScale = 1.0,
                 min = 0.95,
                 max = 1.05
             }
@@ -565,9 +567,9 @@ specs.cards = {
                 },
                 scale = {
                     breathing = false, -- Disable breathing to focus on height scaling
-                    heightBased = true, -- Enable height-based scaling
+                    useUnified = true, -- NEW: Use unified height-scale system
                     baseScale = 1.0,
-                    heightMultiplier = 0.3 -- Scale factor based on elevation
+                    -- heightMultiplier removed - now controlled by unified system config
                 },
                 shadow = {
                     enabled = true, -- Enable ground shadow

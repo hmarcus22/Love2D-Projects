@@ -514,15 +514,14 @@ function Player:drawHand(isCurrent, gs)
     -- Suppress hover highlight while a card is being dragged for clearer focus
     if gs and mx and my and not gs.draggingCard then
         local useScaled = activeLayout.handHoverHitScaled == true
-        local hoverScale = (activeLayout.handHoverScale or 0.06)
         for idx = #self.slots, 1, -1 do
             local card = self.slots[idx].card
             -- Exclude dragging cards AND cards that are currently animating from hover detection
             -- This prevents hover highlights from persisting on cards during flight animations
             if card and not card.dragging and not card._unifiedAnimationActive then
                 if useScaled then
-                    local amt = card.handHoverAmount or 0
-                    if HoverUtils.hitScaled(mx, my, card.x, card.y, cardW, cardH, amt, hoverScale) then
+                    -- NEW: Use unified hit testing for scaled cards
+                    if HoverUtils.hitScaledUnified(mx, my, card.x, card.y, cardW, cardH, card) then
                         hoveredCard = card
                         break
                     end
@@ -569,9 +568,11 @@ function Player:drawHand(isCurrent, gs)
     if gs and gs.draggingCard and gs.draggingCard.owner == self then
         local dragCard = gs.draggingCard
         local CardRenderer = require "src.card_renderer"
-        local amount = dragCard.handHoverAmount or 0
-        local hoverScale = (activeLayout.handHoverScale or 0.06)
-        local dx, dy, dw, dh = HoverUtils.scaledRect(dragCard.x, dragCard.y, cardW, cardH, amount, hoverScale)
+        
+        -- NEW: Use unified height-scale system for dragged cards
+        local dx, dy, dw, dh, scaleX, scaleY = HoverUtils.scaledRectUnified(dragCard.x, dragCard.y, cardW, cardH, dragCard)
+        local amount = dragCard.handHoverAmount or 0  -- Keep for highlight intensity
+        
         -- Highlight backdrop before scaling outline
         love.graphics.setColor(1, 1, 0.3, 0.20 + 0.35 * amount)
         love.graphics.rectangle("fill", dx - 8, dy - 8, dw + 16, dh + 16, 14, 14)
@@ -599,9 +600,11 @@ function Player:drawHand(isCurrent, gs)
         local cardW = baseLayout.cardW or 100
         local cardH = baseLayout.cardH or 150
         local margin = 4
-        local hoverScale = (baseLayout.handHoverScale or 0.06)
-        local amount = hoveredCard.handHoverAmount or 0
-        local drawX, drawY, newW, newH = HoverUtils.scaledRect(hoveredCard.x, hoveredCard.y, cardW, cardH, amount, hoverScale)
+        
+        -- NEW: Use unified height-scale system for hovered cards
+        local drawX, drawY, newW, newH, scaleX, scaleY = HoverUtils.scaledRectUnified(hoveredCard.x, hoveredCard.y, cardW, cardH, hoveredCard)
+        local amount = hoveredCard.handHoverAmount or 0  -- Keep for compatibility/effects
+        
         local bottomEdge = drawY + newH
         local hidden = math.max(0, bottomEdge - (vh - margin))
         if hidden > 0 then
@@ -616,8 +619,8 @@ function Player:drawHand(isCurrent, gs)
         hoveredCard.w = newW
         hoveredCard.h = newH
 
-        -- Soft shadow behind hovered card (drawn before the card)
-        HoverUtils.drawShadow(drawX, drawY, newW, newH, amount)
+        -- Shadow rendering now handled centrally by ShadowRenderer.drawAllShadows()
+        -- No need for individual shadow calls in hand rendering
 
         local CardRenderer = require "src.card_renderer"
         CardRenderer.draw(hoveredCard)

@@ -75,15 +75,14 @@ function Input:mousepressed(gs, x, y, button)
     do
         local layout = gs.getLayout and gs:getLayout() or {}
         local useScaled = layout.handHoverHitScaled == true
-        local hoverScale = layout.handHoverScale or 0.06
         local cardW, cardH = gs:getCardDimensions()
         for i = #current.slots, 1, -1 do
             local c = current.slots[i].card
             if c then
                 local hit
                 if useScaled then
-                    local amt = c.handHoverAmount or 0
-                    hit = HoverUtils.hitScaled(x, y, c.x, c.y, cardW or (c.w or 100), cardH or (c.h or 150), amt, hoverScale)
+                    -- NEW: Use unified hit testing for scaled cards
+                    hit = HoverUtils.hitScaledUnified(x, y, c.x, c.y, cardW or (c.w or 100), cardH or (c.h or 150), c)
                 else
                     hit = c:isHovered(x, y)
                 end

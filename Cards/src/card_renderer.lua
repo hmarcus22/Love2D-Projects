@@ -149,10 +149,8 @@ function CardRenderer.drawWithTexture(card)
         return
     end
     
-    -- Draw shadow if needed
-    if not card._suppressShadow then
-        CardRenderer.drawCardShadow(card, x, y, w, h, scaleX, scaleY)
-    end
+    -- Shadow rendering now handled centrally by ShadowRenderer.drawAllShadows()
+    -- No need for individual shadow calls in texture cache path
     
     -- Uniform scaling to exactly fill the card frame
     -- Since all cards have same 10:15 aspect ratio, use width-based scaling for consistency
@@ -267,83 +265,12 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
     end
 end
 
--- Shadow drawing
+-- Shadow drawing - DEPRECATED: Use ShadowRenderer.drawCardShadow instead
+-- This function is maintained for backward compatibility
 function CardRenderer.drawCardShadow(card, x, y, w, h, scaleX, scaleY)
-    local z = card.animZ or 0
-    if z < 0 then z = 0 end
-    
-    -- Enhanced shadow lifecycle: show shadow for any lift, interaction, or flight
-    local isLifted = z > 0  -- Any elevation shows shadow
-    local isInteracting = card.dragging or (card.handHoverAmount and card.handHoverAmount > 0.02)
-    local inFlight = card._unifiedAnimationActive or (card.animX and card.animX ~= card.x) or (card.animY and card.animY ~= card.y)
-    
-    -- Always show shadow during any animation phases (more reliable)
-    local hasAnimationPhase = card.animX or card.animY or card._unifiedAnimationActive
-    local showShadow = isLifted or isInteracting or inFlight or hasAnimationPhase
-    
-    -- Debug logging for shadow conditions
-    if Config and Config.debug then
-        local hoverAmount = card.handHoverAmount or 0
-        print(string.format("[Shadow Debug] Card %s: z=%.1f, dragging=%s, hover=%.3f, animActive=%s, animX=%s (vs x=%s), animY=%s (vs y=%s)", 
-              card.id or "unknown", z, tostring(card.dragging), hoverAmount, tostring(card._unifiedAnimationActive),
-              tostring(card.animX), tostring(card.x), tostring(card.animY), tostring(card.y)))
-        print(string.format("[Shadow Debug] Conditions: isLifted=%s, isInteracting=%s, inFlight=%s, showShadow=%s",
-              tostring(isLifted), tostring(isInteracting), tostring(inFlight), tostring(showShadow)))
-    end
-    
-    if showShadow then
-        local ui = Config.ui or {}
-        local shadowScaleMin = ui.cardShadowMinScale or 0.85
-        local shadowScaleMax = ui.cardShadowMaxScale or 1.08
-        local shadowAlphaMin = ui.cardShadowMinAlpha or 0.25
-        local shadowAlphaMax = ui.cardShadowMaxAlpha or 0.55
-        local norm = 0
-        local arcRef = ui.cardFlightArcHeight or 140
-        if arcRef > 0 then norm = math.min(1, z / arcRef) end
-        local sScale = shadowScaleMax - (shadowScaleMax - shadowScaleMin) * norm
-        local sAlpha = shadowAlphaMax - (shadowAlphaMax - shadowAlphaMin) * norm
-        
-        -- Use flight-specific shadow data if available
-        if card.shadowData then
-            sAlpha = card.shadowData.opacity or sAlpha
-            sScale = sScale * (card.shadowData.scale or 1.0)
-        end
-        
-        local shadowW = w * sScale
-        local shadowH = h * sScale * 0.98
-        local sx = x + (w - shadowW) / 2
-        local sy = y + (h - shadowH) / 2 + 4
-        
-        -- Apply flight shadow offset if available
-        if card.shadowData then
-            sx = sx + (card.shadowData.offsetX or 0)
-            sy = sy + (card.shadowData.offsetY or 0)
-        end
-        
-        if scaleX ~= 1 or scaleY ~= 1 then
-            love.graphics.push()
-            local cx, cy = x + w/2, y + h/2
-            love.graphics.translate(cx, cy)
-            love.graphics.scale(scaleX, scaleY)
-            love.graphics.translate(-cx, -cy)
-        end
-        
-        -- Debug: Confirm shadow is being drawn
-        if Config and Config.debug then
-            print(string.format("[Shadow Draw] Drawing shadow for %s: alpha=%.2f, scale=%.2f, pos=(%.1f,%.1f), size=(%.1f,%.1f)", 
-                  card.id or "unknown", sAlpha, sScale, sx, sy, shadowW, shadowH))
-        end
-        
-        -- Enhanced shadow visibility for flight animations
-        local enhancedAlpha = math.max(sAlpha * 1.5, 0.6) -- Make shadows more visible
-        love.graphics.setColor(0, 0, 0, enhancedAlpha)
-        love.graphics.rectangle("fill", sx, sy, shadowW, shadowH, 8, 8)
-        love.graphics.setColor(1, 1, 1, 1)
-        
-        if scaleX ~= 1 or scaleY ~= 1 then
-            love.graphics.pop()
-        end
-    end
+    -- DISABLED: Shadow rendering now handled centrally by ShadowRenderer  
+    -- The centralized system draws shadows at the correct z-order
+    return
 end
 
 -- Direct rendering (for texture generation) - SIMPLIFIED with configurable fonts
@@ -420,10 +347,8 @@ function CardRenderer.drawDirect(card)
         love.graphics.setColor(r, g, b, alpha)
     end
     
-    -- Shadow (only when not suppressed)
-    if not card._suppressShadow then
-        CardRenderer.drawCardShadow(card, x, y, w, h, 1, 1) -- No double scaling
-    end
+    -- Shadow rendering now handled centrally by ShadowRenderer.drawAllShadows()
+    -- No need for individual shadow calls in direct rendering path
     
     -- Z elevation
     local z = card.animZ or 0

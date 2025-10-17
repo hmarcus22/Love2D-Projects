@@ -379,8 +379,8 @@ function draft:drawChoices()
         local baseW, baseH = c.w or 100, c.h or 150
         local dx, dy, dw, dh = HoverUtils.scaledRect(c.x, c.y, baseW, baseH, amt, hoverScale)
 
-        -- Shadow for hovered
-        if (c._hovered or (amt > 0.01)) then HoverUtils.drawShadow(dx, dy, dw, dh, amt) end
+        -- Shadow rendering now handled centrally in main game draw loop
+        -- Draft shadows can be added to ShadowRenderer.drawDraftShadows() if needed
 
         -- Temporarily set card rect for rendering
         local oldx, oldy, oldw, oldh = c.x, c.y, c.w, c.h
@@ -432,7 +432,10 @@ function draft:drawPlayerDecks(screenW, screenH)
         local c = r.card
         local amt = c.handHoverAmount or 0
         local dx, dy, dw, dh = HoverUtils.scaledRect(r.x, r.y, r.w, r.h, amt, hoverScale)
-        if amt > 0.01 then HoverUtils.drawShadow(dx, dy, dw, dh, amt) end
+        if amt > 0.01 then 
+            -- Shadow rendering now handled centrally
+            -- Draft shadows can be added to ShadowRenderer.drawDraftShadows() if needed
+        end
         local ox, oy, ow, oh = c.x, c.y, c.w, c.h
         c.x, c.y, c.w, c.h = dx, dy, dw, dh
         CardRenderer.draw(c)

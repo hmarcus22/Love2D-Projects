@@ -115,6 +115,28 @@ function HighlightUtils.scaledRect(x, y, w, h, amount, hoverScale)
     return dx, dy, dw, dh
 end
 
+-- NEW: Compute scaled draw rect using unified height-scale system
+function HighlightUtils.scaledRectUnified(x, y, w, h, element)
+    local UnifiedHeightScale = require 'src.unified_height_scale'
+    local scaleX, scaleY = UnifiedHeightScale.getDrawScale(element)
+    
+    local dw = math.floor(w * scaleX)
+    local dh = math.floor(h * scaleY)
+    local dx = x - math.floor((dw - w) / 2)
+    local dy = y - math.floor((dh - h) / 2)
+    
+    -- Debug output for unified scaling
+    UnifiedHeightScale.debugInfo(element, "hover_rect")
+    
+    return dx, dy, dw, dh, scaleX, scaleY
+end
+
+-- Hit test using unified scaling
+function HighlightUtils.hitScaledUnified(mx, my, x, y, w, h, element)
+    local dx, dy, dw, dh = HighlightUtils.scaledRectUnified(x, y, w, h, element)
+    return HighlightUtils.hit(mx, my, dx, dy, dw, dh)
+end
+
 -- Simple point-in-rect hit testing
 function HighlightUtils.hit(mx, my, x, y, w, h)
     return mx >= x and mx <= x + w and my >= y and my <= y + h
@@ -128,18 +150,9 @@ end
 
 -- Draw soft shadow behind a rect
 function HighlightUtils.drawShadow(dx, dy, dw, dh, amount)
-    local amt = amount or 0
-    if amt <= 0.01 then return end
-    
-    local minAlpha = getHighlightConfig('shadow', 'minAlpha', 0.25)
-    local maxAlpha = getHighlightConfig('shadow', 'maxAlpha', 0.55)
-    local alpha = minAlpha + (maxAlpha - minAlpha) * amt
-    
-    love.graphics.setColor(0, 0, 0, alpha * 0.6)
-    love.graphics.rectangle("fill", dx + 2, dy + 2, dw + 12, dh + 12, 10, 10)
-    love.graphics.setColor(0, 0, 0, alpha * 0.3)
-    love.graphics.rectangle("fill", dx + 1, dy + 1, dw + 6, dh + 6, 8, 8)
-    love.graphics.setColor(1, 1, 1, 1)
+    -- DISABLED: Shadow rendering now handled centrally by ShadowRenderer
+    -- The centralized system draws shadows at the correct z-order
+    return
 end
 
 -- Legacy compatibility aliases
@@ -149,6 +162,10 @@ HoverUtils.hit = HighlightUtils.hit
 HoverUtils.hitScaled = HighlightUtils.hitScaled
 HoverUtils.drawShadow = HighlightUtils.drawShadow
 HoverUtils.topmostIndex = HighlightUtils.topmostIndex
+
+-- NEW: Unified height-scale system exports
+HoverUtils.scaledRectUnified = HighlightUtils.scaledRectUnified
+HoverUtils.hitScaledUnified = HighlightUtils.hitScaledUnified
 
 return HighlightUtils
 

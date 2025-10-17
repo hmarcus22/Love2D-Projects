@@ -309,6 +309,11 @@ function anim_lab:drawGameWithoutHUD()
     self.gs.discardStack:draw()
   end
   
+  -- CENTRALIZED SHADOW RENDERING - Draw shadows FIRST so they appear underneath ALL cards
+  local ShadowRenderer = require 'src.renderers.shadow_renderer'
+  ShadowRenderer.drawAllShadows(self.gs)
+  ShadowRenderer.drawDragShadow(self.gs, layout)
+  
   -- Draw hands (without player info HUD)
   for index, player in ipairs(self.gs.players or {}) do
     local isCurrent = (index == self.gs.currentPlayer)
