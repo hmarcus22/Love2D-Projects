@@ -136,7 +136,7 @@ The Animation Lab (`src/states/anim_lab.lua`) serves as a controlled testing env
 
 ### Architecture Overview
 Complete overhaul of fragmented animation system into unified 3D physics-based approach:
-- **Previous**: Scattered parameters across `animation_specs_defaults.lua`, `flight_profiles.lua`, `animation_manager.lua`
+- **Previous (legacy — removed)**: Scattered parameters across `animation_specs_defaults.lua`, `flight_profiles.lua`, `animation_manager.lua` (replaced by the unified system)
 - **Current**: Unified system with clear physics simulation and phase structure
 
 ### Core Components
@@ -150,6 +150,11 @@ Complete overhaul of fragmented animation system into unified 3D physics-based a
 - Centralized configuration replacing scattered spec files
 - Three style presets: aggressive (attacks), defensive (blocks), modifier (buffs)
 - Card-specific overrides: wild_swing, quick_jab, corner_rally, guard, adrenaline_rush
+
+Legacy Modules (Removed)
+- `animation_specs_defaults.lua`
+- `flight_profiles.lua`
+- `animation_manager.lua`
 
 **BoardStateAnimator** (`src/board_state_animator.lua`)
 - Ongoing animations for cards while on board
