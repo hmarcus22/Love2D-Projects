@@ -479,6 +479,10 @@ function GameState:draw()
     local layout = self:getLayout()
     local screenW = Viewport.getWidth()
 
+    -- Apply global impact shake transform for scene (cards, board, HUD)
+    local ImpactFX = require 'src.impact_fx'
+    local __shakePushed = ImpactFX.applyShakeTransform(self)
+
     BoardRenderer.draw(self, layout)
 
     if self.deckStack and self.deckStack.draw then
@@ -533,6 +537,10 @@ function GameState:draw()
             self:drawDragArrow(card)
         end
     end
+
+    -- Draw impact dust and pop shake transform if applied
+    ImpactFX.drawDust(self)
+    if __shakePushed then love.graphics.pop() end
 end
 
 -- UNIFIED CARD COLLECTION - Single source of truth for all visible cards

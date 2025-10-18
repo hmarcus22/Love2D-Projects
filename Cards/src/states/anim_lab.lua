@@ -298,6 +298,10 @@ function anim_lab:drawGameWithoutHUD()
   local BoardRenderer = require 'src.renderers.board_renderer'
   local ResolveRenderer = require 'src.renderers.resolve_renderer'
   
+  -- Apply global impact shake transform for the whole lab scene
+  local ImpactFX = require 'src.impact_fx'
+  local __shakePushed = ImpactFX.applyShakeTransform(self.gs)
+
   -- Draw board (this handles positioning of board cards)
   BoardRenderer.draw(self.gs, layout)
   
@@ -345,14 +349,14 @@ function anim_lab:drawGameWithoutHUD()
     self.gs:drawDragArrow(card)
   end
   
-  -- Draw animations on top
+  -- Draw animations on top (shake already applied globally)
   if self.gs.animations and self.gs.animations.draw then
-    local ImpactFX = require 'src.impact_fx'
-    local pushed = ImpactFX.applyShakeTransform(self.gs)
     self.gs.animations:draw()
-    ImpactFX.drawDust(self.gs)
-    if pushed then love.graphics.pop() end
   end
+
+  -- Draw impact dust and pop shake transform if applied
+  ImpactFX.drawDust(self.gs)
+  if __shakePushed then love.graphics.pop() end
 end
 
 function anim_lab:drawInfoPanels()
