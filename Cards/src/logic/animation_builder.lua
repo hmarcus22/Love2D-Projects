@@ -163,7 +163,7 @@ function AnimationBuilder._buildImpactAnimation(gameState, card, slotIndex, onAd
             local ImpactFX = require 'src.impact_fx'
             local sx, sy = gameState:getBoardSlotPosition(player.id, slotIndex)
             ImpactFX.triggerShake(gameState, impactParams.shakeDur or 0.25, impactParams.shakeMag or 6)
-            ImpactFX.triggerDust(gameState, sx + card.w/2, sy + card.h - 8, impactParams.dustCount or 1)
+            ImpactFX.triggerDust(gameState, sx + card.w/2, sy + card.h/2, impactParams.dustCount or 1)
         end
         
         -- NEW: Trigger knockback effects

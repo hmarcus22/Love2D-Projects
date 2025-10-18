@@ -172,6 +172,18 @@ function BoardRenderer.draw(state, layout)
             love.graphics.setLineWidth(1)
             love.graphics.rectangle("line", slotX, slotY, cardW, cardH, 8, 8)
 
+            -- Invulnerability indicator (e.g., Smoke Bomb): pulsing shield outline outside the card
+            if state.invulnerablePlayers and state.invulnerablePlayers[playerIndex] then
+                local t = love.timer.getTime()
+                local pulse = 0.5 + 0.5 * math.sin(t * 4.0)
+                local alpha = 0.35 + 0.25 * pulse
+                love.graphics.setColor(0.6, 0.9, 1.0, alpha)
+                love.graphics.setLineWidth(3)
+                love.graphics.rectangle('line', slotX - 3, slotY - 3, cardW + 6, cardH + 6, 10, 10)
+                love.graphics.setLineWidth(1)
+                love.graphics.setColor(1, 1, 1, 1)
+            end
+
             local isPending = pending ~= nil
             local validSlot = false
             local hoveredSlot = false

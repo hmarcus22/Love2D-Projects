@@ -75,22 +75,6 @@ specs.unified = {
             squash = 1.0, -- No squash
             bounce = 1.0, -- No bounce
             restitution = 0.8
-        },
-        effects = {
-            screen = {
-                shake = {
-                    intensity = 6, -- Match current working shake
-                    duration = 0.25, -- Match current working duration
-                    frequency = 30
-                }
-            },
-            particles = {
-                type = "impact_sparks",
-                count = 15,
-                spread = 45, -- degrees
-                velocity = 200
-            },
-            sound = "card_impact"
         }
     },
     
@@ -675,6 +659,10 @@ specs.cards = {
                         intensity = 20, -- Heavy impact shake
                         duration = 0.5
                     }
+                },
+                particles = {
+                    type = "dust",
+                    count = 24
                 }
             }
         },
@@ -686,6 +674,145 @@ specs.cards = {
                 duration = 1.2, -- Longer bounce sequence for ultimate move
                 direction = "radial", -- Knock cards away from impact point
                 falloff = "linear" -- Consistent force across the area
+            }
+        }
+    },
+    -- Ninja: quick precision moves
+    shadow_step = {
+        flight = {
+            duration = 0.18,
+            trajectory = { type = "interpolated", height = 30 },
+            effects = {
+                trail = { enabled = true, length = 6, fadeTime = 0.25 },
+                rotation = { tumble = false }
+            },
+            -- Disappear from hand
+            fade = { startAlpha = 1.0, endAlpha = 0.0 }
+        },
+        -- Reappear on approach
+        approach = { duration = 0.06, guidingFactor = 0.9, fade = { startAlpha = 0.0, endAlpha = 1.0 } },
+        impact = {
+            effects = {
+                screen = { shake = { intensity = 6, duration = 0.12 } },
+                particles = { type = "dust", count = 8 }
+            }
+        }
+    },
+    smoke_bomb = {
+        flight = {
+            duration = 0.15,
+            trajectory = { type = "interpolated", height = 20 },
+            effects = { rotation = { tumble = false } }
+        },
+        approach = { duration = 0.06 },
+        impact = {
+            effects = {
+                -- No shake to keep it stealthy; heavy smoke burst
+                particles = { type = "dust", count = 28 }
+            }
+        }
+    },
+    assassinate = {
+        flight = {
+            duration = 0.16,
+            trajectory = { type = "straight" },
+            effects = { rotation = { tumble = false } }
+        },
+        approach = { duration = 0.04 },
+        impact = {
+            effects = {
+                screen = { shake = { intensity = 10, duration = 0.12 } }
+            }
+        }
+    },
+
+    -- Boxer: snappy, powerful strikes
+    jab_cross = {
+        preparation = { duration = 0.02, scale = 1.02 },
+        launch = { duration = 0.04, initialVelocity = 900 },
+        flight = { duration = 0.14, trajectory = { type = "interpolated", height = 20 } },
+        approach = { duration = 0.06, guidingFactor = 0.85 },
+        impact = {
+            effects = {
+                screen = { shake = { intensity = 8, duration = 0.10 } }
+            }
+        }
+    },
+    counterpunch = {
+        flight = { duration = 0.12, trajectory = { type = "interpolated", height = 12 } },
+        approach = { duration = 0.08 },
+        impact = {
+            effects = {
+                screen = { shake = { intensity = 6, duration = 0.12 } }
+            }
+        }
+    },
+    haymaker = {
+        launch = { duration = 0.10, initialVelocity = 800 },
+        flight = {
+            duration = 0.30,
+            trajectory = { type = "interpolated", height = 60 },
+            physics = { gravity = 900, airResistance = 0.01, mass = 2.0 },
+            effects = { rotation = { tumble = false } }
+        },
+        approach = { duration = 0.10 },
+        impact = {
+            effects = {
+                screen = { shake = { intensity = 22, duration = 0.40 } },
+                particles = { type = "dust", count = 24 }
+            }
+        }
+    },
+
+    -- Brute: heavy, forceful motions
+    ground_pound = {
+        preparation = { scale = 1.08 },
+        launch = { duration = 0.06, initialVelocity = 700 },
+        flight = {
+            duration = 0.22,
+            trajectory = { type = "interpolated", height = 40 },
+            physics = { gravity = 900 }
+        },
+        approach = { duration = 0.08 },
+        impact = {
+            effects = {
+                screen = { shake = { intensity = 18, duration = 0.35 } },
+                particles = { type = "dust", count = 20 }
+            }
+        }
+    },
+    iron_guard = {
+        flight = { duration = 0.08, trajectory = { type = "interpolated", height = 8 } },
+        approach = { duration = 0.06 },
+        impact = {
+            effects = {
+                screen = { shake = { intensity = 6, duration = 0.16 } }
+            }
+        }
+    },
+
+    -- Tactician: controlled, precise motions
+    counterplay = {
+        flight = {
+            duration = 0.20,
+            trajectory = { type = "interpolated", height = 30 },
+            effects = { rotation = { tumble = false } }
+        },
+        approach = { duration = 0.12, guidingFactor = 0.90 },
+        impact = {
+            effects = {
+                screen = { shake = { intensity = 10, duration = 0.14 } },
+                particles = { type = "dust", count = 10 }
+            }
+        }
+    },
+    tactical_shift = {
+        flight = { duration = 0.18, trajectory = { type = "interpolated", height = 24 } },
+        approach = { duration = 0.10 },
+        impact = {
+            effects = {
+                screen = { shake = { intensity = 14, duration = 0.20 } },
+                particles = { type = "dust", count = 12 }
             }
         }
     }

@@ -201,9 +201,9 @@ function UnifiedAnimationEngine:getAnimationSpec(card, animationType, config)
             if baseSpec then
                 return self:mergeSpecs(baseSpec, cardSpec)
             end
-        else
-            return cardSpec
         end
+        -- Default: merge card override onto unified base so required phase durations persist
+        return self:mergeSpecs(specs.unified, cardSpec)
     end
     
     if Config and Config.debug then
@@ -458,7 +458,7 @@ function UnifiedAnimationEngine:initializeImpactPhase(animation)
         ImpactFX.triggerDust(
             gameState,
             (card.animX or card.x) + (card.w or 50) / 2,
-            (card.animY or card.y) + (card.h or 70) - 8,
+            (card.animY or card.y) + (card.h or 70) / 2,
             particles.count or 15
         )
         

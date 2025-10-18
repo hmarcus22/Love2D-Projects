@@ -73,6 +73,14 @@ function anim_lab:init()
   
   self.gs = GameState:newFromDraft({testPlayer, dummyPlayer})
   self.gs.currentPlayer = 1 -- Always use player 1 as the "thrower"
+  -- Ensure abundant energy for chaining tests in lab (player 1 only)
+  do
+    local p = self.gs.players and self.gs.players[1]
+    if p then
+      p.energy = 99
+      p.maxEnergy = math.max(p.maxEnergy or 0, 99)
+    end
+  end
   
   -- CRITICAL FLAGS FOR ANIMATION LAB BEHAVIOR:
   self.gs.isAnimationLab = true -- Enables cross-player combo detection in Player:canPlayCombo()

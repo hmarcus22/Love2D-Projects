@@ -617,11 +617,8 @@ function GameState:drawDragArrow(card)
     love.graphics.setColor(1,1,1,1)
 
     if self.animations and self.animations.draw then
-        local ImpactFX = require 'src.impact_fx'
-        local pushed = ImpactFX.applyShakeTransform(self)
+        -- Shake transform is applied globally in GameState:draw now
         self.animations:draw()
-        ImpactFX.drawDust(self)
-        if pushed then love.graphics.pop() end
     end
     -- TODO: move inline FX drawing to ImpactFX module (refactor pending)
 
@@ -863,6 +860,7 @@ function GameState:placeCardWithoutAdvancing(player, card, slotIndex)
     -- Hand state: card leaves hand when animation started, ensure it's not still referenced
     card.slotIndex = nil
     card.zone = 'board'
+    card.player = player -- ensure renderer and effects can resolve owning player
     card.faceUp = true
     slot._incoming = nil
     -- Track played count
