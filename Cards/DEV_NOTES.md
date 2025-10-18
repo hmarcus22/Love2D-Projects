@@ -61,6 +61,30 @@ Key Boundaries
    - No special cases or different position logic per renderer
    - Visual position is the single source of truth
 
+### Positioning Conventions (Cards)
+
+- Layout owners write `card.x`/`card.y` every frame
+  - Hand/board placement (Player:positionHand, BoardRenderer) own the logical position and will update `x,y` each frame.
+
+- Animations must write to `card.animX`/`card.animY`
+  - Any time-based motion during animations (flight, resolve strike/push, offsets) should set `animX/animY`.
+  - Renderers resolve position as: `local x = (card.animX ~= nil) and card.animX or card.x` (same for Y).
+  - This ensures layout does not fight animations (BoardRenderer intentionally resets `x,y` each frame).
+
+- Clear animation channels on completion
+  - When an animation finishes, set `card.animX = nil; card.animY = nil` so layout regains full control.
+  - For height and alpha, use `card.animZ` and `card.animAlpha` similarly; clear these on completion as well.
+
+- Do not write to `card.x`/`card.y` inside animation phase updates
+  - Use `x/y` only to set a final stable logical position (e.g., when a flight lands), or when reading the original position for deltas.
+
+- Example
+  - During phase update: `card.animX = state.originalX + vx * t; card.animY = state.originalY + vy * t`
+  - On completion: `card.animX, card.animY = nil, nil`
+
+- Temporary draw overrides must restore state
+  - If a draw helper temporarily changes `card.x/y` (e.g., `CardRenderer.drawAt`), it must restore them before returning.
+
 ### Anti-Patterns to Avoid
 
 ❌ **Multiple renderers for same element type**: BoardRenderer vs AnimationOverlay both drawing cards

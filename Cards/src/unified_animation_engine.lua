@@ -878,7 +878,7 @@ function UnifiedAnimationEngine:applyFlightEffects(animation, effects, progress,
             -- Debug output for unified scaling in animations
             if Config and Config.debug and Config.debugCategories and Config.debugCategories.heightScale and progress > 0.1 and progress < 0.9 then
                 local currentHeight = animation.state.position.z or 0
-                print(string.format("[FLIGHT-UNIFIED] %s: animZ=%.1f → scale=%.3f (was height-based: %s)", 
+                print(string.format("[FLIGHT-UNIFIED] %s: animZ=%.1f -> scale=%.3f (was height-based: %s)", 
                       tempElement.id, currentHeight, unifiedScale, tostring(effects.scale.heightBased or false)))
             end
         end

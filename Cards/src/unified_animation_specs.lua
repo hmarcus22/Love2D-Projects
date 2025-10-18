@@ -677,6 +677,34 @@ specs.cards = {
             }
         }
     },
+    
+    -- Roundhouse (AOE sweep): resolve prep animation (leap + half-spin)
+    roundhouse = {
+        game_resolve = {
+            -- Prep: leap and spin at peak height
+            roundhouse_prep = {
+                phases = {
+                    -- Big lift, hold at height for the spin/kicks
+                    windup = { duration = 0.08, rotation = -12, elevation = 220 },
+                    -- Half-spin+ (3/4 turn) while staying at peak height – longer for readability
+                    strike = { duration = 1.10, rotation = 270, elevation = 150, easing = "linear" },
+                    -- Descend to board and keep facing from spin (land at rotation 270)
+                    recoil = { duration = 0.12, rotation = 300, elevation = 0, easing = "easeOutQuad" },
+                    -- Brief on-ground settle to avoid pop removal
+                    settle = { duration = 0.08, elevation = 0 }
+                }
+            },
+            -- Override attack_strike so stabs don't fight the ongoing spin
+            -- Make the kick lunge more pronounced for visibility in Anim Lab
+            attack_strike = {
+                phases = {
+                    windup = { duration = 0.05 },
+                    strike = { duration = 0.18, velocity = 1600, easing = "easeOutCubic" },
+                    recoil = { duration = 0.12, easing = "easeOutQuad" }
+                }
+            }
+        }
+    },
     -- Ninja: quick precision moves
     shadow_step = {
         flight = {

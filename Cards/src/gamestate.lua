@@ -695,6 +695,12 @@ function GameState:update(dt)
         if BoardEffects.isActive() then
             print("[GameState] Pausing resolve phase while board effects are active")
             -- Don't advance resolve timer while knockback animations are running
+        -- Also pause while resolve animations are playing
+        elseif self.animations and self.animations.hasActiveAnimations and self.animations:hasActiveAnimations() then
+            if Config and Config.debug then
+                print("[GameState] Pausing resolve while animations are active (flight/resolve)")
+            end
+            -- Skip advancing resolve timer/steps this frame until all animations finish
         else
             -- Set current step for visual indication
             if self.resolveIndex < #self.resolveQueue then

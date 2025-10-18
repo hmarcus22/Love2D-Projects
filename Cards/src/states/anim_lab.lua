@@ -245,8 +245,8 @@ function anim_lab:update(dt)
   -- Keep players energized
   for _, p in ipairs(self.gs.players or {}) do p.energy = 99 end
   
-  -- Ensure we're in play phase for card playing
-  if self.gs.phase ~= "play" then
+  -- Ensure we're in play phase for card playing, but do not break manual resolve
+  if self.gs.phase ~= "play" and self.gs.phase ~= "resolve" then
     self.gs.phase = "play"
   end
   

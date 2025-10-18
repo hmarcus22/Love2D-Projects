@@ -136,7 +136,7 @@ local defs = {
   { path = 'ui.arrows.outline.enabled',   label = 'Outline Enabled',            type = 'boolean',                           context = 'all',  category = 'Arrows' },
   { path = 'ui.arrows.outline.size',      label = 'Outline Thickness',          type = 'number', min = 0, max = 12, step=0.5, context = 'all', category = 'Arrows' },
   { path = 'ui.arrows.outline.color',     label = 'Outline Color',              type = 'color',                             context = 'all',  category = 'Arrows' },
-  { path = 'ui.arrows.fadeAll.enabled',   label = 'Tail→Tip Fade Enabled',      type = 'boolean',                           context = 'all',  category = 'Arrows' },
+  { path = 'ui.arrows.fadeAll.enabled',   label = 'Tail->Tip Fade Enabled',      type = 'boolean',                           context = 'all',  category = 'Arrows' },
   { path = 'ui.arrows.fadeAll.gamma',     label = 'Fade Gamma',                 type = 'number', min = 0.1, max = 4, step=0.05, context = 'all', category = 'Arrows' },
   { path = 'ui.arrows.raster.oversample', label = 'Raster Oversample',          type = 'number', min = 1.0, max = 3.0, step=0.1, context = 'all', category = 'Arrows' },
   { path = 'ui.arrows.raster.useDPIScale',label = 'Use DPI Scale',              type = 'boolean',                           context = 'all',  category = 'Arrows' },
