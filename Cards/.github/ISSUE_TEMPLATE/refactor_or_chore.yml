@@ -1,0 +1,42 @@
+name: Refactor / Chore
+description: Internal improvements, cleanup, or non‑feature changes.
+title: "[Refactor]: "
+labels: [refactor]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation / Context
+      description: Why this change is needed now
+    validations:
+      required: true
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals & Constraints
+      description: What we will and will not do
+  - type: textarea
+    id: plan
+    attributes:
+      label: Proposed plan
+      description: Steps and sequencing
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / Compatibility
+  - type: textarea
+    id: rollout
+    attributes:
+      label: Rollout / Migration notes
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation strategy
+  - type: input
+    id: files
+    attributes:
+      label: Files / Modules in scope
+      placeholder: "src/utils/deep.lua, src/game_layout.lua"
+

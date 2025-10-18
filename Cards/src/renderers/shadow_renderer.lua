@@ -5,27 +5,26 @@
 local ShadowRenderer = {}
 
 -- Get shadow configuration from config with fallbacks
-local function getShadowConfig(type, key, fallback)
+local function getShadowConfig(kind, key, fallback)
     local Config = require 'src.config'
-    local shadows = Config.ui and Config.ui.shadows
-    if shadows and shadows[type] and shadows[type][key] ~= nil then
-        return shadows[type][key]
+    -- Preferred path per DEV_NOTES: layout.highlights.shadow
+    local highlights = Config.layout and Config.layout.highlights and Config.layout.highlights.shadow
+    if highlights and highlights[key] ~= nil then
+        return highlights[key]
     end
-    -- Legacy config fallbacks for cards
-    if type == "card" then
+    -- Optional UI grouping (if present)
+    local uiShadows = Config.ui and Config.ui.shadows
+    if uiShadows and uiShadows[kind] and uiShadows[kind][key] ~= nil then
+        return uiShadows[kind][key]
+    end
+    -- Legacy UI fallbacks (maintained for compatibility)
+    if kind == "card" then
         local ui = Config.ui or {}
         if key == "minScale" then return ui.cardShadowMinScale or fallback end
         if key == "maxScale" then return ui.cardShadowMaxScale or fallback end
         if key == "minAlpha" then return ui.cardShadowMinAlpha or fallback end
         if key == "maxAlpha" then return ui.cardShadowMaxAlpha or fallback end
         if key == "arcHeight" then return ui.cardFlightArcHeight or fallback end
-    end
-    -- Legacy config fallbacks for hover shadows
-    if type == "hover" then
-        local highlights = Config.layout and Config.layout.highlights
-        if highlights and highlights.shadow and highlights.shadow[key] ~= nil then
-            return highlights.shadow[key]
-        end
     end
     return fallback
 end

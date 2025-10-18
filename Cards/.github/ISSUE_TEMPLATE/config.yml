@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Developer Notes (DEV_NOTES.md)
+    url: ../DEV_NOTES.md
+    about: Please review project structure and conventions before filing.
+  - name: Collaboration Policy (AGENTS.md)
+    url: ../AGENTS.md
+    about: Our analyze → plan → approve → implement workflow.
+
