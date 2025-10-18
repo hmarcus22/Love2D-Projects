@@ -1,5 +1,4 @@
 local Card = require "src.card"
-local CardArt = require "src.card_art"
 local Assets = require "src.asset_cache"
 local defs = require "src.card_definitions"
 
@@ -28,7 +27,7 @@ function factory.createCard(defId, opts)
     local image, artPath
     if def.art and type(def.art) == 'string' and def.art ~= '' then
         artPath = def.art
-        image = Assets.image(artPath) or CardArt.load(artPath)
+        image = Assets.image(artPath)
     else
         -- Try assets/cards/<id> and <name> variants
         local function slugifyName(name)

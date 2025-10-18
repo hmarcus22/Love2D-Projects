@@ -3,7 +3,6 @@ local GameState = require "src.gamestate"
 local Input = require "src.input"
 local Viewport = require "src.viewport"
 local pause = require "src.states.pause"
-local replay_match = require "src.replay"
 
 local game = {}
 
