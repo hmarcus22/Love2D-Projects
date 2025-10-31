@@ -56,6 +56,18 @@ function Terrain:createCrater(x, y, radius)
   local leftX = x - radius
   local rightX = x + radius
   
+  -- Store crater information for visual enhancement
+  if not self.craters then
+    self.craters = {}
+  end
+  
+  table.insert(self.craters, {
+    x = x,
+    y = y,
+    radius = radius,
+    depth = craterDepth
+  })
+  
   for i = 1, self.samples do
     local sampleX = (i - 1) / (self.samples - 1) * self.width - self.width / 2
     
@@ -78,13 +90,34 @@ function Terrain:createCrater(x, y, radius)
   print(string.format("Created crater at X:%.1f, radius:%.1f, depth:%.1f", x, radius, craterDepth))
 end
 
+function Terrain:_drawCraterDetails(pass)
+  -- Draw crater-specific visual enhancements (debris only, no dark circles)
+  if not self.craters then return end
+  
+  for _, crater in ipairs(self.craters) do
+    -- Add some debris around crater edge (but no dark crater floor)
+    local numDebris = math.floor(crater.radius * 0.3)
+    for i = 1, numDebris do
+      local angle = (i / numDebris) * math.pi * 2 + math.random() * 0.5
+      local distance = crater.radius * (0.7 + math.random() * 0.5)
+      local debrisX = crater.x + math.cos(angle) * distance
+      local debrisY = self:heightAt(debrisX)
+      
+      if debrisY > 2 then  -- Only place debris on existing terrain
+        -- Small debris chunks (rock/dirt)
+        pass:setColor(0.3, 0.2, 0.1)
+        local size = 0.3 + math.random() * 0.6
+        pass:box(debrisX, debrisY + size * 0.5, 0, size, size, size)
+      end
+    end
+  end
+end
+
 function Terrain:draw(pass)
-  -- Draw the actual terrain segments (baseplate removed - terrain extends down instead)
+  -- Draw the actual terrain segments with enhanced visuals
   local segment = self.width / (self.samples - 1)
   local z = 0
   local depth = self.depth
-  
-  pass:setColor(0.6, 0.4, 0.2) -- Brown terrain color
   
   for i = 1, self.samples - 1 do
     local x = -self.width / 2 + (i - 1) * segment
@@ -97,7 +130,74 @@ function Terrain:draw(pass)
     -- Make terrain segments extend way down below the surface
     local terrainHeight = actualHeight + 120  -- Add 120 units of height below surface
     local cy = actualHeight * 0.5 - 60  -- Center the box so it extends down from surface
-    pass:box(cx, cy, z, segment, terrainHeight, depth)
+    
+    -- Enhanced terrain coloring based on height and position
+    local heightRatio = math.min(1.0, actualHeight / self.maxHeight)
+    
+    -- Surface section (uniform grass layer thickness)
+    local grassThickness = 3  -- Uniform grass layer thickness
+    local surfaceHeight = grassThickness
+    local surfaceY = actualHeight - grassThickness * 0.5
+    
+    -- Surface color: grass-like green-brown gradient
+    local grassR = 0.3 + heightRatio * 0.3  -- 0.3 to 0.6
+    local grassG = 0.5 + heightRatio * 0.3  -- 0.5 to 0.8  
+    local grassB = 0.2 + heightRatio * 0.1  -- 0.2 to 0.3
+    pass:setColor(grassR, grassG, grassB)
+    pass:box(cx, surfaceY, z, segment, surfaceHeight, depth)
+    
+    -- Underground section (below grass layer)
+    local undergroundHeight = terrainHeight - grassThickness
+    if undergroundHeight > 0 then
+      local undergroundY = actualHeight - grassThickness - undergroundHeight * 0.5
+      
+      -- Underground color: darker brown-red earth
+      local earthR = 0.4 + heightRatio * 0.2  -- 0.4 to 0.6
+      local earthG = 0.25 + heightRatio * 0.15  -- 0.25 to 0.4
+      local earthB = 0.1 + heightRatio * 0.1   -- 0.1 to 0.2
+      pass:setColor(earthR, earthG, earthB)
+      pass:box(cx, undergroundY, z, segment, undergroundHeight, depth)
+    end
+  end
+  
+  -- Add some decorative surface details
+  self:_drawSurfaceDetails(pass)
+  
+  -- Draw crater-specific enhancements
+  self:_drawCraterDetails(pass)
+  
+  -- Reset color
+  pass:setColor(1, 1, 1)
+end
+
+function Terrain:_drawSurfaceDetails(pass)
+  -- Add small decorative elements on the terrain surface
+  local numDetails = 15  -- Number of decorative elements
+  
+  for i = 1, numDetails do
+    local x = (math.random() - 0.5) * self.width * 0.8  -- Don't place at edges
+    local surfaceHeight = self:heightAt(x)
+    
+    if surfaceHeight > 5 then  -- Only on reasonably high terrain
+      local detailType = math.random(3)
+      
+      if detailType == 1 then
+        -- Small rocks
+        pass:setColor(0.5, 0.4, 0.3)
+        local size = 0.5 + math.random() * 1.0
+        pass:box(x, surfaceHeight + size * 0.5, 0, size, size, size)
+      elseif detailType == 2 then
+        -- Grass tufts (small green cylinders)
+        pass:setColor(0.2, 0.6, 0.3)
+        local height = 1 + math.random() * 2
+        pass:cylinder(x, surfaceHeight + height * 0.5, 0, 0.3, height)
+      else
+        -- Small bushes (green spheres)
+        pass:setColor(0.3, 0.5, 0.2)
+        local size = 0.8 + math.random() * 0.8
+        pass:sphere(x, surfaceHeight + size * 0.5, 0, size)
+      end
+    end
   end
 end
 
