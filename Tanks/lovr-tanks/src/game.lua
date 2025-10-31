@@ -20,28 +20,33 @@ function Game:init()
   -- Configure camera with terrain dimensions to prevent seeing world's end
   self.camera:setTerrainBounds(self.terrain.width)
   
-  -- Create two tanks with intuitive positioning for camera view
-  local leftX = self.terrain.width * 0.25    -- Green tank at POSITIVE X (appears LEFT on screen)
-  local rightX = -self.terrain.width * 0.25  -- Red tank at NEGATIVE X (appears RIGHT on screen)
+  -- Create two tanks with intuitive positioning for correct camera view
+  local leftX = -self.terrain.width * 0.25   -- Tank 1 at NEGATIVE X (appears LEFT on screen)
+  local rightX = self.terrain.width * 0.25   -- Tank 2 at POSITIVE X (appears RIGHT on screen)
   
   self.tanks = {
     Tank({  -- Tank 1 - Green tank - appears LEFT on screen
-      x = leftX,   -- Positive X
+      x = leftX,   -- Negative X
       y = self.terrain:heightAt(leftX),
-      color = { 0.2, 0.8, 0.3 },
-      dir = -1,  -- Faces left (toward red tank)
-      angle = math.rad(135)  -- Points toward red tank
+      color = { 0.2, 0.8, 0.3 },  -- Green
+      dir = 1,   -- Faces right (toward other tank)
+      angle = math.rad(45)   -- Points toward other tank
     }),
     Tank({  -- Tank 2 - Red tank - appears RIGHT on screen
-      x = rightX,  -- Negative X
+      x = rightX,  -- Positive X
       y = self.terrain:heightAt(rightX),
-      color = { 0.8, 0.2, 0.3 },
-      dir = 1,   -- Faces right (toward green tank)
-      angle = math.rad(45)   -- Points toward green tank
+      color = { 0.8, 0.2, 0.3 },  -- Red
+      dir = -1,  -- Faces left (toward other tank)
+      angle = math.rad(135)  -- Points toward other tank
     })
   }
   
-  self.currentPlayer = 1
+  -- Player health system
+  self.maxHealth = 100
+  self.playerHealth = { self.maxHealth, self.maxHealth }  -- Health for player 1 and 2
+  self.playerNames = { "Player 1", "Player 2" }
+  
+  self.currentPlayer = 1  -- Start with Player 1 (green tank, left side)
   self.projectile = nil
   self.gameState = 'aiming' -- 'aiming', 'charging', 'firing', 'gameover'
   self.chargeTime = 0
@@ -203,12 +208,27 @@ function Game:_handleCollision(collision)
     })
   end
   
+  -- Handle tank damage
   if collision.type == 'tank' then
-    collision.tank.health = collision.tank.health - 50
-    if collision.tank.health <= 0 then
-      -- Game over
-      self.winner = (collision.tank == self.tanks[1]) and 2 or 1
-      self.gameState = 'gameover'
+    -- Find which player was hit
+    local hitPlayer = nil
+    for i, tank in ipairs(self.tanks) do
+      if tank == collision.tank then
+        hitPlayer = i
+        break
+      end
+    end
+    
+    if hitPlayer then
+      -- Deal damage (25% of max health per hit)
+      local damage = math.floor(self.maxHealth * 0.25)
+      self.playerHealth[hitPlayer] = math.max(0, self.playerHealth[hitPlayer] - damage)
+      
+      -- Check for game over
+      if self.playerHealth[hitPlayer] <= 0 then
+        self.winner = (hitPlayer == 1) and 2 or 1  -- Other player wins
+        self.gameState = 'gameover'
+      end
     end
   end
 end
@@ -278,52 +298,179 @@ function Game:draw(pass)
   
   -- Restore camera transform
   self.camera:restore(pass)
-  
-  -- Draw UI overlay
-  self:_drawUI(pass)
 end
 
-function Game:_drawUI(pass)
-  -- This is a simple approach - in a real game you'd want proper 2D UI
-  -- For now, just draw some 3D text in world space
+-- Proper 2D HUD using lovr.mirror callback
+function Game:drawHUD(pass)
+  -- Get actual window dimensions
+  local pixwidth = lovr.system.getWindowWidth()
+  local pixheight = lovr.system.getWindowHeight()
   
-  local tank = self.tanks[self.currentPlayer]
-  local uiY = 50
+  if not pixwidth or not pixheight then
+    return -- Skip HUD if dimensions unavailable
+  end
   
-  -- Player indicator
-  pass:setColor(1, 1, 1)
-  -- You would normally use pass:text() here, but LÖVR text is complex
-  -- For now, just show charge bar if charging
+  -- Set up screen-space coordinate system
+  local aspect = pixwidth / pixheight
+  local height = 2  -- Screen height in coordinate units
+  local width = aspect * height
   
-  -- Show which player is active with a small indicator
-  local tank = self.tanks[self.currentPlayer]
+  -- Create orthographic projection matrix for screen space
+  local matrix = lovr.math.newMat4():orthographic(-width/2, width/2, -height/2, height/2, -1, 1)
   
-  -- Active player indicator (small bright box above tank)
-  pass:setColor(1, 1, 0) -- Yellow indicator
-  pass:box(tank.x, tank.y + tank.bodyHeight + 1.2, 0, 0.5, 0.3, 0.1)
+  -- Create font for text rendering (scale for screen space)
+  local font = lovr.graphics.getDefaultFont()
+  local textScale = height / pixheight * 40  -- Reduced from 80 to match smaller HUD panels
   
-  -- Show charge bar only when charging
+  -- Switch to 2D screen space
+  pass:origin()
+  pass:setViewPose(1, lovr.math.newMat4())
+  pass:setProjection(1, matrix)
+  pass:setDepthTest() -- Clear depth buffer from 3D scene
+  
+  self:_draw2DHUD(pass, width, height, font, textScale)
+end
+
+function Game:_draw2DHUD(pass, width, height, font, textScale)
+  -- HUD layout constants
+  local margin = 0.1
+  local panelWidth = 0.6  -- Half the original size
+  local panelHeight = 0.15  -- Half the original size
+  local barWidth = 0.4  -- Half the original size
+  local barHeight = 0.04  -- Half the original size
+  
+  -- Set font for text rendering
+  pass:setFont(font)
+  
+  -- === Player 1 HUD (Left side) ===
+  local p1X = -width/2 + margin + panelWidth/2
+  local p1Y = -height/2 + margin + panelHeight/2
+  
+  -- Player 1 background panel
+  pass:setColor(0.1, 0.3, 0.1, 0.8)  -- Dark green
+  pass:plane(p1X, p1Y, 0, panelWidth, panelHeight)
+  
+  -- Player 1 text label
+  pass:setColor(0.9, 0.9, 0.9)  -- White text
+  pass:text("Player 1", p1X, p1Y + panelHeight/4, 0.01, textScale)
+  
+  -- Player 1 health bar
+  local healthRatio1 = self.playerHealth[1] / self.maxHealth
+  -- Background
+  pass:setColor(0.2, 0.1, 0.1)
+  pass:plane(p1X, p1Y - panelHeight/4, 0.01, barWidth, barHeight)
+  -- Fill
+  if healthRatio1 > 0.6 then
+    pass:setColor(0.2, 0.8, 0.3)  -- Green
+  elseif healthRatio1 > 0.3 then
+    pass:setColor(0.8, 0.8, 0.2)  -- Yellow
+  else
+    pass:setColor(0.8, 0.2, 0.2)  -- Red
+  end
+  local fillWidth1 = barWidth * healthRatio1
+  if fillWidth1 > 0 then
+    pass:plane(p1X - (barWidth - fillWidth1)/2, p1Y - panelHeight/4, 0.02, fillWidth1, barHeight * 0.8)
+  end
+  
+  -- Player 1 active indicator
+  if self.currentPlayer == 1 then
+    pass:setColor(1, 1, 0, 0.8)  -- Yellow
+    pass:plane(p1X - panelWidth/2 - 0.05, p1Y, 0.02, 0.05, panelHeight)
+  end
+  
+  -- === Player 2 HUD (Right side) ===
+  local p2X = width/2 - margin - panelWidth/2
+  local p2Y = -height/2 + margin + panelHeight/2
+  
+  -- Player 2 background panel
+  pass:setColor(0.3, 0.1, 0.1, 0.8)  -- Dark red
+  pass:plane(p2X, p2Y, 0, panelWidth, panelHeight)
+  
+  -- Player 2 text label
+  pass:setColor(0.9, 0.9, 0.9)  -- White text
+  pass:text("Player 2", p2X, p2Y + panelHeight/4, 0.01, textScale)
+  
+  -- Player 2 health bar
+  local healthRatio2 = self.playerHealth[2] / self.maxHealth
+  -- Background
+  pass:setColor(0.2, 0.1, 0.1)
+  pass:plane(p2X, p2Y - panelHeight/4, 0.01, barWidth, barHeight)
+  -- Fill
+  if healthRatio2 > 0.6 then
+    pass:setColor(0.2, 0.8, 0.3)  -- Green
+  elseif healthRatio2 > 0.3 then
+    pass:setColor(0.8, 0.8, 0.2)  -- Yellow
+  else
+    pass:setColor(0.8, 0.2, 0.2)  -- Red
+  end
+  local fillWidth2 = barWidth * healthRatio2
+  if fillWidth2 > 0 then
+    pass:plane(p2X - (barWidth - fillWidth2)/2, p2Y - panelHeight/4, 0.02, fillWidth2, barHeight * 0.8)
+  end
+  
+  -- Player 2 active indicator
+  if self.currentPlayer == 2 then
+    pass:setColor(1, 1, 0, 0.8)  -- Yellow
+    pass:plane(p2X + panelWidth/2 + 0.05, p2Y, 0.02, 0.05, panelHeight)
+  end
+  
+  -- === Central Charge Bar ===
   if self.gameState == 'charging' then
-    local barWidth = 0.8  
-    local barHeight = 0.1  
-    local chargeRatio = self.chargeTime / self.maxChargeTime
+    local centerX = 0
+    local centerY = height/2 - 0.4
     
-    -- Background
-    pass:setColor(0.2, 0.2, 0.2)
-    pass:box(tank.x, tank.y + tank.bodyHeight + 0.8, 0, barWidth, barHeight, 0.05)
+    local chargeRatio = math.min(1.0, self.chargeTime / self.maxChargeTime)
+    local chargeBarWidth = 1.0
+    local chargeBarHeight = 0.1
+    
+    -- Charge bar background
+    pass:setColor(0.1, 0.1, 0.1, 0.9)
+    pass:plane(centerX, centerY, 0, chargeBarWidth, chargeBarHeight)
     
     -- Charge fill
-    pass:setColor(1, 1 - chargeRatio, 0) -- Yellow to red
-    local fillWidth = barWidth * chargeRatio
-    pass:box(tank.x - (barWidth - fillWidth) * 0.5, tank.y + tank.bodyHeight + 0.8, 0, fillWidth, barHeight * 0.8, 0.06)
+    if chargeRatio < 0.7 then
+      pass:setColor(0.2, 0.8, 0.3, 0.9)  -- Green
+    elseif chargeRatio < 0.9 then
+      pass:setColor(0.8, 0.8, 0.2, 0.9)  -- Yellow
+    else
+      pass:setColor(0.8, 0.2, 0.2, 0.9)  -- Red
+    end
+    
+    local chargeFillWidth = chargeBarWidth * chargeRatio
+    if chargeFillWidth > 0 then
+      pass:plane(centerX - (chargeBarWidth - chargeFillWidth)/2, centerY, 0.01, chargeFillWidth, chargeBarHeight * 0.8)
+    end
+    
+    -- Charge percentage text
+    pass:setColor(1, 1, 1)
+    local percentage = math.floor(chargeRatio * 100)
+    pass:text(string.format("Power: %d%%", percentage), centerX, centerY - 0.15, 0.01, textScale * 0.8)
   end
   
+  -- === Game Over Screen ===
   if self.gameState == 'gameover' and self.winner then
-    -- Simple winner display - in a real game you'd want proper text rendering
-    pass:setColor(1, 1, 0)
-    -- Would show "Player X Wins!" text here
+    local centerX = 0
+    local centerY = 0
+    
+    -- Semi-transparent overlay
+    pass:setColor(0, 0, 0, 0.7)
+    pass:plane(centerX, centerY, 0.1, width, height)
+    
+    -- Winner panel
+    pass:setColor(0.2, 0.2, 0.2, 0.9)
+    pass:plane(centerX, centerY, 0.2, 2, 0.8)
+    
+    -- Winner text
+    pass:setColor(1, 1, 1)
+    local winnerText = string.format("Player %d Wins!", self.winner)
+    pass:text(winnerText, centerX, centerY + 0.2, 0.3, textScale * 1.2)
+    
+    -- Restart instruction
+    pass:setColor(0.8, 0.8, 0.8)
+    pass:text("Press R to restart", centerX, centerY - 0.2, 0.3, textScale * 0.9)
   end
   
+  -- Reset color
   pass:setColor(1, 1, 1)
 end
 

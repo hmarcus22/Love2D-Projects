@@ -7,16 +7,19 @@
 
 ## Gameplay & Controls (v0.1)
 - Perspective: Side view. Tanks constrained to X; Y from terrain; Z fixed at 0.
-- Camera: Positioned behind battlefield (positive Z looking toward Z=0). Due to this angle:
-  - Green tank (Player 1) appears on RIGHT side of screen (negative X coordinate)
-  - Red tank (Player 2) appears on LEFT side of screen (positive X coordinate)
+- Camera: Dynamic camera system using LÖVR's lookAt matrix for proper 3D perspective:
+  - **Coordinate System (FIXED)**: Standard 3D coordinates where negative X = left, positive X = right
+  - **Player 1 (Green tank)**: Negative X coordinate, appears on LEFT side of screen
+  - **Player 2 (Red tank)**: Positive X coordinate, appears on RIGHT side of screen
+  - **Camera follows**: Dynamic midpoint between tanks with automatic zoom based on separation
 - Terrain: 1D height profile extruded along Z into a thin strip; seedable randomness.
 - Movement: Left/Right arrows move the active tank along X (slope limited).
-  - Left arrow: moves toward positive X (appears left on screen)
-  - Right arrow: moves toward negative X (appears right on screen)
+  - **Left arrow**: moves toward negative X (left on screen) - INTUITIVE
+  - **Right arrow**: moves toward positive X (right on screen) - INTUITIVE
 - Aim: Up/Down adjust barrel elevation (clamped, e.g., 5°–85° toward opponent).
 - Fire: Space down starts charging power; release to shoot. Power scales with hold time.
 - Turn flow: Aim → Charge (hold Space) → Fire/Simulate → Resolve (damage/win) → Switch player.
+- **HUD System**: 3D UI elements positioned above tanks showing health bars, player indicators, and charge bar.
 
 ## Technical Decisions
 - Engine: LÖVR desktop (no headset). Simple forward rendering with one pass.
@@ -42,15 +45,18 @@
 - Damage: simple hit = 50 dmg (v0.1); blast radius and falloff later.
 
 ## Milestones
-1) Setup and libs (LÖVR desktop, HUMP) — done
-2) Side‑view camera + HUD skeleton — done
-3) Procedural terrain (1D, extruded) — done
-4) Tanks + movement + aim — done
-5) Turn system + charge‑to‑fire — done
-6) Projectile sim + basic collision — done
-7) Damage/health/win loop — done
-8) Polish (FX, camera follow, wind) — next
-9) Packaging + docs (README, controls, seeds) — next
+1) Setup and libs (LÖVR desktop, HUMP) — ✅ done
+2) Side‑view camera + HUD skeleton — ✅ done
+3) Procedural terrain (1D, extruded) — ✅ done
+4) Tanks + movement + aim — ✅ done
+5) Turn system + charge‑to‑fire — ✅ done
+6) Projectile sim + basic collision — ✅ done
+7) Damage/health/win loop — ✅ done
+8) **Dynamic camera system** — ✅ **COMPLETED**: Camera follows midpoint between tanks with automatic zoom
+9) **HUD system** — ✅ **COMPLETED**: Health bars, player indicators, charge bar with 3D UI elements
+10) **Coordinate system fix** — ✅ **COMPLETED**: Intuitive left/right movement controls
+11) Polish (enhanced FX, audio, terrain destruction) — next
+12) Packaging + docs (README, controls, seeds) — next
 
 ## Verification (v0.1)
 - Run: `cd lovr-tanks && lovr .`

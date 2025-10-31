@@ -23,9 +23,23 @@ function lovr.update(dt)
 end
 
 function lovr.draw(pass)
-  if game then game:draw(pass) end
+  if game then 
+    game:draw(pass)  -- 3D world rendering
+  end
   if lovr.graphics and lovr.graphics.submit then
     lovr.graphics.submit(pass)
+  end
+end
+
+-- Backup the original mirror function
+local originalMirror = lovr.mirror
+
+function lovr.mirror(pass)
+  if originalMirror then
+    originalMirror(pass)  -- Show the 3D scene first
+  end
+  if game then
+    game:drawHUD(pass)  -- Then overlay the 2D HUD
   end
 end
 
