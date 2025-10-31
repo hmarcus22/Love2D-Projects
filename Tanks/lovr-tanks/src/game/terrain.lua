@@ -48,6 +48,36 @@ function Terrain:heightAt(x)
   return h1 + (h2 - h1) * fract
 end
 
+function Terrain:createCrater(x, y, radius)
+  -- Create a crater by reducing terrain height in the affected area
+  local craterDepth = radius * 0.8  -- Crater depth proportional to radius
+  
+  -- Find the range of terrain samples affected by the crater
+  local leftX = x - radius
+  local rightX = x + radius
+  
+  for i = 1, self.samples do
+    local sampleX = (i - 1) / (self.samples - 1) * self.width - self.width / 2
+    
+    -- Check if this sample is within crater radius
+    if sampleX >= leftX and sampleX <= rightX then
+      local distanceFromCenter = math.abs(sampleX - x)
+      
+      if distanceFromCenter <= radius then
+        -- Calculate crater depth using a smooth falloff (inverted parabola)
+        local normalizedDistance = distanceFromCenter / radius
+        local depthMultiplier = 1 - (normalizedDistance * normalizedDistance)
+        local actualDepth = craterDepth * depthMultiplier
+        
+        -- Reduce terrain height (but don't go below minimum)
+        self.heights[i] = math.max(2, self.heights[i] - actualDepth)
+      end
+    end
+  end
+  
+  print(string.format("Created crater at X:%.1f, radius:%.1f, depth:%.1f", x, radius, craterDepth))
+end
+
 function Terrain:draw(pass)
   -- Draw the actual terrain segments (baseplate removed - terrain extends down instead)
   local segment = self.width / (self.samples - 1)

@@ -230,6 +230,16 @@ function Game:_handleCollision(collision)
         self.gameState = 'gameover'
       end
     end
+  elseif collision.type == 'terrain' then
+    -- Create crater in terrain for destructible terrain effect
+    local craterRadius = 8 + math.random() * 4  -- Random crater size between 8-12 units
+    self.terrain:createCrater(collision.x, collision.y, craterRadius)
+    
+    -- Update tank positions if they're affected by terrain changes
+    for i, tank in ipairs(self.tanks) do
+      local newGroundHeight = self.terrain:heightAt(tank.x)
+      tank.y = newGroundHeight
+    end
   end
 end
 
