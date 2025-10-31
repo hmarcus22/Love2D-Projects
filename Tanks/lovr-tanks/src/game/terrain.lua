@@ -59,13 +59,15 @@ function Terrain:draw(pass)
   for i = 1, self.samples - 1 do
     local x = -self.width / 2 + (i - 1) * segment
     local h = self.heights[i]
-    if h > 0.1 then
-      local cx = x + segment * 0.5
-      -- Make terrain segments extend way down below the surface
-      local terrainHeight = h + 120  -- Add 120 units of height below surface
-      local cy = h * 0.5 - 60  -- Center the box so it extends down from surface
-      pass:box(cx, cy, z, segment, terrainHeight, depth)
-    end
+    -- Ensure minimum height to prevent gaps, and always draw terrain segments
+    local minHeight = 5  -- Minimum terrain height to prevent gaps
+    local actualHeight = math.max(h, minHeight)
+    
+    local cx = x + segment * 0.5
+    -- Make terrain segments extend way down below the surface
+    local terrainHeight = actualHeight + 120  -- Add 120 units of height below surface
+    local cy = actualHeight * 0.5 - 60  -- Center the box so it extends down from surface
+    pass:box(cx, cy, z, segment, terrainHeight, depth)
   end
 end
 
