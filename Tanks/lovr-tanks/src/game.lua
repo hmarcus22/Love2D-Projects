@@ -17,6 +17,9 @@ function Game:init()
     seed = 42
   })
   
+  -- Configure camera with terrain dimensions to prevent seeing world's end
+  self.camera:setTerrainBounds(self.terrain.width)
+  
   -- Create two tanks with intuitive positioning for camera view
   local leftX = self.terrain.width * 0.25    -- Green tank at POSITIVE X (appears LEFT on screen)
   local rightX = -self.terrain.width * 0.25  -- Red tank at NEGATIVE X (appears RIGHT on screen)
@@ -121,11 +124,11 @@ end
 function Game:_updateAiming(dt)
   local tank = self.tanks[self.currentPlayer]
   
-  -- Movement (intuitive - left moves left, right moves right on screen)
+  -- Movement (corrected for proper camera perspective)
   if self.keys['left'] then
-    tank:move(self.moveSpeed * dt, self.terrain)   -- Move positive X (left on screen)
+    tank:move(-self.moveSpeed * dt, self.terrain)  -- Move negative X (left on screen)
   elseif self.keys['right'] then
-    tank:move(-self.moveSpeed * dt, self.terrain)  -- Move negative X (right on screen)
+    tank:move(self.moveSpeed * dt, self.terrain)   -- Move positive X (right on screen)
   end
   
   -- Aiming

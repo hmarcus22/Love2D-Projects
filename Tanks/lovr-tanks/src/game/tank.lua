@@ -24,6 +24,7 @@ function Tank:update(dt, terrain)
 end
 
 function Tank:move(dx, terrain)
+  local oldX = self.x
   self.x = self.x + dx
   -- clamp to world bounds
   local halfW = (terrain.width * 0.5) - 1.0
@@ -32,6 +33,8 @@ function Tank:move(dx, terrain)
   
   -- Always update Y to follow terrain height
   self.y = terrain:heightAt(self.x)
+  
+  -- No debug spam - let camera debug show the movement
 end
 
 function Tank:aim(dAngle)

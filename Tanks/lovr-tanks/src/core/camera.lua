@@ -13,11 +13,26 @@ function Camera:init(opts)
   self.target = { x = 0, y = 20, z = 0 }
   self.up = { x = 0, y = 1, z = 0 }
   
-  -- Camera bounds for ensuring both tanks are visible (wider range for zoom)
+  -- Camera bounds for ensuring both tanks are visible
   self.minX = -400
   self.maxX = 400
   self.minZ = 50   -- Much closer minimum for better tank visibility
-  self.maxZ = 600  -- Farthest zoom (when tanks are apart)
+  -- maxZ will be calculated based on terrain width to prevent seeing world's end
+  self.maxZ = 800  -- Will be overridden by setTerrainBounds()
+  
+  -- Terrain dimensions (will be set by setTerrainBounds)
+  self.terrainWidth = 600  -- Default, will be updated
+end
+
+function Camera:setTerrainBounds(terrainWidth)
+  self.terrainWidth = terrainWidth
+  -- Calculate max distance needed to show full terrain width
+  -- Using field of view to calculate required distance
+  local halfFOV = self.fovy * 0.5
+  local requiredDistance = (terrainWidth * 0.6) / math.tan(halfFOV)
+  self.maxZ = math.max(600, requiredDistance) -- At least 600, but scale with terrain
+  
+  print("Camera bounds set - minZ:", self.minZ, "maxZ:", self.maxZ, "terrain width:", terrainWidth)
 end
 
 function Camera:setLookAt(px, py, pz, tx, ty, tz)
@@ -26,56 +41,53 @@ function Camera:setLookAt(px, py, pz, tx, ty, tz)
 end
 
 function Camera:updateToShowBothTanks(tank1, tank2)
-  -- Calculate the center point between both tanks (X only)
+  -- Calculate the dynamic midpoint between both tanks (X-axis only)
   local centerX = (tank1.x + tank2.x) / 2
+  -- Don't follow Y-axis - keep camera at fixed height
   
-  -- Calculate distance between tanks for zoom adjustment
+  -- Calculate horizontal distance between tanks for zoom
   local tankDistance = math.abs(tank1.x - tank2.x)
   
-  -- Camera distance optimized to keep tanks clearly visible
-  -- Starting tank distance is ~300 units, so base should accommodate this
-  local baseDistance = 60         -- Close enough for tanks to be clearly visible
-  local zoomFactor = tankDistance * 0.8  -- Gentle zoom as tanks spread apart
+  -- Camera distance: close when tanks are together, far when they're apart
+  local baseDistance = 100  -- Good starting view
+  local zoomFactor = tankDistance * 0.5  -- Zoom out as tanks spread apart
   local cameraDistance = math.max(self.minZ, math.min(self.maxZ, baseDistance + zoomFactor))
   
-  -- Camera position: POSITIVE Z to look from behind
-  self.position.x = centerX    -- Follow tank center horizontally
-  self.position.y = 40         -- Fixed height - never changes  
-  self.position.z = cameraDistance  -- Dynamic zoom based on tank distance
+  -- Store old position to see if it changes
+  local oldX = self.position.x
   
-  -- Look target: look toward the battlefield
-  self.target.x = centerX      -- Look at tank center horizontally  
-  self.target.y = 0            -- Fixed look height - never changes
-  self.target.z = 0            -- Look at the battlefield plane
+  -- Position camera to look at the dynamic midpoint (X-axis only)
+  self.position.x = centerX     -- FOLLOW the midpoint horizontally
+  self.position.y = 40          -- FIXED height - don't follow tank Y movement  
+  self.position.z = cameraDistance  -- Back from the midpoint
+  
+  -- Look AT the dynamic midpoint (X-axis only)
+  self.target.x = centerX       -- LOOK AT the midpoint horizontally
+  self.target.y = 0             -- FIXED look height - don't follow tank Y
+  self.target.z = 0             -- Look at ground level
+  
+  -- Only show significant camera changes
+  if math.abs(centerX - oldX) > 1.0 then
+    print(string.format("CAMERA MOVED: X %.1f->%.1f (Tank1:%.1f Tank2:%.1f)", 
+                        oldX, centerX, tank1.x, tank2.x))
+  end
 end
 
 function Camera:apply(pass)
-  -- Simplified camera setup - LÖVR handles viewport automatically
-  -- Apply camera transform
+  -- Use LÖVR's built-in look-at functionality for proper camera transforms
   pass:push()
   
-  -- Create view matrix manually
-  local dx = self.target.x - self.position.x
-  local dy = self.target.y - self.position.y
-  local dz = self.target.z - self.position.z
-  local distance = math.sqrt(dx*dx + dy*dy + dz*dz)
+  -- Create vec3 objects for lookAt function
+  local eye = lovr.math.newVec3(self.position.x, self.position.y, self.position.z)
+  local target = lovr.math.newVec3(self.target.x, self.target.y, self.target.z)
+  local up = lovr.math.newVec3(0, 1, 0)
   
-  if distance > 0 then
-    -- Normalize direction
-    dx, dy, dz = dx/distance, dy/distance, dz/distance
-    
-    -- Apply camera transform
-    pass:translate(-self.position.x, -self.position.y, -self.position.z)
-    
-    -- Rotate to look at target
-    local yaw = math.atan2(dx, dz)
-    local pitch = math.asin(-dy)
-    
-    pass:rotate(-pitch, 1, 0, 0)  -- Pitch rotation
-    pass:rotate(-yaw, 0, 1, 0)    -- Yaw rotation
-  else
-    pass:translate(-self.position.x, -self.position.y, -self.position.z)
-  end
+  -- Create a proper view matrix using lookAt
+  local viewMatrix = lovr.math.newMat4()
+  viewMatrix:lookAt(eye, target, up)
+  
+  -- Apply the view transformation
+  pass:transform(viewMatrix)
 end
 
 function Camera:restore(pass)
