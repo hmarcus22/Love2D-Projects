@@ -12,7 +12,7 @@ function Game:init()
   self.terrain = Terrain({
     width = 600,  -- Much wider terrain to fill landscape window
     depth = 6,    
-    samples = 200,  -- More samples for the wider terrain
+    samples = 800,  -- Much higher resolution for smooth terrain (4x increase)
     maxHeight = 30,
     seed = 42
   })

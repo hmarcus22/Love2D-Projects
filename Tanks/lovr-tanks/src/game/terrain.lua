@@ -6,7 +6,7 @@ function Terrain:init(opts)
   opts = opts or {}
   self.width = opts.width or 200
   self.depth = opts.depth or 6
-  self.samples = opts.samples or 128
+  self.samples = opts.samples or 512  -- Increased from 128 to 512 for higher resolution
   self.maxHeight = opts.maxHeight or 30
   self.offset = opts.seed or 123.456
   self.heights = {}
