@@ -58,13 +58,16 @@ function Camera:updateToShowBothTanks(tank1, tank2)
   
   -- Position camera to look at the dynamic midpoint (X-axis only)
   self.position.x = centerX     -- FOLLOW the midpoint horizontally
-  self.position.y = 40          -- FIXED height - don't follow tank Y movement  
+  self.position.y = 50          -- Lower camera position
   self.position.z = cameraDistance  -- Back from the midpoint
   
-  -- Look AT the dynamic midpoint (X-axis only)
+  -- Look AT a point ABOVE the midpoint to shift terrain toward bottom of screen
   self.target.x = centerX       -- LOOK AT the midpoint horizontally
-  self.target.y = 0             -- FIXED look height - don't follow tank Y
+  self.target.y = 40            -- LOOK UP to shift terrain down on screen
   self.target.z = 0             -- Look at ground level
+  
+  -- Debug: Print camera position to verify Y changes
+  print(string.format("CAMERA Y-POS: %.1f, TARGET Y: %.1f", self.position.y, self.target.y))
   
   -- Only show significant camera changes
   if math.abs(centerX - oldX) > 1.0 then
