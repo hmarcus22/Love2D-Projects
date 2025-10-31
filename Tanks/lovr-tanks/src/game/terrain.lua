@@ -49,11 +49,7 @@ function Terrain:heightAt(x)
 end
 
 function Terrain:draw(pass)
-  -- Draw a thin base ground plane to fill the bottom of the view
-  pass:setColor(0.4, 0.25, 0.1) -- Dark brown for base
-  pass:box(0, -2, 0, self.width * 1.1, 4, self.depth)  -- Match the wider terrain
-  
-  -- Draw the actual terrain segments
+  -- Draw the actual terrain segments (baseplate removed - terrain extends down instead)
   local segment = self.width / (self.samples - 1)
   local z = 0
   local depth = self.depth
@@ -65,8 +61,10 @@ function Terrain:draw(pass)
     local h = self.heights[i]
     if h > 0.1 then
       local cx = x + segment * 0.5
-      local cy = h * 0.5
-      pass:box(cx, cy, z, segment, h, depth)
+      -- Make terrain segments extend way down below the surface
+      local terrainHeight = h + 120  -- Add 120 units of height below surface
+      local cy = h * 0.5 - 60  -- Center the box so it extends down from surface
+      pass:box(cx, cy, z, segment, terrainHeight, depth)
     end
   end
 end
