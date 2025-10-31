@@ -417,6 +417,110 @@ end
 function Resolve.triggerAttackAnimation(gameState, card, attackerIndex, slotIndex)
     if not card then return end
     
+    -- Custom AOE sweep for Roundhouse: leap + half-spin, then three quick stabs across enemy row
+    do
+        local def = card.definition or {}
+        if (card.id == 'roundhouse' or (def and def.id == 'roundhouse')) and def.effect == 'aoe_attack' then
+            if gameState.animations then
+                -- Start prep resolve animation (leap + half spin)
+                if gameState.animations.startResolveAnimation then
+                    gameState.animations:startResolveAnimation(card, 'roundhouse_prep', nil)
+                end
+
+                -- Determine opponent row positions and compute facing angles per slot
+                local opponentIndex = (attackerIndex == 1) and 2 or 1
+                local maxSlots = gameState.maxBoardCards or 3
+                local cx = (card.x or 0) + (card.w or 100)/2
+                local cy = (card.y or 0) + (card.h or 150)/2
+                local cardW, cardH = gameState:getCardDimensions()
+                local spinRange = math.rad(270)
+                local windupDur = 0.08
+                local strikeDur = 1.10
+                local freezeDur = 0.20 -- per-kick freeze window
+                local Config = require 'src.config'
+
+                -- Build kick table; include target center X and spin-aligned base delay
+                local function normAngle(a)
+                    local twoPi = math.pi * 2
+                    a = a % twoPi
+                    if a < 0 then a = a + twoPi end
+                    return a
+                end
+                -- First pass: collect targets with their angles and centers
+                local temp = {}
+                for i = 1, maxSlots do
+                    local sx, sy = gameState:getBoardSlotPosition(opponentIndex, i)
+                    local tx = sx + (cardW or (card.w or 100))/2
+                    local ty = sy + (cardH or (card.h or 150))/2
+                    local dx = tx - cx
+                    local dy = ty - cy
+                    local angle = (math.atan2 and math.atan2(dx, dy)) or math.atan(dx, dy)
+                    temp[#temp+1] = { slot = i, angle = angle, tx = tx }
+                end
+                -- Determine true spin start orientation: card rotation + windup rotation (-12deg)
+                local startAngle = normAngle((card.rotation or 0) + math.rad(-12))
+                -- Second pass: compute spin-aligned baseDelay per target
+                local kicks = {}
+                for i = 1, #temp do
+                    local t = temp[i]
+                    local delta = normAngle(t.angle - startAngle)
+                    if delta > spinRange then delta = spinRange end
+                    local baseDelay = windupDur + (delta / spinRange) * strikeDur
+                    kicks[#kicks+1] = { slot = t.slot, angle = t.angle, tx = t.tx, baseDelay = baseDelay }
+                end
+
+                -- Map spin-perfect times to left->center->right order
+                -- 1) spinOrder by baseDelay (natural spin timing)
+                local spinOrder = {}
+                for i = 1, #kicks do spinOrder[i] = kicks[i] end
+                table.sort(spinOrder, function(a, b)
+                    if a.baseDelay == b.baseDelay then return a.slot < b.slot end
+                    return a.baseDelay < b.baseDelay
+                end)
+                -- 2) lrOrder by screen X (left->right)
+                local lrOrder = {}
+                for i = 1, #kicks do lrOrder[i] = kicks[i] end
+                table.sort(lrOrder, function(a, b)
+                    if a.tx == b.tx then return a.slot < b.slot end
+                    return a.tx < b.tx
+                end)
+                -- 3) Assign earliest spin times to leftmost slots; schedule without extra padding
+                for idx = 1, #lrOrder do
+                    local k = lrOrder[idx]
+                    local assignedTime = spinOrder[idx] and spinOrder[idx].baseDelay or windupDur
+                    local kAngle = k.angle
+                    local delay = assignedTime
+                    if Config and Config.debug then
+                        print(string.format("[Roundhouse] Kick slot %d (order %d): tx=%.1f, assignedDelay %.3fs", k.slot, idx, k.tx or 0, delay))
+                    end
+                    if gameState.animations.after then
+                        gameState.animations:after(delay, function()
+                            -- Fixed-length local-Y stab: compute forward from facing angle and stab a constant distance
+                            local dirX = math.sin(kAngle)
+                            local dirY = math.cos(kAngle)
+                            local stabDist = 140 -- exaggerated for clearer analysis
+                            local targetX = (card.x or 0) + dirX * stabDist
+                            local targetY = (card.y or 0) + dirY * stabDist
+                            if gameState.animations.startAttackAnimation then
+                                gameState.animations:startAttackAnimation(card, { x = targetX, y = targetY })
+                            end
+                            -- Brief freeze of rotation to analyze kick moment (record start and end)
+                            local now = love.timer.getTime()
+                            card._roundhouseFreezeStartTime = now
+                            card._roundhouseFreezeEndTime = now + freezeDur
+                            gameState.animations:after(freezeDur, function()
+                                card._roundhouseFreezeStartTime = nil
+                                card._roundhouseFreezeEndTime = nil
+                            end)
+                        end)
+                    end
+                end
+
+                return -- Skip default single-lane strike
+            end
+        end
+    end
+
     -- UNIFIED: Trigger unified attack animation if available
     if gameState.animations and gameState.animations.startAttackAnimation then
         -- Find target card for enhanced visual effects

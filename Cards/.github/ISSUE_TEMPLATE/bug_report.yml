@@ -1,0 +1,81 @@
+name: Bug report
+description: Report a bug with steps and analysis.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area of code
+      options:
+        - logic
+        - renderers
+        - animations
+        - states
+        - core/objects
+        - ui
+        - other
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - blocker
+        - high
+        - normal
+        - low
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Love2D version, branch/commit SHA, GPU if relevant
+      placeholder: "Windows 11, Love 11.5, commit abc123"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps that reliably reproduce the issue
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: analysis
+    attributes:
+      label: Analysis / Hypothesis
+      description: Root cause guess, suspected area(s)
+  - type: input
+    id: suspected
+    attributes:
+      label: Suspected files/lines
+      placeholder: "src/gamestate.lua:507, src/renderers/shadow_renderer.lua:336"
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround (if any)
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Paste relevant logs or describe visuals; attach images after submitting if needed
+

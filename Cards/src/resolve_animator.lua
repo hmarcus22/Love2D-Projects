@@ -20,6 +20,13 @@ function ResolveAnimator:startResolveAnimation(card, animationType, target, conf
         return
     end
     
+    -- Mark card as in-resolve so board-state idle/interaction won't fight visuals
+    card._inResolve = true
+    -- Debug: mark kick-active for roundhouse attack stabs so renderer can tint
+    if animationType == 'attack_strike' and card.id == 'roundhouse' then
+        card._debugKickActiveCount = (card._debugKickActiveCount or 0) + 1
+    end
+
     local animation = {
         card = card,
         target = target,
@@ -61,9 +68,30 @@ end
 function ResolveAnimator:updateResolveAnimation(animation, dt)
     local currentTime = love.timer.getTime()
     local elapsed = currentTime - animation.startTime
+    local effectiveElapsed = elapsed
+    -- For roundhouse, subtract any active/frozen time from elapsed so phase selection and completion truly pause
+    if animation.card and animation.card.id == 'roundhouse' then
+        -- Accumulate previous freeze windows in a timeline accumulator
+        local accum = animation.state.timelineFreezeAccum or 0
+        local active = 0
+        local fs = animation.card._roundhouseFreezeStartTime
+        local fe = animation.card._roundhouseFreezeEndTime
+        if fs and fe then
+            if currentTime < fe then
+                active = math.max(0, currentTime - fs)
+            else
+                -- Window ended; fold into accumulator and clear card flags
+                accum = accum + math.max(0, fe - fs)
+                animation.card._roundhouseFreezeStartTime = nil
+                animation.card._roundhouseFreezeEndTime = nil
+            end
+        end
+        animation.state.timelineFreezeAccum = accum
+        effectiveElapsed = math.max(0, elapsed - accum - active)
+    end
     
     -- Determine current phase
-    local newPhase = self:getCurrentResolvePhase(animation, elapsed)
+    local newPhase = self:getCurrentResolvePhase(animation, effectiveElapsed)
     
     -- Handle phase transitions
     if newPhase ~= animation.currentPhase then
@@ -79,7 +107,7 @@ function ResolveAnimator:updateResolveAnimation(animation, dt)
     
     -- Check for completion
     local totalDuration = self:calculateResolveDuration(animation.spec)
-    if elapsed >= totalDuration then
+    if effectiveElapsed >= totalDuration then
         self:completeResolveAnimation(animation)
         return true -- Animation completed
     end
@@ -181,6 +209,8 @@ function ResolveAnimator:onResolvePhaseChange(animation, oldPhase, newPhase)
     if newPhase == "strike" or newPhase == "push" then
         self:initializeMovementPhase(animation, newPhase)
     end
+
+    -- (Removed) Temporary strike-only debug overlay control
 end
 
 -- Initialize movement phase (strike/push)
@@ -230,36 +260,91 @@ function ResolveAnimator:updatePhaseFromSpec(animation, phaseSpec, dt)
     local phaseDuration = phaseSpec.duration or 1.0
     local progress = math.min(phaseElapsed / phaseDuration, 1.0)
     
-    -- Scale animation
+    -- Scale animation (combine phase scale with unified height-based scale)
+    local baseScale = animation.state.originalScale or 1.0
     if phaseSpec.scale then
-        local targetScale = animation.state.originalScale * phaseSpec.scale
-        card.scale = animation.state.originalScale + (targetScale - animation.state.originalScale) * progress
+        local targetScale = baseScale * phaseSpec.scale
+        baseScale = (animation.state.originalScale or 1.0) + (targetScale - (animation.state.originalScale or 1.0)) * progress
     end
     
-    -- Rotation animation
+    -- Rotation animation (with proper freeze accumulation for roundhouse)
     if phaseSpec.rotation then
         local targetRotation = animation.state.originalRotation + math.rad(phaseSpec.rotation)
-        card.rotation = animation.state.originalRotation + (targetRotation - animation.state.originalRotation) * progress
+        local rotProgress = progress
+        if animation.card and animation.card.id == 'roundhouse' then
+            local now = love.timer.getTime()
+            local freezeEnd = animation.card._roundhouseFreezeEndTime
+            animation.state.rotationFreezeAccum = animation.state.rotationFreezeAccum or 0
+            -- Start or maintain an active freeze window
+            if freezeEnd and (not animation.state.rotationFreezeActive) and now < freezeEnd then
+                animation.state.rotationFreezeActive = true
+                animation.state.rotationFreezeStart = now
+            end
+            -- Compute effective elapsed excluding accumulated and active freeze time
+            local effectiveElapsed
+            if animation.state.rotationFreezeActive then
+                if freezeEnd and now < freezeEnd then
+                    local active = now - (animation.state.rotationFreezeStart or now)
+                    effectiveElapsed = (now - animation.phaseStartTime) - (animation.state.rotationFreezeAccum or 0) - active
+                else
+                    -- Freeze ended; accumulate and clear active markers
+                    local added = 0
+                    if animation.state.rotationFreezeStart then
+                        local endTime = freezeEnd or now
+                        added = math.max(0, endTime - animation.state.rotationFreezeStart)
+                    end
+                    animation.state.rotationFreezeAccum = (animation.state.rotationFreezeAccum or 0) + added
+                    animation.state.rotationFreezeActive = nil
+                    animation.state.rotationFreezeStart = nil
+                    if freezeEnd and now >= freezeEnd then
+                        animation.card._roundhouseFreezeEndTime = nil
+                    end
+                    effectiveElapsed = (now - animation.phaseStartTime) - (animation.state.rotationFreezeAccum or 0)
+                end
+            else
+                effectiveElapsed = (now - animation.phaseStartTime) - (animation.state.rotationFreezeAccum or 0)
+            end
+            if effectiveElapsed < 0 then effectiveElapsed = 0 end
+            rotProgress = math.min(effectiveElapsed / phaseDuration, 1.0)
+        end
+        card.rotation = animation.state.originalRotation + (targetRotation - animation.state.originalRotation) * rotProgress
+    end
+
+    -- Elevation (z-height) animation
+    if phaseSpec.elevation then
+        local targetZ = phaseSpec.elevation or 0
+        local startZ = animation.state.originalZ or 0
+        card.animZ = startZ + (targetZ - startZ) * progress
+    end
+
+    -- Apply unified height-scale mapping based on animZ
+    do
+        local ok, UnifiedHeightScale = pcall(require, 'src.unified_height_scale')
+        if ok and UnifiedHeightScale and UnifiedHeightScale.getCardScale then
+            local heightScale = UnifiedHeightScale.getCardScale(card) or 1.0
+            card.scale = (baseScale or 1.0) * heightScale
+        else
+            card.scale = baseScale or 1.0
+        end
     end
     
-    -- Movement animation
+    -- Movement animation (integrate over elapsed time; do not multiply by dt again)
+    -- Write to animX/animY so BoardRenderer layout does not override during resolve
     if animation.state.velocityX and animation.state.velocityY then
-        -- Apply easing if specified
         local easing = self:getEasingFunction(phaseSpec.easing or "linear")
         local easedProgress = easing(progress)
-        
-        local moveDistance = easedProgress * phaseDuration
-        card.x = animation.state.originalX + animation.state.velocityX * moveDistance * dt
-        card.y = animation.state.originalY + animation.state.velocityY * moveDistance * dt
+        local easedTime = easedProgress * phaseDuration
+        card.animX = animation.state.originalX + animation.state.velocityX * easedTime
+        card.animY = animation.state.originalY + animation.state.velocityY * easedTime
     end
     
-    -- Position offset animation
+    -- Position offset animation (also via animX/animY)
     if phaseSpec.target_offset then
         local easing = self:getEasingFunction(phaseSpec.easing or "easeOutQuad")
         local easedProgress = easing(progress)
         
-        card.x = animation.state.originalX + phaseSpec.target_offset.x * easedProgress
-        card.y = animation.state.originalY + phaseSpec.target_offset.y * easedProgress
+        card.animX = animation.state.originalX + phaseSpec.target_offset.x * easedProgress
+        card.animY = animation.state.originalY + phaseSpec.target_offset.y * easedProgress
     end
 end
 
@@ -271,8 +356,25 @@ function ResolveAnimator:completeResolveAnimation(animation)
     card.x = animation.state.originalX
     card.y = animation.state.originalY
     card.scale = animation.state.originalScale
-    card.rotation = animation.state.originalRotation
+    if card.id ~= 'roundhouse' then
+        card.rotation = animation.state.originalRotation
+    end
     card.animZ = animation.state.originalZ
+    -- Clear transient animated position so layout regains control fully
+    card.animX = nil
+    card.animY = nil
+    -- (Removed) Temporary strike-only debug overlay flag
+    -- Clear resolve flag so board-state animator can resume idle/interaction
+    card._inResolve = nil
+    -- Debug: clear kick-active when a roundhouse stab finishes
+    if animation.type == 'attack_strike' and card.id == 'roundhouse' then
+        local n = (card._debugKickActiveCount or 1) - 1
+        if n <= 0 then
+            card._debugKickActiveCount = nil
+        else
+            card._debugKickActiveCount = n
+        end
+    end
     
     if self.debugMode then
         print("[ResolveAnim] Completed", animation.type, "for", card.id or "unknown")

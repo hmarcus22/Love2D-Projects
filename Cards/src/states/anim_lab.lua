@@ -73,6 +73,14 @@ function anim_lab:init()
   
   self.gs = GameState:newFromDraft({testPlayer, dummyPlayer})
   self.gs.currentPlayer = 1 -- Always use player 1 as the "thrower"
+  -- Ensure abundant energy for chaining tests in lab (player 1 only)
+  do
+    local p = self.gs.players and self.gs.players[1]
+    if p then
+      p.energy = 99
+      p.maxEnergy = math.max(p.maxEnergy or 0, 99)
+    end
+  end
   
   -- CRITICAL FLAGS FOR ANIMATION LAB BEHAVIOR:
   self.gs.isAnimationLab = true -- Enables cross-player combo detection in Player:canPlayCombo()
@@ -237,8 +245,8 @@ function anim_lab:update(dt)
   -- Keep players energized
   for _, p in ipairs(self.gs.players or {}) do p.energy = 99 end
   
-  -- Ensure we're in play phase for card playing
-  if self.gs.phase ~= "play" then
+  -- Ensure we're in play phase for card playing, but do not break manual resolve
+  if self.gs.phase ~= "play" and self.gs.phase ~= "resolve" then
     self.gs.phase = "play"
   end
   
@@ -298,6 +306,10 @@ function anim_lab:drawGameWithoutHUD()
   local BoardRenderer = require 'src.renderers.board_renderer'
   local ResolveRenderer = require 'src.renderers.resolve_renderer'
   
+  -- Apply global impact shake transform for the whole lab scene
+  local ImpactFX = require 'src.impact_fx'
+  local __shakePushed = ImpactFX.applyShakeTransform(self.gs)
+
   -- Draw board (this handles positioning of board cards)
   BoardRenderer.draw(self.gs, layout)
   
@@ -345,14 +357,14 @@ function anim_lab:drawGameWithoutHUD()
     self.gs:drawDragArrow(card)
   end
   
-  -- Draw animations on top
+  -- Draw animations on top (shake already applied globally)
   if self.gs.animations and self.gs.animations.draw then
-    local ImpactFX = require 'src.impact_fx'
-    local pushed = ImpactFX.applyShakeTransform(self.gs)
     self.gs.animations:draw()
-    ImpactFX.drawDust(self.gs)
-    if pushed then love.graphics.pop() end
   end
+
+  -- Draw impact dust and pop shake transform if applied
+  ImpactFX.drawDust(self.gs)
+  if __shakePushed then love.graphics.pop() end
 end
 
 function anim_lab:drawInfoPanels()

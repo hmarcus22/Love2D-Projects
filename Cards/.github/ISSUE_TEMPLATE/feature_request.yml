@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose a new feature or enhancement.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Goal
+      description: What problem are we solving? Who benefits?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Bullet points that define done
+      placeholder: |
+        - Given X, when Y, then Z
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution (high level)
+      description: Key ideas and approach
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / Non‑goals
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact / Risks
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: How we’ll verify (steps, test ideas)
+  - type: input
+    id: affected
+    attributes:
+      label: Affected areas/files
+      placeholder: "logic/resolve.lua, renderers/hud_renderer.lua"
+

@@ -479,6 +479,10 @@ function GameState:draw()
     local layout = self:getLayout()
     local screenW = Viewport.getWidth()
 
+    -- Apply global impact shake transform for scene (cards, board, HUD)
+    local ImpactFX = require 'src.impact_fx'
+    local __shakePushed = ImpactFX.applyShakeTransform(self)
+
     BoardRenderer.draw(self, layout)
 
     if self.deckStack and self.deckStack.draw then
@@ -533,6 +537,10 @@ function GameState:draw()
             self:drawDragArrow(card)
         end
     end
+
+    -- Draw impact dust and pop shake transform if applied
+    ImpactFX.drawDust(self)
+    if __shakePushed then love.graphics.pop() end
 end
 
 -- UNIFIED CARD COLLECTION - Single source of truth for all visible cards
@@ -609,11 +617,8 @@ function GameState:drawDragArrow(card)
     love.graphics.setColor(1,1,1,1)
 
     if self.animations and self.animations.draw then
-        local ImpactFX = require 'src.impact_fx'
-        local pushed = ImpactFX.applyShakeTransform(self)
+        -- Shake transform is applied globally in GameState:draw now
         self.animations:draw()
-        ImpactFX.drawDust(self)
-        if pushed then love.graphics.pop() end
     end
     -- TODO: move inline FX drawing to ImpactFX module (refactor pending)
 
@@ -690,6 +695,12 @@ function GameState:update(dt)
         if BoardEffects.isActive() then
             print("[GameState] Pausing resolve phase while board effects are active")
             -- Don't advance resolve timer while knockback animations are running
+        -- Also pause while resolve animations are playing
+        elseif self.animations and self.animations.hasActiveAnimations and self.animations:hasActiveAnimations() then
+            if Config and Config.debug then
+                print("[GameState] Pausing resolve while animations are active (flight/resolve)")
+            end
+            -- Skip advancing resolve timer/steps this frame until all animations finish
         else
             -- Set current step for visual indication
             if self.resolveIndex < #self.resolveQueue then
@@ -855,6 +866,7 @@ function GameState:placeCardWithoutAdvancing(player, card, slotIndex)
     -- Hand state: card leaves hand when animation started, ensure it's not still referenced
     card.slotIndex = nil
     card.zone = 'board'
+    card.player = player -- ensure renderer and effects can resolve owning player
     card.faceUp = true
     slot._incoming = nil
     -- Track played count

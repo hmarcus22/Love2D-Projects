@@ -1,5 +1,5 @@
 local Class = require "libs.hump.class"
-local CardArt = require "src.card_art"
+local Assets = require "src.asset_cache"
 
 local Card = Class{}
 
@@ -14,7 +14,7 @@ function Card:setBackArt(path)
         return nil
     end
 
-    local image = CardArt.load(path)
+    local image = Assets.image(path)
     if image then
         backArtImage = image
     else

@@ -263,6 +263,7 @@ function CardRenderer.drawPostTextureEffects(card, x, y, w, h, scaleX, scaleY)
             love.graphics.pop()
         end
     end
+    -- Draw this last to ensure visibility over other effects
 end
 
 -- Shadow drawing - DEPRECATED: Use ShadowRenderer.drawCardShadow instead

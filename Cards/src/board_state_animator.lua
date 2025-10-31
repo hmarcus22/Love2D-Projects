@@ -74,10 +74,15 @@ end
 function BoardStateAnimator:updateCardState(state, dt)
     local card = state.card
     local spec = state.spec
-    
+
+    -- Do not apply idle/interaction adjustments while the card is in a resolve animation
+    if card and card._inResolve then
+        return
+    end
+
     -- Update idle animations
     self:updateIdleAnimations(state, dt)
-    
+
     -- Update conditional animations
     self:updateConditionalAnimations(state, dt)
     

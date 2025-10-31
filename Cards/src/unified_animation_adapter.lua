@@ -364,4 +364,40 @@ function UnifiedAnimationAdapter:draw()
     end
 end
 
+-- Expose a simple timer helper for sequencing
+function UnifiedAnimationAdapter:after(delay, fn)
+    local d = math.max(0, tonumber(delay) or 0)
+    if d == 0 then
+        if fn then pcall(fn) end
+        return
+    end
+    if self.timer then
+        self.timer:after(d, function()
+            if fn then pcall(fn) end
+        end)
+    elseif fn then
+        pcall(fn)
+    end
+end
+
+-- Resolve helpers: forward resolve animations used by resolve.lua
+function UnifiedAnimationAdapter:startAttackAnimation(attackCard, target)
+    if self.unifiedManager and self.unifiedManager.startAttackAnimation then
+        return self.unifiedManager:startAttackAnimation(attackCard, target)
+    end
+end
+
+function UnifiedAnimationAdapter:hasActiveAnimations()
+    if self.unifiedManager and self.unifiedManager.hasActiveAnimations then
+        return self.unifiedManager:hasActiveAnimations()
+    end
+    return false
+end
+
+-- Expose resolve animation start for custom sequences
+function UnifiedAnimationAdapter:startResolveAnimation(card, animationType, targetCard)
+    if not self.unifiedManager or not self.unifiedManager.resolveAnimator then return end
+    return self.unifiedManager.resolveAnimator:startResolveAnimation(card, animationType, targetCard)
+end
+
 return UnifiedAnimationAdapter

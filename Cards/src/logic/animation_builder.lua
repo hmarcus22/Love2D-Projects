@@ -163,7 +163,7 @@ function AnimationBuilder._buildImpactAnimation(gameState, card, slotIndex, onAd
             local ImpactFX = require 'src.impact_fx'
             local sx, sy = gameState:getBoardSlotPosition(player.id, slotIndex)
             ImpactFX.triggerShake(gameState, impactParams.shakeDur or 0.25, impactParams.shakeMag or 6)
-            ImpactFX.triggerDust(gameState, sx + card.w/2, sy + card.h - 8, impactParams.dustCount or 1)
+            ImpactFX.triggerDust(gameState, sx + card.w/2, sy + card.h/2, impactParams.dustCount or 1)
         end
         
         -- NEW: Trigger knockback effects
@@ -259,10 +259,13 @@ end
 
 -- Build impact parameters from config + animation specs
 function AnimationBuilder._buildImpactParams(card)
-    local duration = (Config.ui.cardImpactDuration or 0.28)
-    local squashScale = (Config.ui.cardImpactSquashScale or 0.85)
-    local flashAlpha = (Config.ui.cardImpactFlashAlpha or 0.55)
-    local holdExtra = (Config.ui.cardImpactHoldExtra or 0)
+    -- Prefer new config path per DEV_NOTES (layout.highlights.impact),
+    -- with fallback to legacy UI keys to remain backward compatible.
+    local impactCfg = (Config.layout and Config.layout.highlights and Config.layout.highlights.impact) or {}
+    local duration = impactCfg.duration or (Config.ui.cardImpactDuration or 0.28)
+    local squashScale = impactCfg.squashScale or (Config.ui.cardImpactSquashScale or 0.85)
+    local flashAlpha = impactCfg.flashAlpha or (Config.ui.cardImpactFlashAlpha or 0.55)
+    local holdExtra = impactCfg.holdExtra or (Config.ui.cardImpactHoldExtra or 0)
     local shakeDur = 0.25
     local shakeMag = 6
     local dustCount = 1

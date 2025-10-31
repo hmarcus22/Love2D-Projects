@@ -201,9 +201,9 @@ function UnifiedAnimationEngine:getAnimationSpec(card, animationType, config)
             if baseSpec then
                 return self:mergeSpecs(baseSpec, cardSpec)
             end
-        else
-            return cardSpec
         end
+        -- Default: merge card override onto unified base so required phase durations persist
+        return self:mergeSpecs(specs.unified, cardSpec)
     end
     
     if Config and Config.debug then
@@ -458,7 +458,7 @@ function UnifiedAnimationEngine:initializeImpactPhase(animation)
         ImpactFX.triggerDust(
             gameState,
             (card.animX or card.x) + (card.w or 50) / 2,
-            (card.animY or card.y) + (card.h or 70) - 8,
+            (card.animY or card.y) + (card.h or 70) / 2,
             particles.count or 15
         )
         
@@ -878,7 +878,7 @@ function UnifiedAnimationEngine:applyFlightEffects(animation, effects, progress,
             -- Debug output for unified scaling in animations
             if Config and Config.debug and Config.debugCategories and Config.debugCategories.heightScale and progress > 0.1 and progress < 0.9 then
                 local currentHeight = animation.state.position.z or 0
-                print(string.format("[FLIGHT-UNIFIED] %s: animZ=%.1f → scale=%.3f (was height-based: %s)", 
+                print(string.format("[FLIGHT-UNIFIED] %s: animZ=%.1f -> scale=%.3f (was height-based: %s)", 
                       tempElement.id, currentHeight, unifiedScale, tostring(effects.scale.heightBased or false)))
             end
         end
