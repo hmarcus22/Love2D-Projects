@@ -22,6 +22,13 @@ function Camera:init(opts)
   
   -- Terrain dimensions (will be set by setTerrainBounds)
   self.terrainWidth = 600  -- Default, will be updated
+  
+  -- Screen shake system
+  self.shake = {
+    intensity = 0,
+    duration = 0,
+    timer = 0
+  }
 end
 
 function Camera:setTerrainBounds(terrainWidth)
@@ -76,13 +83,57 @@ function Camera:updateToShowBothTanks(tank1, tank2)
   end
 end
 
+function Camera:addScreenShake(intensity, duration)
+  -- Add screen shake effect (use maximum if multiple shakes overlap)
+  self.shake.intensity = math.max(self.shake.intensity, intensity)
+  self.shake.duration = math.max(self.shake.duration, duration)
+  self.shake.timer = math.max(self.shake.timer, duration)
+  
+  print(string.format("SCREEN SHAKE: intensity=%.1f, duration=%.2f", intensity, duration))
+end
+
+function Camera:updateScreenShake(dt)
+  -- Update screen shake timer and reduce intensity over time
+  if self.shake.timer > 0 then
+    self.shake.timer = self.shake.timer - dt
+    
+    -- Fade out shake intensity over time
+    local shakeProgress = self.shake.timer / self.shake.duration
+    self.shake.intensity = self.shake.intensity * shakeProgress
+    
+    -- Stop shake when timer expires
+    if self.shake.timer <= 0 then
+      self.shake.intensity = 0
+      self.shake.timer = 0
+      self.shake.duration = 0
+    end
+  end
+end
+
 function Camera:apply(pass)
   -- Use LÖVR's built-in look-at functionality for proper camera transforms
   pass:push()
   
-  -- Create vec3 objects for lookAt function
-  local eye = lovr.math.newVec3(self.position.x, self.position.y, self.position.z)
-  local target = lovr.math.newVec3(self.target.x, self.target.y, self.target.z)
+  -- Apply screen shake offset if active
+  local shakeOffsetX = 0
+  local shakeOffsetY = 0
+  if self.shake.intensity > 0 then
+    -- Random shake offset based on intensity
+    shakeOffsetX = (math.random() - 0.5) * 2 * self.shake.intensity
+    shakeOffsetY = (math.random() - 0.5) * 2 * self.shake.intensity
+  end
+  
+  -- Create vec3 objects for lookAt function with shake offset
+  local eye = lovr.math.newVec3(
+    self.position.x + shakeOffsetX, 
+    self.position.y + shakeOffsetY, 
+    self.position.z
+  )
+  local target = lovr.math.newVec3(
+    self.target.x + shakeOffsetX, 
+    self.target.y + shakeOffsetY, 
+    self.target.z
+  )
   local up = lovr.math.newVec3(0, 1, 0)
   
   -- Create a proper view matrix using lookAt

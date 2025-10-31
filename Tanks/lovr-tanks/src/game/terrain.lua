@@ -33,6 +33,52 @@ function Terrain:_generate()
     local h = self:_fbm(x)
     self.heights[i + 1] = (self.maxHeight * 0.5) + h * (self.maxHeight * 0.5)
   end
+  
+  -- Generate static decorative elements once (to prevent flickering)
+  self:_generateStaticDetails()
+end
+
+function Terrain:_generateStaticDetails()
+  -- Pre-generate all decorative elements to prevent flickering
+  self.staticDetails = {}
+  self.environmentalFeatures = {}  -- Trees, water, paths
+  local numDetails = 25
+  
+  -- Use a fixed seed for consistent decoration placement
+  math.randomseed(42)  -- Fixed seed for reproducible results
+  
+  -- Generate basic decorative elements
+  for i = 1, numDetails do
+    local x = (math.random() - 0.5) * self.width * 0.85
+    local surfaceHeight = self:heightAt(x)
+    
+    if surfaceHeight > 5 then
+      -- Check if this area is rocky (same logic as terrain generation)
+      local noiseX = math.floor(x * 0.05) * 20
+      local colorNoise = lovr.math.noise(noiseX, 0, 123) * 2 - 1
+      local heightRatio = math.min(1.0, surfaceHeight / self.maxHeight)
+      local isRockyArea = (heightRatio > 0.7 and colorNoise > 0.2)
+      
+      local detail = {
+        x = x,
+        y = surfaceHeight,
+        isRocky = isRockyArea,
+        type = math.random(5),
+        size = 0.3 + math.random() * 1.0,
+        colorR = math.random(),
+        colorG = math.random(),
+        colorB = math.random()
+      }
+      
+      table.insert(self.staticDetails, detail)
+    end
+  end
+  
+  -- Generate environmental features
+  -- (Trees and water features removed for cleaner terrain)
+  
+  -- Restore random seed
+  math.randomseed(os.time())
 end
 
 function Terrain:heightAt(x)
@@ -131,30 +177,53 @@ function Terrain:draw(pass)
     local terrainHeight = actualHeight + 120  -- Add 120 units of height below surface
     local cy = actualHeight * 0.5 - 60  -- Center the box so it extends down from surface
     
-    -- Enhanced terrain coloring based on height and position
+    -- Enhanced terrain coloring with texture variation
     local heightRatio = math.min(1.0, actualHeight / self.maxHeight)
+    
+    -- Add subtle color noise for texture variation (reduced and stabilized)
+    local noiseX = math.floor(cx * 0.05) * 20  -- Larger, stable noise patches
+    local colorNoise = lovr.math.noise(noiseX, 0, 123) * 2 - 1  -- -1 to 1
+    local colorVariation = colorNoise * 0.08  -- Reduced variation to prevent flickering
+    
+    -- Determine if this is a rocky outcrop based on height and steepness
+    local isRocky = false
+    if i > 1 and i < self.samples - 1 then
+      local prevHeight = math.max(self.heights[i-1], 5)
+      local nextHeight = math.max(self.heights[i+1], 5)
+      local steepness = math.abs(actualHeight - prevHeight) + math.abs(actualHeight - nextHeight)
+      -- Rocky outcrops on steep slopes or very high terrain
+      isRocky = (steepness > 12) or (heightRatio > 0.85 and colorNoise > 0.4)
+    end
     
     -- Surface section (uniform grass layer thickness)
     local grassThickness = 3  -- Uniform grass layer thickness
     local surfaceHeight = grassThickness
     local surfaceY = actualHeight - grassThickness * 0.5
     
-    -- Surface color: grass-like green-brown gradient
-    local grassR = 0.3 + heightRatio * 0.3  -- 0.3 to 0.6
-    local grassG = 0.5 + heightRatio * 0.3  -- 0.5 to 0.8  
-    local grassB = 0.2 + heightRatio * 0.1  -- 0.2 to 0.3
-    pass:setColor(grassR, grassG, grassB)
+    if isRocky then
+      -- Rocky outcrop colors (gray stone) - SURFACE LAYER ONLY
+      local rockR = 0.4 + colorVariation * 0.2
+      local rockG = 0.4 + colorVariation * 0.2
+      local rockB = 0.5 + colorVariation * 0.15
+      pass:setColor(rockR, rockG, rockB)
+    else
+      -- Surface color: grass-like green-brown gradient with variation
+      local grassR = (0.3 + heightRatio * 0.3) + colorVariation
+      local grassG = (0.5 + heightRatio * 0.3) + colorVariation * 0.8
+      local grassB = (0.2 + heightRatio * 0.1) + colorVariation * 0.5
+      pass:setColor(grassR, grassG, grassB)
+    end
     pass:box(cx, surfaceY, z, segment, surfaceHeight, depth)
     
-    -- Underground section (below grass layer)
+    -- Underground section (below grass layer) - ALWAYS DIRT/EARTH COLOR
     local undergroundHeight = terrainHeight - grassThickness
     if undergroundHeight > 0 then
       local undergroundY = actualHeight - grassThickness - undergroundHeight * 0.5
       
-      -- Underground color: darker brown-red earth
-      local earthR = 0.4 + heightRatio * 0.2  -- 0.4 to 0.6
-      local earthG = 0.25 + heightRatio * 0.15  -- 0.25 to 0.4
-      local earthB = 0.1 + heightRatio * 0.1   -- 0.1 to 0.2
+      -- Underground is ALWAYS earth/dirt color (never rocky)
+      local earthR = (0.4 + heightRatio * 0.2) + colorVariation * 0.2
+      local earthG = (0.25 + heightRatio * 0.15) + colorVariation * 0.15
+      local earthB = (0.1 + heightRatio * 0.1) + colorVariation * 0.1
       pass:setColor(earthR, earthG, earthB)
       pass:box(cx, undergroundY, z, segment, undergroundHeight, depth)
     end
@@ -171,31 +240,67 @@ function Terrain:draw(pass)
 end
 
 function Terrain:_drawSurfaceDetails(pass)
-  -- Add small decorative elements on the terrain surface
-  local numDetails = 15  -- Number of decorative elements
+  -- Draw pre-generated static decorative elements (no more flickering!)
+  if not self.staticDetails then return end
   
-  for i = 1, numDetails do
-    local x = (math.random() - 0.5) * self.width * 0.8  -- Don't place at edges
-    local surfaceHeight = self:heightAt(x)
+  for _, detail in ipairs(self.staticDetails) do
+    local x = detail.x
+    local surfaceHeight = self:heightAt(x)  -- Get current height (may have changed due to craters)
     
-    if surfaceHeight > 5 then  -- Only on reasonably high terrain
-      local detailType = math.random(3)
-      
-      if detailType == 1 then
-        -- Small rocks
-        pass:setColor(0.5, 0.4, 0.3)
-        local size = 0.5 + math.random() * 1.0
-        pass:box(x, surfaceHeight + size * 0.5, 0, size, size, size)
-      elseif detailType == 2 then
-        -- Grass tufts (small green cylinders)
-        pass:setColor(0.2, 0.6, 0.3)
-        local height = 1 + math.random() * 2
-        pass:cylinder(x, surfaceHeight + height * 0.5, 0, 0.3, height)
+    if surfaceHeight > 2 then  -- Only draw if terrain still exists
+      if detail.isRocky then
+        -- Rocky area decorations
+        if detail.type <= 2 then
+          -- Large rock formations
+          pass:setColor(0.45 + detail.colorR * 0.15, 0.45 + detail.colorG * 0.15, 0.55 + detail.colorB * 0.1)
+          local width = 1.5 + detail.size * 0.5
+          local height = 1.0 + detail.size * 0.5
+          local depth = 1.0 + detail.size * 0.5
+          pass:box(x, surfaceHeight + height * 0.5, 0, width, height, depth)
+        else
+          -- Boulder
+          pass:setColor(0.5 + detail.colorR * 0.1, 0.4 + detail.colorG * 0.1, 0.4 + detail.colorB * 0.1)
+          pass:sphere(x, surfaceHeight + detail.size * 0.5, 0, detail.size)
+        end
       else
-        -- Small bushes (green spheres)
-        pass:setColor(0.3, 0.5, 0.2)
-        local size = 0.8 + math.random() * 0.8
-        pass:sphere(x, surfaceHeight + size * 0.5, 0, size)
+        -- Grassy area decorations
+        if detail.type == 1 then
+          -- Small scattered rocks
+          pass:setColor(0.5 + detail.colorR * 0.1, 0.4 + detail.colorG * 0.1, 0.3 + detail.colorB * 0.1)
+          pass:box(x, surfaceHeight + detail.size * 0.5, 0, detail.size, detail.size, detail.size)
+        elseif detail.type == 2 then
+          -- Grass tufts
+          local grassR = 0.2 + detail.colorR * 0.2
+          local grassG = 0.5 + detail.colorG * 0.3
+          local grassB = 0.2 + detail.colorB * 0.2
+          pass:setColor(grassR, grassG, grassB)
+          local height = 1 + detail.size * 1.5
+          pass:cylinder(x, surfaceHeight + height * 0.5, 0, 0.2 + detail.size * 0.1, height)
+        elseif detail.type == 3 then
+          -- Bushes
+          local bushR = 0.25 + detail.colorR * 0.2
+          local bushG = 0.4 + detail.colorG * 0.3
+          local bushB = 0.15 + detail.colorB * 0.15
+          pass:setColor(bushR, bushG, bushB)
+          pass:sphere(x, surfaceHeight + detail.size * 0.4, 0, detail.size)
+        elseif detail.type == 4 then
+          -- Single flower
+          local flowerColors = {
+            {0.8, 0.2, 0.3}, -- Red
+            {0.7, 0.7, 0.2}, -- Yellow
+            {0.3, 0.2, 0.8}, -- Blue
+            {0.8, 0.4, 0.8}  -- Pink
+          }
+          local colorIndex = math.floor(detail.colorR * 4) + 1
+          local color = flowerColors[colorIndex] or flowerColors[1]
+          pass:setColor(color[1], color[2], color[3])
+          pass:sphere(x, surfaceHeight + 0.2, 0, 0.1)
+        else
+          -- Dead branch
+          pass:setColor(0.3 + detail.colorR * 0.2, 0.2 + detail.colorG * 0.1, 0.1)
+          local thickness = 0.2 + detail.size * 0.1
+          pass:cylinder(x, surfaceHeight + thickness * 0.5, 0, thickness, thickness * 2)
+        end
       end
     end
   end

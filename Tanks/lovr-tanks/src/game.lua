@@ -70,6 +70,9 @@ end
 function Game:update(dt)
   Timer.update(dt)
   
+  -- Update camera screen shake
+  self.camera:updateScreenShake(dt)
+  
   -- Update all tanks
   for _, tank in ipairs(self.tanks) do
     tank:update(dt, self.terrain)
@@ -185,6 +188,11 @@ function Game:_fire()
 end
 
 function Game:_handleCollision(collision)
+  -- Add screen shake on impact
+  local shakeIntensity = 3 + math.random() * 2  -- 3-5 units of shake
+  local shakeDuration = 0.3 + math.random() * 0.2  -- 0.3-0.5 seconds
+  self.camera:addScreenShake(shakeIntensity, shakeDuration)
+  
   -- Create impact effect at collision point
   self.impactEffect = {
     x = collision.x,
