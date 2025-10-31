@@ -48,8 +48,27 @@ end
 
 function Projectile:draw(pass)
   if not self.alive then return end
-  pass:setColor(self.color)
+  
+  -- Draw trail as a series of fading spheres
+  local trailLen = #self.trail
+  for i = 1, trailLen do
+    local point = self.trail[i]
+    local alpha = i / trailLen  -- Fade from 0 to 1
+    local size = self.radius * 0.3 * alpha  -- Smaller trail points
+    
+    -- Orange-red trail color that fades
+    pass:setColor(1, 0.6 - (0.4 * (1 - alpha)), 0.2, alpha * 0.8)
+    pass:sphere(point[1], point[2], self.z, size)
+  end
+  
+  -- Draw main projectile (bright yellow)
+  pass:setColor(self.color[1], self.color[2], self.color[3], 1)
   pass:sphere(self.x, self.y, self.z, self.radius)
+  
+  -- Add a bright core glow
+  pass:setColor(1, 1, 1, 0.8)
+  pass:sphere(self.x, self.y, self.z, self.radius * 0.6)
+  
   pass:setColor(1, 1, 1)
 end
 

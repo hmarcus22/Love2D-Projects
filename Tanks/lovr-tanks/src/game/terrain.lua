@@ -49,10 +49,17 @@ function Terrain:heightAt(x)
 end
 
 function Terrain:draw(pass)
-  -- Visual approximation: vertical slabs per segment (cheap and simple)
+  -- Draw a thin base ground plane to fill the bottom of the view
+  pass:setColor(0.4, 0.25, 0.1) -- Dark brown for base
+  pass:box(0, -2, 0, self.width * 1.1, 4, self.depth)  -- Match the wider terrain
+  
+  -- Draw the actual terrain segments
   local segment = self.width / (self.samples - 1)
   local z = 0
   local depth = self.depth
+  
+  pass:setColor(0.6, 0.4, 0.2) -- Brown terrain color
+  
   for i = 1, self.samples - 1 do
     local x = -self.width / 2 + (i - 1) * segment
     local h = self.heights[i]

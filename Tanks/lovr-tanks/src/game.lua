@@ -10,31 +10,31 @@ local Game = Class:extend()
 function Game:init()
   self.camera = Camera()
   self.terrain = Terrain({
-    width = 200,
-    depth = 6,
-    samples = 128,
+    width = 600,  -- Much wider terrain to fill landscape window
+    depth = 6,    
+    samples = 200,  -- More samples for the wider terrain
     maxHeight = 30,
     seed = 42
   })
   
-  -- Create two tanks at opposite ends
-  local leftX = -self.terrain.width * 0.4
-  local rightX = self.terrain.width * 0.4
+  -- Create two tanks closer together for better gameplay
+  local leftX = -self.terrain.width * 0.25   -- Closer: was 0.4
+  local rightX = self.terrain.width * 0.25   -- Closer: was 0.4
   
   self.tanks = {
-    Tank({
+    Tank({  -- Tank 1 - LEFT tank (green) - faces right toward red tank
       x = leftX,
       y = self.terrain:heightAt(leftX),
       color = { 0.2, 0.8, 0.3 },
-      dir = 1,
-      angle = math.rad(45)
+      dir = 1,  -- Faces right
+      angle = math.rad(45)  -- Points up and to the right
     }),
-    Tank({
+    Tank({  -- Tank 2 - RIGHT tank (red) - faces left toward green tank
       x = rightX,
       y = self.terrain:heightAt(rightX),
       color = { 0.8, 0.2, 0.3 },
-      dir = -1,
-      angle = math.rad(135)
+      dir = -1,  -- Faces left
+      angle = math.rad(135)  -- Points up and to the left (toward green tank)
     })
   }
   
@@ -49,6 +49,12 @@ function Game:init()
   self.moveSpeed = 10
   self.winner = nil
   
+  -- Visual effects
+  self.muzzleFlash = nil  -- {x, y, z, timer, intensity}
+  self.muzzleFlashDuration = 0.15  -- Flash duration in seconds
+  self.impactEffect = nil  -- {x, y, z, timer, particles}
+  self.impactDuration = 0.8  -- Impact effect duration
+  
   -- Input state
   self.keys = {}
 end
@@ -59,6 +65,33 @@ function Game:update(dt)
   -- Update all tanks
   for _, tank in ipairs(self.tanks) do
     tank:update(dt, self.terrain)
+  end
+  
+  -- Update muzzle flash
+  if self.muzzleFlash then
+    self.muzzleFlash.timer = self.muzzleFlash.timer - dt
+    self.muzzleFlash.intensity = self.muzzleFlash.timer / self.muzzleFlashDuration
+    if self.muzzleFlash.timer <= 0 then
+      self.muzzleFlash = nil
+    end
+  end
+  
+  -- Update impact effects
+  if self.impactEffect then
+    self.impactEffect.timer = self.impactEffect.timer - dt
+    local progress = 1 - (self.impactEffect.timer / self.impactDuration)
+    
+    -- Update particles
+    for _, particle in ipairs(self.impactEffect.particles) do
+      particle.x = particle.x + particle.vx * dt
+      particle.y = particle.y + particle.vy * dt
+      particle.vy = particle.vy - 15 * dt  -- Gravity on particles
+      particle.life = 1 - progress
+    end
+    
+    if self.impactEffect.timer <= 0 then
+      self.impactEffect = nil
+    end
   end
   
   -- Update projectile if active
@@ -88,11 +121,11 @@ end
 function Game:_updateAiming(dt)
   local tank = self.tanks[self.currentPlayer]
   
-  -- Movement
+  -- Movement (inverted because camera looks from behind)
   if self.keys['left'] then
-    tank:move(-self.moveSpeed * dt, self.terrain)
+    tank:move(self.moveSpeed * dt, self.terrain)  -- Move positive X (appears left on screen)
   elseif self.keys['right'] then
-    tank:move(self.moveSpeed * dt, self.terrain)
+    tank:move(-self.moveSpeed * dt, self.terrain)  -- Move negative X (appears right on screen)
   end
   
   -- Aiming
@@ -111,24 +144,8 @@ function Game:_updateCharging(dt)
 end
 
 function Game:_updateCamera()
-  local focusX, focusY = 0, 20
-  
-  if self.projectile and self.projectile.alive then
-    -- Follow projectile
-    focusX = self.projectile.x
-    focusY = self.projectile.y + 10
-  else
-    -- Focus on current tank
-    local tank = self.tanks[self.currentPlayer]
-    focusX = tank.x
-    focusY = tank.y + 10
-  end
-  
-  -- Side view camera position
-  self.camera:setLookAt(
-    focusX, focusY + 30, 140,  -- camera position
-    focusX, focusY, 0          -- look at target
-  )
+  -- Always ensure both tanks are visible
+  self.camera:updateToShowBothTanks(self.tanks[1], self.tanks[2])
 end
 
 function Game:_fire()
@@ -138,6 +155,15 @@ function Game:_fire()
   local tipX, tipY = tank:barrelTip()
   local vx = math.cos(tank.angle) * power
   local vy = math.sin(tank.angle) * power
+  
+  -- Create muzzle flash at barrel tip
+  self.muzzleFlash = {
+    x = tipX,
+    y = tipY,
+    z = 0,
+    timer = self.muzzleFlashDuration,
+    intensity = 1.0
+  }
   
   self.projectile = Projectile({
     x = tipX,
@@ -151,6 +177,29 @@ function Game:_fire()
 end
 
 function Game:_handleCollision(collision)
+  -- Create impact effect at collision point
+  self.impactEffect = {
+    x = collision.x,
+    y = collision.y,
+    z = 0,
+    timer = self.impactDuration,
+    particles = {}
+  }
+  
+  -- Generate impact particles
+  for i = 1, 12 do
+    local angle = (i / 12) * math.pi * 2
+    local speed = 5 + math.random() * 10
+    table.insert(self.impactEffect.particles, {
+      x = collision.x,
+      y = collision.y,
+      vx = math.cos(angle) * speed,
+      vy = math.sin(angle) * speed + math.random() * 5,
+      life = 1.0,
+      size = 0.2 + math.random() * 0.3
+    })
+  end
+  
   if collision.type == 'tank' then
     collision.tank.health = collision.tank.health - 50
     if collision.tank.health <= 0 then
@@ -172,8 +221,7 @@ function Game:draw(pass)
   -- Set up camera
   self.camera:apply(pass)
   
-  -- Set terrain color and draw
-  pass:setColor(0.6, 0.4, 0.2)
+  -- Draw terrain (color set in terrain draw method)
   self.terrain:draw(pass)
   
   -- Draw tanks
@@ -184,6 +232,42 @@ function Game:draw(pass)
   -- Draw projectile
   if self.projectile then
     self.projectile:draw(pass)
+  end
+  
+  -- Draw muzzle flash
+  if self.muzzleFlash then
+    local flash = self.muzzleFlash
+    local alpha = flash.intensity
+    -- Bright yellow-white flash
+    pass:setColor(1, 1, 0.8, alpha)
+    pass:sphere(flash.x, flash.y, flash.z, 0.8 * flash.intensity)
+    
+    -- Outer glow effect
+    pass:setColor(1, 0.6, 0.2, alpha * 0.5)
+    pass:sphere(flash.x, flash.y, flash.z, 1.5 * flash.intensity)
+  end
+  
+  -- Draw impact effects
+  if self.impactEffect then
+    local effect = self.impactEffect
+    
+    -- Draw explosion flash
+    local progress = 1 - (effect.timer / self.impactDuration)
+    local flashIntensity = math.max(0, 1 - progress * 3)  -- Quick bright flash
+    if flashIntensity > 0 then
+      pass:setColor(1, 0.8, 0.4, flashIntensity * 0.8)
+      pass:sphere(effect.x, effect.y, effect.z, 2 * flashIntensity)
+    end
+    
+    -- Draw particles
+    for _, particle in ipairs(effect.particles) do
+      if particle.life > 0 then
+        local alpha = particle.life * 0.9
+        -- Orange sparks
+        pass:setColor(1, 0.6 + particle.life * 0.4, 0.2, alpha)
+        pass:sphere(particle.x, particle.y, 0, particle.size * particle.life)
+      end
+    end
   end
   
   -- Reset color
@@ -208,20 +292,27 @@ function Game:_drawUI(pass)
   -- You would normally use pass:text() here, but LÖVR text is complex
   -- For now, just show charge bar if charging
   
+  -- Show which player is active with a small indicator
+  local tank = self.tanks[self.currentPlayer]
+  
+  -- Active player indicator (small bright box above tank)
+  pass:setColor(1, 1, 0) -- Yellow indicator
+  pass:box(tank.x, tank.y + tank.bodyHeight + 1.2, 0, 0.5, 0.3, 0.1)
+  
+  -- Show charge bar only when charging
   if self.gameState == 'charging' then
-    -- Draw charge bar in 3D space above tank
-    local barWidth = 4
-    local barHeight = 0.5
+    local barWidth = 0.8  
+    local barHeight = 0.1  
     local chargeRatio = self.chargeTime / self.maxChargeTime
     
     -- Background
     pass:setColor(0.2, 0.2, 0.2)
-    pass:box(tank.x, tank.y + tank.bodyHeight + 2, 0, barWidth, barHeight, 0.1)
+    pass:box(tank.x, tank.y + tank.bodyHeight + 0.8, 0, barWidth, barHeight, 0.05)
     
     -- Charge fill
     pass:setColor(1, 1 - chargeRatio, 0) -- Yellow to red
     local fillWidth = barWidth * chargeRatio
-    pass:box(tank.x - (barWidth - fillWidth) * 0.5, tank.y + tank.bodyHeight + 2, 0, fillWidth, barHeight * 0.8, 0.12)
+    pass:box(tank.x - (barWidth - fillWidth) * 0.5, tank.y + tank.bodyHeight + 0.8, 0, fillWidth, barHeight * 0.8, 0.06)
   end
   
   if self.gameState == 'gameover' and self.winner then
