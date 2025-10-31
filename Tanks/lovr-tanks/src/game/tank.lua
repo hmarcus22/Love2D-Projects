@@ -29,6 +29,8 @@ function Tank:move(dx, terrain)
   local halfW = (terrain.width * 0.5) - 1.0
   if self.x < -halfW then self.x = -halfW end
   if self.x > halfW then self.x = halfW end
+  
+  -- Always update Y to follow terrain height
   self.y = terrain:heightAt(self.x)
 end
 

@@ -7,8 +7,13 @@
 
 ## Gameplay & Controls (v0.1)
 - Perspective: Side view. Tanks constrained to X; Y from terrain; Z fixed at 0.
+- Camera: Positioned behind battlefield (positive Z looking toward Z=0). Due to this angle:
+  - Green tank (Player 1) appears on RIGHT side of screen (negative X coordinate)
+  - Red tank (Player 2) appears on LEFT side of screen (positive X coordinate)
 - Terrain: 1D height profile extruded along Z into a thin strip; seedable randomness.
 - Movement: Left/Right arrows move the active tank along X (slope limited).
+  - Left arrow: moves toward positive X (appears left on screen)
+  - Right arrow: moves toward negative X (appears right on screen)
 - Aim: Up/Down adjust barrel elevation (clamped, e.g., 5°–85° toward opponent).
 - Fire: Space down starts charging power; release to shoot. Power scales with hold time.
 - Turn flow: Aim → Charge (hold Space) → Fire/Simulate → Resolve (damage/win) → Switch player.

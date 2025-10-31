@@ -17,24 +17,24 @@ function Game:init()
     seed = 42
   })
   
-  -- Create two tanks closer together for better gameplay
-  local leftX = -self.terrain.width * 0.25   -- Closer: was 0.4
-  local rightX = self.terrain.width * 0.25   -- Closer: was 0.4
+  -- Create two tanks with intuitive positioning for camera view
+  local leftX = self.terrain.width * 0.25    -- Green tank at POSITIVE X (appears LEFT on screen)
+  local rightX = -self.terrain.width * 0.25  -- Red tank at NEGATIVE X (appears RIGHT on screen)
   
   self.tanks = {
-    Tank({  -- Tank 1 - LEFT tank (green) - faces right toward red tank
-      x = leftX,
+    Tank({  -- Tank 1 - Green tank - appears LEFT on screen
+      x = leftX,   -- Positive X
       y = self.terrain:heightAt(leftX),
       color = { 0.2, 0.8, 0.3 },
-      dir = 1,  -- Faces right
-      angle = math.rad(45)  -- Points up and to the right
+      dir = -1,  -- Faces left (toward red tank)
+      angle = math.rad(135)  -- Points toward red tank
     }),
-    Tank({  -- Tank 2 - RIGHT tank (red) - faces left toward green tank
-      x = rightX,
+    Tank({  -- Tank 2 - Red tank - appears RIGHT on screen
+      x = rightX,  -- Negative X
       y = self.terrain:heightAt(rightX),
       color = { 0.8, 0.2, 0.3 },
-      dir = -1,  -- Faces left
-      angle = math.rad(135)  -- Points up and to the left (toward green tank)
+      dir = 1,   -- Faces right (toward green tank)
+      angle = math.rad(45)   -- Points toward green tank
     })
   }
   
@@ -121,11 +121,11 @@ end
 function Game:_updateAiming(dt)
   local tank = self.tanks[self.currentPlayer]
   
-  -- Movement (inverted because camera looks from behind)
+  -- Movement (intuitive - left moves left, right moves right on screen)
   if self.keys['left'] then
-    tank:move(self.moveSpeed * dt, self.terrain)  -- Move positive X (appears left on screen)
+    tank:move(self.moveSpeed * dt, self.terrain)   -- Move positive X (left on screen)
   elseif self.keys['right'] then
-    tank:move(-self.moveSpeed * dt, self.terrain)  -- Move negative X (appears right on screen)
+    tank:move(-self.moveSpeed * dt, self.terrain)  -- Move negative X (right on screen)
   end
   
   -- Aiming

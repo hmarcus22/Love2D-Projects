@@ -13,11 +13,11 @@ function Camera:init(opts)
   self.target = { x = 0, y = 20, z = 0 }
   self.up = { x = 0, y = 1, z = 0 }
   
-  -- Camera bounds for ensuring both tanks are visible
+  -- Camera bounds for ensuring both tanks are visible (wider range for zoom)
   self.minX = -400
   self.maxX = 400
-  self.minZ = 150  -- Minimum distance to keep tanks visible
-  self.maxZ = 300  -- Maximum distance
+  self.minZ = 50   -- Much closer minimum for better tank visibility
+  self.maxZ = 600  -- Farthest zoom (when tanks are apart)
 end
 
 function Camera:setLookAt(px, py, pz, tx, ty, tz)
@@ -26,29 +26,27 @@ function Camera:setLookAt(px, py, pz, tx, ty, tz)
 end
 
 function Camera:updateToShowBothTanks(tank1, tank2)
-  -- Calculate the center point between both tanks
+  -- Calculate the center point between both tanks (X only)
   local centerX = (tank1.x + tank2.x) / 2
-  local centerY = (tank1.y + tank2.y) / 2
   
-  -- Calculate distance between tanks
+  -- Calculate distance between tanks for zoom adjustment
   local tankDistance = math.abs(tank1.x - tank2.x)
   
-  -- Zoom in more for closer, more engaging view
-  local terrainWidth = 600
-  -- Reduced multipliers for closer camera
-  local baseDistance = terrainWidth * 0.5  -- Was 0.8 - much closer now
-  local extraDistance = tankDistance * 0.4  -- Slightly more responsive to tank distance
-  local cameraDistance = math.max(self.minZ, math.min(self.maxZ, baseDistance + extraDistance))
+  -- Camera distance optimized to keep tanks clearly visible
+  -- Starting tank distance is ~300 units, so base should accommodate this
+  local baseDistance = 60         -- Close enough for tanks to be clearly visible
+  local zoomFactor = tankDistance * 0.8  -- Gentle zoom as tanks spread apart
+  local cameraDistance = math.max(self.minZ, math.min(self.maxZ, baseDistance + zoomFactor))
   
-  -- Position camera closer and lower for more engaging view
-  self.position.x = centerX
-  self.position.y = centerY + 25  -- Lower: was 40
-  self.position.z = cameraDistance
+  -- Camera position: POSITIVE Z to look from behind
+  self.position.x = centerX    -- Follow tank center horizontally
+  self.position.y = 40         -- Fixed height - never changes  
+  self.position.z = cameraDistance  -- Dynamic zoom based on tank distance
   
-  -- Look at the battlefield center
-  self.target.x = centerX
-  self.target.y = centerY - 2  -- Look slightly below center
-  self.target.z = 0
+  -- Look target: look toward the battlefield
+  self.target.x = centerX      -- Look at tank center horizontally  
+  self.target.y = 0            -- Fixed look height - never changes
+  self.target.z = 0            -- Look at the battlefield plane
 end
 
 function Camera:apply(pass)
