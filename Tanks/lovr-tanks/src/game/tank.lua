@@ -73,32 +73,45 @@ function Tank:draw(pass)
   pass:setColor(self.color[1] * 0.8, self.color[2] * 0.8, self.color[3] * 0.8, 1.0) -- Slightly darker
   pass:box(self.x, self.y + self.bodyHeight + 1.0, self.z, turretSize, 2.0, turretSize)
 
-  -- Main cannon barrel - use the tank's actual angle directly
+  -- Main cannon barrel - manually build from turret to muzzle without rotation
   local bx = self.x
-  local by = self.y + self.bodyHeight + 1.0  -- From turret center
+  local by = self.y + self.bodyHeight + 1.0  -- From turret center (anchor point)
   local length = self.barrelLength
   
   -- Use the actual angle (aiming logic already handles direction)
   local displayAngle = self.angle
   
-  -- Calculate barrel position accounting for rotation
-  local barrelCenterX = bx + math.cos(displayAngle) * (length * 0.5)
-  local barrelCenterY = by + math.sin(displayAngle) * (length * 0.5)
+  -- Calculate barrel end position (where muzzle should be)
+  local barrelEndX = bx + math.cos(displayAngle) * length
+  local barrelEndY = by + math.sin(displayAngle) * length
   
-  -- Create proper rotation matrix for the barrel
-  pass:push()
-  pass:translate(barrelCenterX, barrelCenterY, self.z)
-  pass:rotate(0, 0, 1, displayAngle)  -- Rotate around Z axis
+  -- Calculate barrel direction and positioning manually
+  local dx = barrelEndX - bx  -- X distance from turret to muzzle
+  local dy = barrelEndY - by  -- Y distance from turret to muzzle
+  local barrelMidX = bx + dx * 0.5  -- Barrel center X
+  local barrelMidY = by + dy * 0.5  -- Barrel center Y
   
-  -- Draw barrel (now centered at origin after transform)
+  -- Calculate the angle needed to point from turret to muzzle
+  local barrelRotation = math.atan2(dy, dx)
+  
+  -- Draw barrel using the calculated rotation
   pass:setColor(0.3, 0.3, 0.3, 1.0) -- Dark gray barrel
-  pass:box(0, 0, 0, length, self.barrelThickness, self.barrelThickness)
+  pass:push()
+  pass:translate(barrelMidX, barrelMidY, self.z)  
+  pass:rotate(barrelRotation, 0, 0, 1)  -- Rotate by calculated angle around Z-axis
   
-  -- Barrel tip (muzzle)
-  pass:setColor(0.1, 0.1, 0.1, 1.0) -- Very dark
-  pass:box(length * 0.4, 0, 0, length * 0.2, self.barrelThickness * 1.2, self.barrelThickness * 1.2)
+  -- Draw barrel extending along X-axis after rotation
+  pass:box(0, 0, 0, length, self.barrelThickness * 0.6, self.barrelThickness * 1.4)
+  
+  -- Bright red stripe to verify rotation
+  pass:setColor(1.0, 0.0, 0.0, 1.0) -- Bright red stripe
+  pass:box(0, self.barrelThickness * 0.8, 0, length * 0.3, self.barrelThickness * 0.4, self.barrelThickness * 2.0)
   
   pass:pop()
+  
+  -- Muzzle at the calculated end position
+  pass:setColor(0.1, 0.1, 0.1, 1.0) -- Very dark
+  pass:box(barrelEndX, barrelEndY, self.z, self.barrelThickness * 1.5, self.barrelThickness * 1.5, self.barrelThickness * 1.5)
 
   -- Tank tracks/treads (decorative boxes on sides)
   pass:setColor(0.2, 0.2, 0.2, 1.0) -- Dark gray tracks
@@ -108,18 +121,6 @@ function Tank:draw(pass)
   pass:box(self.x - trackOffset, self.y + self.bodyHeight * 0.3, self.z, trackWidth, self.bodyHeight * 0.6, bodyDepth * 1.1)
   -- Right track
   pass:box(self.x + trackOffset, self.y + self.bodyHeight * 0.3, self.z, trackWidth, self.bodyHeight * 0.6, bodyDepth * 1.1)
-
-  -- Health bar (positioned above turret)
-  local hpw = bodyWidth
-  local hpratio = math.max(0, math.min(1, self.health / 100))
-  pass:setColor(0.1, 0.1, 0.1, 1.0)
-  pass:box(self.x, self.y + self.bodyHeight + 3.5, self.z, hpw, 0.6, 0.4)
-  
-  -- Health fill (green to red based on health)
-  local healthR = 1 - hpratio
-  local healthG = hpratio
-  pass:setColor(healthR, healthG, 0.1, 1.0)
-  pass:box(self.x - (hpw * (1 - hpratio)) * 0.5, self.y + self.bodyHeight + 3.5, self.z, hpw * hpratio, 0.5, 0.5)
 
   -- Reset color
   pass:setColor(1, 1, 1, 1)
