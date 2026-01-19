@@ -1,4 +1,7 @@
+
 local config = require "config"
+local Board = require "board"
+local board = Board()
 
 love.load = function()
     love.window.setMode(config.window.width, config.window.height, {
@@ -7,7 +10,6 @@ love.load = function()
     })
     love.window.setTitle(config.window.title)
     
-    -- Additional initialization code can go here
 end
 
 love.keypressed = function(key)
@@ -18,9 +20,16 @@ love.keypressed = function(key)
 end
 
 love.draw = function()
-    love.graphics.clear(config.colors.background[1], config.colors.background[2], config.colors.background[3])
+    local r, g, b = love.math.colorFromBytes(
+        config.colors.background[1],
+        config.colors.background[2],
+        config.colors.background[3]
+    )
+    love.graphics.clear(r, g, b)
     
-    -- Drawing code can go here
+    if board then
+        board:draw()
+    end
 end
 
 love.update = function(dt)
