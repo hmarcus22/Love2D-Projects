@@ -66,32 +66,36 @@ function Board:removeCardFromFoundation(foundation)
 end
 
 function Board:draw()
+    local screenW, screenH = love.graphics.getDimensions()
     local cardW = config.card.width
     local cardH = config.card.height
-    local pos = config.positions
-    local startX = pos.tableauStartX
-    local startY = pos.tableauStartY
-    local spacingX = pos.tableauSpacingX
-    local spacingY = pos.tableauSpacingY
+
+    local spacingX = math.floor(cardW * 0.1)
+    local spacingY = math.max(20, math.floor(cardH * 0.2))
+    local gapTop = math.max(16, math.floor(spacingX / 2))
+    local topRowY = math.max(20, math.floor((screenH - (cardH * 2 + spacingY)) * 0.1))
+
+    local tableauWidth = (slots * cardW) + ((slots - 1) * spacingX)
+    local tableauStartX = math.max(0, math.floor((screenW - tableauWidth) / 2))
+    local tableauStartY = topRowY + cardH + spacingY
 
     love.graphics.setColor(1, 1, 1)
 
     -- Foundations (top-left)
     for i = 1, 4 do
-        local x = startX + (i - 1) * spacingX
-        local y = pos.deckY
+        local x = tableauStartX + (i - 1) * (cardW + spacingX)
+        local y = topRowY
         love.graphics.rectangle("line", x, y, cardW, cardH)
         love.graphics.setColor(0, 0, 0)
         love.graphics.print("F" .. i, x + 6, y + 6)
         love.graphics.setColor(1, 1, 1)
     end
 
-    -- Draw pile and discard (top-right)
-    local marginX = pos.deckX
-    local drawY = pos.deckY
-    local discardX = config.window.width - cardW - marginX
+    -- Draw pile and discard (top-right, close to foundations)
+    local drawY = topRowY
+    local drawX = tableauStartX + tableauWidth + gapTop
+    local discardX = drawX + cardW + gapTop
     local discardY = drawY
-    local drawX = discardX - spacingX
     love.graphics.rectangle("line", drawX, drawY, cardW, cardH)
     love.graphics.setColor(0, 0, 0)
     love.graphics.print("Draw", drawX + 6, drawY + 6)
@@ -103,8 +107,8 @@ function Board:draw()
 
     -- Tableau (bottom row)
     for col = 1, slots do
-        local x = startX + (col - 1) * spacingX
-        local y = startY + cardH + spacingY
+        local x = tableauStartX + (col - 1) * (cardW + spacingX)
+        local y = tableauStartY
         love.graphics.rectangle("line", x, y, cardW, cardH)
         love.graphics.setColor(0, 0, 0)
         love.graphics.print("T" .. col, x + 6, y + 6)

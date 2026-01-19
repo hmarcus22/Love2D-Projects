@@ -5,7 +5,7 @@ local config = {
         width = screenSizeW,
         height = screenSizeH,
         title = "Solitair",
-        resizable = false,
+        resizable = true,
         fullscreen = false,
     },
     card = {
