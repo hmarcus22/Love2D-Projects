@@ -19,6 +19,7 @@ function Board:init()
     end
     self.drawPile = {}
     self.discardPile = {}
+    self.dragging = nil
 end
 
 function Board:reset()
@@ -78,6 +79,17 @@ function Board:removeCardFromTableau(slot)
     return table.remove(self.tableau[slot])
 end
 
+function Board:flipTopTableauCard(slot)
+    if slot < 1 or slot > slots then
+        error("Invalid slot number: " .. tostring(slot))
+    end
+    local pile = self.tableau[slot]
+    local topCard = pile[#pile]
+    if topCard and not topCard.isFaceUp then
+        self:setCardFace(topCard, true)
+    end
+end
+
 function Board:addCardToDrawPile(card)
     table.insert(self.drawPile, card)
 end
@@ -124,7 +136,7 @@ function Board:shuffleDraftPool()
     return draftPool
 end
 
-function Board:draw()
+function Board:getLayout()
     local screenW, screenH = love.graphics.getDimensions()
     local cardW = config.card.width
     local cardH = config.card.height
@@ -137,6 +149,122 @@ function Board:draw()
     local tableauWidth = (slots * cardW) + ((slots - 1) * spacingX)
     local tableauStartX = math.max(0, math.floor((screenW - tableauWidth) / 2))
     local tableauStartY = topRowY + cardH + spacingY
+
+    return {
+        cardW = cardW,
+        cardH = cardH,
+        spacingX = spacingX,
+        spacingY = spacingY,
+        gapTop = gapTop,
+        topRowY = topRowY,
+        tableauWidth = tableauWidth,
+        tableauStartX = tableauStartX,
+        tableauStartY = tableauStartY,
+    }
+end
+
+function Board:startDrag(x, y)
+    if self.dragging then
+        return false
+    end
+
+    local layout = self:getLayout()
+    local drawX = layout.tableauStartX + layout.tableauWidth + layout.gapTop
+    local discardX = drawX + layout.cardW + layout.gapTop
+    local discardY = layout.topRowY
+
+    local topDiscard = self.discardPile[#self.discardPile]
+    if topDiscard and topDiscard.isFaceUp then
+        if x >= discardX and x <= discardX + layout.cardW and y >= discardY and y <= discardY + layout.cardH then
+            table.remove(self.discardPile)
+            self.dragging = {
+                card = topDiscard,
+                fromCol = "discard",
+                x = discardX,
+                y = discardY,
+                offsetX = x - discardX,
+                offsetY = y - discardY,
+            }
+            return true
+        end
+    end
+
+    for col = 1, slots do
+        local pile = self.tableau[col]
+        local idx = #pile
+        if idx > 0 then
+            local card = pile[idx]
+            if card.isFaceUp then
+                local cardX = layout.tableauStartX + (col - 1) * (layout.cardW + layout.spacingX)
+                local cardY = layout.tableauStartY + (idx - 1) * layout.spacingY
+                if x >= cardX and x <= cardX + layout.cardW and y >= cardY and y <= cardY + layout.cardH then
+                    table.remove(pile, idx)
+                    self.dragging = {
+                        card = card,
+                        fromCol = col,
+                        x = cardX,
+                        y = cardY,
+                        offsetX = x - cardX,
+                        offsetY = y - cardY,
+                    }
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+function Board:dragTo(x, y)
+    if not self.dragging then
+        return
+    end
+    self.dragging.x = x - self.dragging.offsetX
+    self.dragging.y = y - self.dragging.offsetY
+end
+
+function Board:endDrag(x, y)
+    if not self.dragging then
+        return
+    end
+
+    local layout = self:getLayout()
+    local targetCol = nil
+    for col = 1, slots do
+        local colX = layout.tableauStartX + (col - 1) * (layout.cardW + layout.spacingX)
+        if x >= colX and x <= colX + layout.cardW then
+            targetCol = col
+            break
+        end
+    end
+
+    if targetCol then
+        table.insert(self.tableau[targetCol], self.dragging.card)
+        if self.dragging.fromCol ~= "discard" and self.dragging.fromCol ~= targetCol then
+            self:flipTopTableauCard(self.dragging.fromCol)
+        end
+    else
+        if self.dragging.fromCol == "discard" then
+            table.insert(self.discardPile, self.dragging.card)
+        else
+            table.insert(self.tableau[self.dragging.fromCol], self.dragging.card)
+        end
+    end
+    self.dragging = nil
+end
+
+function Board:draw()
+    local layout = self:getLayout()
+    local cardW = layout.cardW
+    local cardH = layout.cardH
+    local spacingX = layout.spacingX
+    local spacingY = layout.spacingY
+    local gapTop = layout.gapTop
+    local topRowY = layout.topRowY
+    local tableauWidth = layout.tableauWidth
+    local tableauStartX = layout.tableauStartX
+    local tableauStartY = layout.tableauStartY
 
     local function drawCard(card, x, y)
         if card and card.texture then
@@ -195,6 +323,10 @@ function Board:draw()
             local cardY = y + (i - 1) * spacingY
             drawCard(card, x, cardY)
         end
+    end
+
+    if self.dragging then
+        drawCard(self.dragging.card, self.dragging.x, self.dragging.y)
     end
 end
 
