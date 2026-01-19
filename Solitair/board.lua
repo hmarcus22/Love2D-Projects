@@ -21,6 +21,49 @@ function Board:init()
     self.discardPile = {}
 end
 
+function Board:reset()
+    self.tableau = {}
+    for i = 1, slots do
+        self.tableau[i] = {}
+    end
+    self.foundations = {}
+    for i = 1, 4 do
+        self.foundations[i] = {}
+    end
+    self.drawPile = {}
+    self.discardPile = {}
+end
+
+function Board:setCardFace(card, isFaceUp)
+    card.isFaceUp = isFaceUp
+    if card.loadTexture then
+        card.texture = card:loadTexture()
+    end
+end
+
+function Board:setupFromDraftPool(draftPool)
+    self:reset()
+    if type(draftPool) ~= "table" then
+        error("Draft pool must be a table of cards.")
+    end
+
+    for row = 1, slots do
+        for col = row, slots do
+            local card = table.remove(draftPool)
+            if not card then
+                error("Draft pool ran out of cards while dealing.")
+            end
+            local faceUp = (col == row)
+            self:setCardFace(card, faceUp)
+            table.insert(self.tableau[col], card)
+        end
+    end
+
+    while #draftPool > 0 do
+        table.insert(self.drawPile, table.remove(draftPool))
+    end
+end
+
 function Board:addCardToTableau(card, slot)
     if slot < 1 or slot > slots then
         error("Invalid slot number: " .. tostring(slot))
@@ -71,7 +114,7 @@ function Board:draw()
     local cardH = config.card.height
 
     local spacingX = math.floor(cardW * 0.1)
-    local spacingY = math.max(20, math.floor(cardH * 0.2))
+    local spacingY = math.floor(cardH * 0.1)
     local gapTop = math.max(16, math.floor(spacingX / 2))
     local topRowY = math.max(20, math.floor((screenH - (cardH * 2 + spacingY)) * 0.1))
 
