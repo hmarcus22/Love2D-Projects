@@ -26,5 +26,11 @@ local config = {
         tableauSpacingX = 120,
         tableauSpacingY = 30,
     },
+    layout = {
+        spacingXRatio = 0.1,
+        spacingYRatio = 0.3,
+        gapTopMin = 16,
+        topRowYOffsetRatio = 0.1,
+    },
 }
 return config

@@ -6,7 +6,6 @@ local Class = require 'HUMP.class'
 local config = require 'config'
 local slots = 7
 
-local Board = Class {}
 local function cardColor(card)
     if card.suit == "hearts" or card.suit == "diamonds" then
         return "red"
@@ -17,6 +16,8 @@ end
 local function isOppositeColor(a, b)
     return cardColor(a) ~= cardColor(b)
 end
+
+local Board = Class {}
 
 function Board:init()
     self.tableau = {}
@@ -30,6 +31,7 @@ function Board:init()
     self.drawPile = {}
     self.discardPile = {}
     self.dragging = nil
+    self.invalidDropAt = nil
 end
 
 function Board:reset()
@@ -130,31 +132,19 @@ function Board:removeCardFromFoundation(foundation)
     return table.remove(self.foundations[foundation])
 end
 
-function Board:shuffleDraftPool()
-    --shuffles a standard playing card deck of 52 cards into a draft pool and returns it.
-    local suits = {"hearts", "diamonds", "clubs", "spades"}
-    local draftPool = {}
-    for _, suit in ipairs(suits) do
-        for rank = 1, 13 do
-            table.insert(draftPool, {rank = rank, suit = suit})
-        end
-    end
-    for i = #draftPool, 2, -1 do
-        local j = math.random(i)
-        draftPool[i], draftPool[j] = draftPool[j], draftPool[i]
-    end
-    return draftPool
-end
-
 function Board:getLayout()
     local screenW, screenH = love.graphics.getDimensions()
     local cardW = config.card.width
     local cardH = config.card.height
 
-    local spacingX = math.floor(cardW * 0.1)
-    local spacingY = math.floor(cardH * 0.3)
-    local gapTop = math.max(16, math.floor(spacingX / 2))
-    local topRowY = math.max(20, math.floor((screenH - (cardH * 2 + spacingY)) * 0.1))
+    local layoutCfg = config.layout or {}
+    local spacingX = math.floor(cardW * (layoutCfg.spacingXRatio or 0.1))
+    local spacingY = math.floor(cardH * (layoutCfg.spacingYRatio or 0.3))
+    local gapTop = math.max(layoutCfg.gapTopMin or 16, math.floor(spacingX / 2))
+    local topRowY = math.max(
+        20,
+        math.floor((screenH - (cardH * 2 + spacingY)) * (layoutCfg.topRowYOffsetRatio or 0.1))
+    )
 
     local tableauWidth = (slots * cardW) + ((slots - 1) * spacingX)
     local tableauStartX = math.max(0, math.floor((screenW - tableauWidth) / 2))
@@ -273,6 +263,7 @@ function Board:endDrag(x, y, game)
     local layout = self:getLayout()
     local targetCol = nil
     local targetFoundation = nil
+
     for col = 1, slots do
         local colX = layout.tableauStartX + (col - 1) * (layout.cardW + layout.spacingX)
         if x >= colX and x <= colX + layout.cardW then
@@ -312,6 +303,11 @@ function Board:endDrag(x, y, game)
             self:flipTopTableauCard(self.dragging.fromCol)
         end
     else
+        self.invalidDropAt = {
+            x = x,
+            y = y,
+            time = love.timer.getTime(),
+        }
         if self.dragging.fromCol == "discard" then
             for _, card in ipairs(self.dragging.cards) do
                 table.insert(self.discardPile, card)
@@ -400,6 +396,29 @@ function Board:draw()
         for i, card in ipairs(self.dragging.cards) do
             local cardY = self.dragging.y + (i - 1) * spacingY
             drawCard(card, self.dragging.x, cardY)
+        end
+    end
+
+    if self.invalidDropAt then
+        local elapsed = love.timer.getTime() - self.invalidDropAt.time
+        if elapsed < 0.25 then
+            local size = 12
+            love.graphics.setColor(1, 0, 0, 1 - (elapsed / 0.25))
+            love.graphics.line(
+                self.invalidDropAt.x - size,
+                self.invalidDropAt.y - size,
+                self.invalidDropAt.x + size,
+                self.invalidDropAt.y + size
+            )
+            love.graphics.line(
+                self.invalidDropAt.x - size,
+                self.invalidDropAt.y + size,
+                self.invalidDropAt.x + size,
+                self.invalidDropAt.y - size
+            )
+            love.graphics.setColor(1, 1, 1)
+        else
+            self.invalidDropAt = nil
         end
     end
 end

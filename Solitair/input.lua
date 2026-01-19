@@ -4,6 +4,8 @@ function Input.bind(target)
     love.keypressed = function(key)
         if key == "escape" then
             love.event.quit()
+        elseif key == "r" and target and target.reset then
+            target:reset()
         end
     end
 
