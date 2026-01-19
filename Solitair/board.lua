@@ -108,13 +108,29 @@ function Board:removeCardFromFoundation(foundation)
     return table.remove(self.foundations[foundation])
 end
 
+function Board:shuffleDraftPool()
+    --shuffles a standard playing card deck of 52 cards into a draft pool and returns it.
+    local suits = {"hearts", "diamonds", "clubs", "spades"}
+    local draftPool = {}
+    for _, suit in ipairs(suits) do
+        for rank = 1, 13 do
+            table.insert(draftPool, {rank = rank, suit = suit})
+        end
+    end
+    for i = #draftPool, 2, -1 do
+        local j = math.random(i)
+        draftPool[i], draftPool[j] = draftPool[j], draftPool[i]
+    end
+    return draftPool
+end
+
 function Board:draw()
     local screenW, screenH = love.graphics.getDimensions()
     local cardW = config.card.width
     local cardH = config.card.height
 
     local spacingX = math.floor(cardW * 0.1)
-    local spacingY = math.floor(cardH * 0.1)
+    local spacingY = math.floor(cardH * 0.3)
     local gapTop = math.max(16, math.floor(spacingX / 2))
     local topRowY = math.max(20, math.floor((screenH - (cardH * 2 + spacingY)) * 0.1))
 
@@ -122,13 +138,27 @@ function Board:draw()
     local tableauStartX = math.max(0, math.floor((screenW - tableauWidth) / 2))
     local tableauStartY = topRowY + cardH + spacingY
 
+    local function drawCard(card, x, y)
+        if card and card.texture then
+            local scaleX = cardW / card.texture:getWidth()
+            local scaleY = cardH / card.texture:getHeight()
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.rectangle("fill", x, y, cardW, cardH)
+            love.graphics.draw(card.texture, x, y, 0, scaleX, scaleY)
+        else
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.rectangle("line", x, y, cardW, cardH)
+        end
+    end
+
     love.graphics.setColor(1, 1, 1)
 
     -- Foundations (top-left)
     for i = 1, 4 do
         local x = tableauStartX + (i - 1) * (cardW + spacingX)
         local y = topRowY
-        love.graphics.rectangle("line", x, y, cardW, cardH)
+        local topCard = self.foundations[i][#self.foundations[i]]
+        drawCard(topCard, x, y)
         love.graphics.setColor(0, 0, 0)
         love.graphics.print("F" .. i, x + 6, y + 6)
         love.graphics.setColor(1, 1, 1)
@@ -139,11 +169,13 @@ function Board:draw()
     local drawX = tableauStartX + tableauWidth + gapTop
     local discardX = drawX + cardW + gapTop
     local discardY = drawY
-    love.graphics.rectangle("line", drawX, drawY, cardW, cardH)
+    local topDraw = self.drawPile[#self.drawPile]
+    drawCard(topDraw, drawX, drawY)
     love.graphics.setColor(0, 0, 0)
     love.graphics.print("Draw", drawX + 6, drawY + 6)
     love.graphics.setColor(1, 1, 1)
-    love.graphics.rectangle("line", discardX, discardY, cardW, cardH)
+    local topDiscard = self.discardPile[#self.discardPile]
+    drawCard(topDiscard, discardX, discardY)
     love.graphics.setColor(0, 0, 0)
     love.graphics.print("Discard", discardX + 6, discardY + 6)
     love.graphics.setColor(1, 1, 1)
@@ -152,14 +184,16 @@ function Board:draw()
     for col = 1, slots do
         local x = tableauStartX + (col - 1) * (cardW + spacingX)
         local y = tableauStartY
-        love.graphics.rectangle("line", x, y, cardW, cardH)
+        if #self.tableau[col] == 0 then
+            love.graphics.rectangle("line", x, y, cardW, cardH)
+        end
         love.graphics.setColor(0, 0, 0)
         love.graphics.print("T" .. col, x + 6, y + 6)
         love.graphics.setColor(1, 1, 1)
 
-        for i, _ in ipairs(self.tableau[col]) do
+        for i, card in ipairs(self.tableau[col]) do
             local cardY = y + (i - 1) * spacingY
-            love.graphics.rectangle("line", x, cardY, cardW, cardH)
+            drawCard(card, x, cardY)
         end
     end
 end

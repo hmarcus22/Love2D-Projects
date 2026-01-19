@@ -1,7 +1,27 @@
 
 local config = require "config"
 local Board = require "board"
-local board = Board()
+local Card = require "card"
+local board
+
+local function shuffle(deck)
+    for i = #deck, 2, -1 do
+        local j = love.math.random(i)
+        deck[i], deck[j] = deck[j], deck[i]
+    end
+end
+
+local function buildDraftPool()
+    local suits = { "hearts", "diamonds", "spades", "cloves" }
+    local deck = {}
+    for _, suit in ipairs(suits) do
+        for rank = 1, 13 do
+            table.insert(deck, Card(rank, suit))
+        end
+    end
+    shuffle(deck)
+    return deck
+end
 
 love.load = function()
     love.window.setMode(config.window.width, config.window.height, {
@@ -9,7 +29,10 @@ love.load = function()
         fullscreen = config.window.fullscreen,
     })
     love.window.setTitle(config.window.title)
-    
+
+    board = Board()
+    local draftPool = buildDraftPool()
+    board:setupFromDraftPool(draftPool)
 end
 
 love.keypressed = function(key)
