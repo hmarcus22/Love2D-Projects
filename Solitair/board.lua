@@ -7,6 +7,16 @@ local config = require 'config'
 local slots = 7
 
 local Board = Class {}
+local function cardColor(card)
+    if card.suit == "hearts" or card.suit == "diamonds" then
+        return "red"
+    end
+    return "black"
+end
+
+local function isOppositeColor(a, b)
+    return cardColor(a) ~= cardColor(b)
+end
 
 function Board:init()
     self.tableau = {}
@@ -179,6 +189,7 @@ function Board:startDrag(x, y)
             table.remove(self.discardPile)
             self.dragging = {
                 card = topDiscard,
+                cards = { topDiscard },
                 fromCol = "discard",
                 x = discardX,
                 y = discardY,
@@ -191,23 +202,53 @@ function Board:startDrag(x, y)
 
     for col = 1, slots do
         local pile = self.tableau[col]
-        local idx = #pile
-        if idx > 0 then
-            local card = pile[idx]
-            if card.isFaceUp then
-                local cardX = layout.tableauStartX + (col - 1) * (layout.cardW + layout.spacingX)
-                local cardY = layout.tableauStartY + (idx - 1) * layout.spacingY
-                if x >= cardX and x <= cardX + layout.cardW and y >= cardY and y <= cardY + layout.cardH then
-                    table.remove(pile, idx)
-                    self.dragging = {
-                        card = card,
-                        fromCol = col,
-                        x = cardX,
-                        y = cardY,
-                        offsetX = x - cardX,
-                        offsetY = y - cardY,
-                    }
-                    return true
+        if #pile > 0 then
+            local cardX = layout.tableauStartX + (col - 1) * (layout.cardW + layout.spacingX)
+            for idx = #pile, 1, -1 do
+                local card = pile[idx]
+                if card.isFaceUp then
+                    local cardY = layout.tableauStartY + (idx - 1) * layout.spacingY
+                    if x >= cardX and x <= cardX + layout.cardW and y >= cardY and y <= cardY + layout.cardH then
+                        local valid = true
+                        for i = idx, #pile do
+                            if not pile[i].isFaceUp then
+                                valid = false
+                                break
+                            end
+                            if i > idx then
+                                local prev = pile[i - 1]
+                                local curr = pile[i]
+                                if curr.rank ~= prev.rank - 1 or not isOppositeColor(curr, prev) then
+                                    valid = false
+                                    break
+                                end
+                            end
+                        end
+                        if not valid then
+                            return false
+                        end
+
+                        local cards = {}
+                        for i = idx, #pile do
+                            table.insert(cards, pile[i])
+                        end
+                        for i = #pile, idx, -1 do
+                            table.remove(pile, i)
+                        end
+
+                        self.dragging = {
+                            card = cards[1],
+                            cards = cards,
+                            fromCol = col,
+                            x = cardX,
+                            y = cardY,
+                            offsetX = x - cardX,
+                            offsetY = y - cardY,
+                        }
+                        return true
+                    end
+                else
+                    break
                 end
             end
         end
@@ -224,13 +265,14 @@ function Board:dragTo(x, y)
     self.dragging.y = y - self.dragging.offsetY
 end
 
-function Board:endDrag(x, y)
+function Board:endDrag(x, y, game)
     if not self.dragging then
         return
     end
 
     local layout = self:getLayout()
     local targetCol = nil
+    local targetFoundation = nil
     for col = 1, slots do
         local colX = layout.tableauStartX + (col - 1) * (layout.cardW + layout.spacingX)
         if x >= colX and x <= colX + layout.cardW then
@@ -239,16 +281,45 @@ function Board:endDrag(x, y)
         end
     end
 
-    if targetCol then
-        table.insert(self.tableau[targetCol], self.dragging.card)
-        if self.dragging.fromCol ~= "discard" and self.dragging.fromCol ~= targetCol then
+    for i = 1, 4 do
+        local fx = layout.tableauStartX + (i - 1) * (layout.cardW + layout.spacingX)
+        local fy = layout.topRowY
+        if x >= fx and x <= fx + layout.cardW and y >= fy and y <= fy + layout.cardH then
+            targetFoundation = i
+            break
+        end
+    end
+
+    local moved = false
+    if targetFoundation then
+        if #self.dragging.cards == 1 then
+            if not game or not game.canMoveToFoundation or game:canMoveToFoundation(self.dragging.card, targetFoundation) then
+                table.insert(self.foundations[targetFoundation], self.dragging.card)
+                moved = true
+            end
+        end
+    elseif targetCol then
+        if not game or not game.canMoveToTableau or game:canMoveToTableau(self.dragging.card, targetCol) then
+            for _, card in ipairs(self.dragging.cards) do
+                table.insert(self.tableau[targetCol], card)
+            end
+            moved = true
+        end
+    end
+
+    if moved then
+        if self.dragging.fromCol ~= "discard" then
             self:flipTopTableauCard(self.dragging.fromCol)
         end
     else
         if self.dragging.fromCol == "discard" then
-            table.insert(self.discardPile, self.dragging.card)
+            for _, card in ipairs(self.dragging.cards) do
+                table.insert(self.discardPile, card)
+            end
         else
-            table.insert(self.tableau[self.dragging.fromCol], self.dragging.card)
+            for _, card in ipairs(self.dragging.cards) do
+                table.insert(self.tableau[self.dragging.fromCol], card)
+            end
         end
     end
     self.dragging = nil
@@ -326,7 +397,10 @@ function Board:draw()
     end
 
     if self.dragging then
-        drawCard(self.dragging.card, self.dragging.x, self.dragging.y)
+        for i, card in ipairs(self.dragging.cards) do
+            local cardY = self.dragging.y + (i - 1) * spacingY
+            drawCard(card, self.dragging.x, cardY)
+        end
     end
 end
 

@@ -36,11 +36,32 @@ function Game:shuffle(deck)
 end
 
 function Game:canMoveToTableau(card, targetCol)
-    return true
+    local pile = self.board.tableau[targetCol]
+    local topCard = pile[#pile]
+
+    if not topCard then
+        return card.rank == 13
+    end
+
+    return self:cardColor(card) ~= self:cardColor(topCard) and card.rank == (topCard.rank - 1)
 end
 
 function Game:canMoveToFoundation(card, foundation)
-    return true
+    local pile = self.board.foundations[foundation]
+    local topCard = pile[#pile]
+
+    if not topCard then
+        return card.rank == 1
+    end
+
+    return card.suit == topCard.suit and card.rank == (topCard.rank + 1)
+end
+
+function Game:cardColor(card)
+    if card.suit == "hearts" or card.suit == "diamonds" then
+        return "red"
+    end
+    return "black"
 end
 
 function Game:update(dt)
@@ -58,7 +79,7 @@ end
 
 function Game:mouseReleased(x, y, button)
     if button == 1 then
-        self.board:endDrag(x, y)
+        self.board:endDrag(x, y, self)
     end
 end
 
